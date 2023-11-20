@@ -1,6 +1,19 @@
 import itertools
 import sympy
 
+SUBSCRIPT_NUMBER_MAP = {
+    0: "₀", 1: "₁", 2: "₂", 3: "₃", 4: "₄", 5: "₅", 6: "₆", 7: "₇", 8: "₈", 9: "₉",
+}
+
+
+def subscript_number(num: int) -> str:
+    """Express a number as subscript."""
+    ret = ""
+    while num:
+        ret = SUBSCRIPT_NUMBER_MAP[num % 10] + ret
+        num = num // 10
+    return ret
+
 
 class Operator:
     """Representation of a pauli operator (currently restricted to i, x and z).
@@ -10,8 +23,9 @@ class Operator:
     length: int
     x: list[int]
     z: list[int]
+    name: str
 
-    def __init__(self, length: int, *, x_positions: list[int] = None, z_positions: list[int] = None) -> None:
+    def __init__(self, length: int, *, x_positions: list[int] = None, z_positions: list[int] = None, name: str = None) -> None:
         x_positions = sorted(x_positions or [])
         z_positions = sorted(z_positions or [])
         if len(x_positions) != len(set(x_positions)):
@@ -29,13 +43,17 @@ class Operator:
         self.length = length
         self.x = x_positions
         self.z = z_positions
+        self.name = name or ""
 
     def __repr__(self) -> str:
-        ret = ["I" for _ in range(self.length)]
-        for pos in self.x:
-            ret[pos - 1] = "X"
-        for pos in self.z:
-            ret[pos - 1] = "Z"
+        ret = []
+        for pos in range(1, self.length+1):
+            if pos in self.x:
+                ret.append(f"X{subscript_number(pos)}")
+            if pos in self.z:
+                ret.append(f"Z{subscript_number(pos)}")
+        if self.name:
+            ret.append(f"('{self.name}')")
         return "".join(ret)
 
     def __len__(self) -> int:
@@ -172,20 +190,21 @@ stabilizers = [
 print("Check stabilizers.")
 check_stabilizers(stabilizers)
 
-z_1 = Operator(12, z_positions=[4, 7])
-z_2 = Operator(12, z_positions=[5, 8])
-z_3 = Operator(12, z_positions=[1, 5, 9, 12])
-z_4 = Operator(12, z_positions=[2, 6, 7, 10])
+z_1 = Operator(12, z_positions=[4, 7], name="z1")
+z_2 = Operator(12, z_positions=[5, 8], name="z2")
+z_3 = Operator(12, z_positions=[1, 5, 9, 12], name="z3")
+z_4 = Operator(12, z_positions=[2, 6, 7, 10], name="z4")
 
 print("Check logical z.")
 check_z([z_1, z_2, z_3, z_4], stabilizers)
 
-x_1 = Operator(12, x_positions=[1, 4, 9, 11])
+print("Check logical x.")
+x_1 = Operator(12, x_positions=[1, 4, 9, 11], name="x1")
 check_xj(x_1, z_1, [z_2, z_3, z_4], stabilizers)
-x_2 = Operator(12, x_positions=[3, 6, 8, 10])
+x_2 = Operator(12, x_positions=[3, 6, 8, 10], name="x2")
 check_xj(x_2, z_2, [z_1, z_3, z_4], stabilizers)
-x_3 = Operator(12, x_positions=[5, 8])
+x_3 = Operator(12, x_positions=[5, 8], name="x3")
 check_xj(x_3, z_3, [z_1, z_2, z_4], stabilizers)
-x_4 = Operator(12, x_positions=[4, 7])
+x_4 = Operator(12, x_positions=[4, 7], name="x4")
 check_xj(x_4, z_4, [z_1, z_2, z_3], stabilizers)
 check_logical_operators([x_1, x_2, x_3, x_4, z_1, z_2, z_3, z_4], stabilizers)
