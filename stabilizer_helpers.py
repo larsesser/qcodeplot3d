@@ -83,7 +83,11 @@ def are_independent(stabilizers: list[Operator]) -> bool:
     return any(e != 0 for e in rref.row(-1))
 
 
-def check_independent_commuting(stabilizers: list[Operator]) -> None:
+def check_stabilizers(stabilizers: list[Operator]) -> None:
+    """Check if a set of operators form a set of stabilizers.
+
+    This check is necessary and sufficient.
+    """
     # stabilizer subspace is only non-trivial if all generators commute
     not_commuting_pairs = []
     for stab1, stab2 in itertools.combinations(stabilizers, 2):
@@ -95,22 +99,63 @@ def check_independent_commuting(stabilizers: list[Operator]) -> None:
         raise ValueError("The set of stabilizers are not independent.")
 
 
-def check_xj(x_j: Operator, z_j: Operator, other_z: list[Operator], stabilizers: list[Operator]) -> None:
-    """Check if logical x_j fulfills the commutation relations."""
+def check_logical_operator(logical: Operator, stabilizers: list[Operator]) -> None:
+    """Check if a given operator is indeed a logical operator for this stabilizer code.
+
+    This checks only necessary conditions, but is not sufficient.
+    It needs to be checked that all logical operators and the stabilizers form an
+    independent set, and that the logical operators perform the correct operation.
+    """
     non_commuting_stabilizers = []
     for stabilizer in stabilizers:
-        if not x_j.commutes(stabilizer):
+        if not logical.commutes(stabilizer):
             non_commuting_stabilizers.append(stabilizer)
     if non_commuting_stabilizers:
-        raise ValueError(f"x_j does not commute with the following stabilizers:\n{non_commuting_stabilizers}")
+        raise ValueError(f"{logical} does not commute with the following stabilizers:\n{non_commuting_stabilizers}")
+    if not are_independent(stabilizers + [logical]):
+        raise ValueError(f"{logical} does not form an indepentent set with the stabilizers.")
+
+
+def check_logical_operators(logicals: list[Operator], stabilizers: list[Operator]) -> None:
+    """Check if a given list of operators are logical operators for this stabilizer code.
+
+    This checks only necessary conditions, but is not sufficient.
+    It needs to be checked that all logical operators perform the correct operation.
+    """
+    for logical in logicals:
+        check_logical_operator(logical, stabilizers)
+    if not are_independent(stabilizers + logicals):
+        raise ValueError("The logical operators do not form an independent set.")
+
+
+def check_z(z: list[Operator], stabilizers: list[Operator]) -> None:
+    """Check if logical z operators fulfill the commutation relations.
+
+    This is necessary and sufficient.
+    """
+    check_logical_operators(z, stabilizers)
+    not_commuting_pairs = []
+    for z1, z2 in itertools.combinations(z, 2):
+        if not z1.commutes(z2):
+            not_commuting_pairs.append((z1, z2))
+    if not_commuting_pairs:
+        raise ValueError(f"Following z operators do not commute:\n{not_commuting_pairs}")
+
+
+def check_xj(x_j: Operator, z_j: Operator, other_z: list[Operator], stabilizers: list[Operator]) -> None:
+    """Check if logical x_j fulfills the commutation relations.
+
+    This is necessary and sufficient.
+    """
+    check_logical_operator(x_j, stabilizers)
     non_commuting_z = []
     for z in other_z:
         if not x_j.commutes(z):
             non_commuting_z.append(z)
     if non_commuting_z:
-        raise ValueError(f"x_j does not commute with the following z operators:\n{non_commuting_z}")
+        raise ValueError(f"{x_j} does not commute with the following z operators:\n{non_commuting_z}")
     if not x_j.anticommutes(z_j):
-        raise ValueError(f"x_j does not anticommute with z_j")
+        raise ValueError(f"{x_j} does not anticommute with {z_j}")
 
 
 stabilizers = [
@@ -124,16 +169,16 @@ stabilizers = [
     Operator(12, z_positions=[3, 4, 6, 7, 9, 12]),
 ]
 
-print("Checking independency and commuting of stabilizers.")
-check_independent_commuting(stabilizers)
+print("Check stabilizers.")
+check_stabilizers(stabilizers)
 
 z_1 = Operator(12, z_positions=[4, 7])
 z_2 = Operator(12, z_positions=[5, 8])
 z_3 = Operator(12, z_positions=[1, 5, 9, 12])
 z_4 = Operator(12, z_positions=[2, 6, 7, 10])
 
-print("Checking if logical z operators form with stabilizers an independent and commuting set.")
-check_independent_commuting(stabilizers + [z_1, z_2, z_3, z_4])
+print("Check logical z.")
+check_z([z_1, z_2, z_3, z_4], stabilizers)
 
 x_1 = Operator(12, x_positions=[1, 4, 9, 11])
 check_xj(x_1, z_1, [z_2, z_3, z_4], stabilizers)
@@ -143,3 +188,4 @@ x_3 = Operator(12, x_positions=[5, 8])
 check_xj(x_3, z_3, [z_1, z_2, z_4], stabilizers)
 x_4 = Operator(12, x_positions=[4, 7])
 check_xj(x_4, z_4, [z_1, z_2, z_3], stabilizers)
+check_logical_operators([x_1, x_2, x_3, x_4, z_1, z_2, z_3, z_4], stabilizers)
