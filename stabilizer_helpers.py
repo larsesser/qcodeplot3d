@@ -1,5 +1,6 @@
 import itertools
 import sympy
+import stim
 
 SUBSCRIPT_NUMBER_MAP = {
     0: "₀", 1: "₁", 2: "₂", 3: "₃", 4: "₄", 5: "₅", 6: "₆", 7: "₇", 8: "₈", 9: "₉",
@@ -59,6 +60,16 @@ class Operator:
     def __len__(self) -> int:
         return self.length
 
+    def as_circuit(self) -> stim.Circuit:
+        """Return this operator as stim Circuit."""
+        circuit = stim.Circuit()
+        # TODO same question here
+        if self.x:
+            circuit.append("X_ERROR", self.qubits, 1)
+        if self.z:
+            circuit.append("Z_ERROR", self.qubits, 1)
+        return circuit
+
     def commutes(self, other: "Operator") -> bool:
         """Check whether two pauli operators commute or not."""
         if not isinstance(other, Operator):
@@ -72,6 +83,11 @@ class Operator:
         """Check whether two pauli operators anticommute or not."""
         # this holds as long as we look only at I, X and Z
         return not self.commutes(other)
+
+    @property
+    def qubits(self) -> list[int]:
+        """The qubits this stabilizer has support on."""
+        return self.x + self.z
 
 
 def get_check_matrix(generators: list[Operator]) -> sympy.Matrix:
