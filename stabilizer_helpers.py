@@ -203,7 +203,7 @@ stabilizers = [
     Operator(12, z_positions=[3, 4, 6, 7, 9, 12]),
 ]
 
-print("Check stabilizers.")
+# print("Check stabilizers.")
 check_stabilizers(stabilizers)
 
 z_1 = Operator(12, z_positions=[4, 7], name="z1")
@@ -211,10 +211,10 @@ z_2 = Operator(12, z_positions=[5, 8], name="z2")
 z_3 = Operator(12, z_positions=[1, 5, 9, 12], name="z3")
 z_4 = Operator(12, z_positions=[2, 6, 7, 10], name="z4")
 
-print("Check logical z.")
+# print("Check logical z.")
 check_z([z_1, z_2, z_3, z_4], stabilizers)
 
-print("Check logical x.")
+# print("Check logical x.")
 x_1 = Operator(12, x_positions=[1, 4, 9, 11], name="x1")
 check_xj(x_1, z_1, [z_2, z_3, z_4], stabilizers)
 x_2 = Operator(12, x_positions=[3, 6, 8, 10], name="x2")
