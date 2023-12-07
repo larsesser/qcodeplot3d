@@ -1,6 +1,7 @@
 import itertools
-import sympy
+
 import stim
+import sympy
 
 from framework.errors import Error
 
