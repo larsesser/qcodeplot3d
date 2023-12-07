@@ -195,37 +195,3 @@ def check_xj(x_j: Operator, z_j: Operator, other_z: list[Operator], stabilizers:
         raise ValueError(f"{x_j} does not commute with the following z operators:\n{non_commuting_z}")
     if not x_j.anticommutes(z_j):
         raise ValueError(f"{x_j} does not anticommute with {z_j}")
-
-
-stabilizers = [
-    Operator(12, x_positions=[1, 4, 5, 7, 8, 10]),
-    Operator(12, x_positions=[2, 3, 6, 9, 11, 12]),
-    Operator(12, x_positions=[2, 5, 6, 8, 9, 11]),
-    Operator(12, x_positions=[3, 4, 6, 7, 9, 12]),
-    Operator(12, z_positions=[1, 4, 5, 7, 8, 10]),
-    Operator(12, z_positions=[2, 3, 6, 9, 11, 12]),
-    Operator(12, z_positions=[2, 5, 6, 8, 9, 11]),
-    Operator(12, z_positions=[3, 4, 6, 7, 9, 12]),
-]
-
-# print("Check stabilizers.")
-check_stabilizers(stabilizers)
-
-z_1 = Operator(12, z_positions=[4, 7], name="z1")
-z_2 = Operator(12, z_positions=[5, 8], name="z2")
-z_3 = Operator(12, z_positions=[1, 5, 9, 12], name="z3")
-z_4 = Operator(12, z_positions=[2, 6, 7, 10], name="z4")
-
-# print("Check logical z.")
-check_z([z_1, z_2, z_3, z_4], stabilizers)
-
-# print("Check logical x.")
-x_1 = Operator(12, x_positions=[1, 4, 9, 11], name="x1")
-check_xj(x_1, z_1, [z_2, z_3, z_4], stabilizers)
-x_2 = Operator(12, x_positions=[3, 6, 8, 10], name="x2")
-check_xj(x_2, z_2, [z_1, z_3, z_4], stabilizers)
-x_3 = Operator(12, x_positions=[5, 8], name="x3")
-check_xj(x_3, z_3, [z_1, z_2, z_4], stabilizers)
-x_4 = Operator(12, x_positions=[4, 7], name="x4")
-check_xj(x_4, z_4, [z_1, z_2, z_3], stabilizers)
-check_logical_operators([x_1, x_2, x_3, x_4, z_1, z_2, z_3, z_4], stabilizers)
