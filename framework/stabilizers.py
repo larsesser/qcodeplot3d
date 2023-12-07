@@ -5,7 +5,16 @@ import stim
 from framework.errors import Error
 
 SUBSCRIPT_NUMBER_MAP = {
-    0: "₀", 1: "₁", 2: "₂", 3: "₃", 4: "₄", 5: "₅", 6: "₆", 7: "₇", 8: "₈", 9: "₉",
+    0: "₀",
+    1: "₁",
+    2: "₂",
+    3: "₃",
+    4: "₄",
+    5: "₅",
+    6: "₆",
+    7: "₇",
+    8: "₈",
+    9: "₉",
 }
 
 
@@ -23,12 +32,20 @@ class Operator:
 
     TODO is the restriction to positive signs ok?
     """
+
     length: int
     x: list[int]
     z: list[int]
     name: str
 
-    def __init__(self, length: int, *, x_positions: list[int] = None, z_positions: list[int] = None, name: str = None) -> None:
+    def __init__(
+        self,
+        length: int,
+        *,
+        x_positions: list[int] = None,
+        z_positions: list[int] = None,
+        name: str = None,
+    ) -> None:
         x_positions = sorted(x_positions or [])
         z_positions = sorted(z_positions or [])
         if len(x_positions) != len(set(x_positions)):
@@ -50,7 +67,7 @@ class Operator:
 
     def __repr__(self) -> str:
         ret = []
-        for pos in range(1, self.length+1):
+        for pos in range(1, self.length + 1):
             if pos in self.x:
                 ret.append(f"X{subscript_number(pos)}")
             if pos in self.z:
@@ -99,13 +116,21 @@ class Operator:
 
 class Stabilizer(Operator):
     """Special kind of operator which is viewed as a stabilizer."""
+
     ancillas: list[int] = None
 
     def __init__(
-        self, length: int, *, x_positions: list[int] = None,
-        z_positions: list[int] = None, name: str = None, ancillas: list[int] = None
+        self,
+        length: int,
+        *,
+        x_positions: list[int] = None,
+        z_positions: list[int] = None,
+        name: str = None,
+        ancillas: list[int] = None,
     ) -> None:
-        super().__init__(length, x_positions=x_positions, z_positions=z_positions, name=name)
+        super().__init__(
+            length, x_positions=x_positions, z_positions=z_positions, name=name
+        )
         ancillas = sorted(ancillas or [])
         if overlap := set(ancillas) & set(self.x):
             raise ValueError(f"Overlap between ancialls and x_positions: {overlap}")
@@ -147,8 +172,8 @@ def get_check_matrix(generators: list[Operator]) -> sympy.Matrix:
     if any(len(generator) != len(generators[0]) for generator in generators):
         raise ValueError("All generators must have the same size.")
     rows = [
-        [1 if pos in generator.x else 0 for pos in range(1, generator.length+1)]
-        + [1 if pos in generator.z else 0 for pos in range(1, generator.length+1)]
+        [1 if pos in generator.x else 0 for pos in range(1, generator.length + 1)]
+        + [1 if pos in generator.z else 0 for pos in range(1, generator.length + 1)]
         for generator in generators
     ]
     return sympy.Matrix(rows)
@@ -180,7 +205,9 @@ def check_stabilizers(stabilizers: list[Operator]) -> None:
         if not stab1.commutes(stab2):
             not_commuting_pairs.append((stab1, stab2))
     if not_commuting_pairs:
-        raise ValueError(f"Following stabilizers do not commute:\n{not_commuting_pairs}")
+        raise ValueError(
+            f"Following stabilizers do not commute:\n{not_commuting_pairs}"
+        )
     if not are_independent(stabilizers):
         raise ValueError("The set of stabilizers are not independent.")
 
@@ -197,12 +224,18 @@ def check_logical_operator(logical: Operator, stabilizers: list[Operator]) -> No
         if not logical.commutes(stabilizer):
             non_commuting_stabilizers.append(stabilizer)
     if non_commuting_stabilizers:
-        raise ValueError(f"{logical} does not commute with the following stabilizers:\n{non_commuting_stabilizers}")
+        raise ValueError(
+            f"{logical} does not commute with the following stabilizers:\n{non_commuting_stabilizers}"
+        )
     if not are_independent(stabilizers + [logical]):
-        raise ValueError(f"{logical} does not form an indepentent set with the stabilizers.")
+        raise ValueError(
+            f"{logical} does not form an indepentent set with the stabilizers."
+        )
 
 
-def check_logical_operators(logicals: list[Operator], stabilizers: list[Operator]) -> None:
+def check_logical_operators(
+    logicals: list[Operator], stabilizers: list[Operator]
+) -> None:
     """Check if a given list of operators are logical operators for this stabilizer code.
 
     This checks only necessary conditions, but is not sufficient.
@@ -225,10 +258,14 @@ def check_z(z: list[Operator], stabilizers: list[Operator]) -> None:
         if not z1.commutes(z2):
             not_commuting_pairs.append((z1, z2))
     if not_commuting_pairs:
-        raise ValueError(f"Following z operators do not commute:\n{not_commuting_pairs}")
+        raise ValueError(
+            f"Following z operators do not commute:\n{not_commuting_pairs}"
+        )
 
 
-def check_xj(x_j: Operator, z_j: Operator, other_z: list[Operator], stabilizers: list[Operator]) -> None:
+def check_xj(
+    x_j: Operator, z_j: Operator, other_z: list[Operator], stabilizers: list[Operator]
+) -> None:
     """Check if logical x_j fulfills the commutation relations.
 
     This is necessary and sufficient.
@@ -239,6 +276,8 @@ def check_xj(x_j: Operator, z_j: Operator, other_z: list[Operator], stabilizers:
         if not x_j.commutes(z):
             non_commuting_z.append(z)
     if non_commuting_z:
-        raise ValueError(f"{x_j} does not commute with the following z operators:\n{non_commuting_z}")
+        raise ValueError(
+            f"{x_j} does not commute with the following z operators:\n{non_commuting_z}"
+        )
     if not x_j.anticommutes(z_j):
         raise ValueError(f"{x_j} does not anticommute with {z_j}")
