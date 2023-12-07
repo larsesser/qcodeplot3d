@@ -115,7 +115,7 @@ class Operator:
 
 
 class Stabilizer(Operator):
-    """Special kind of operator which is viewed as a stabilizer."""
+    """Special kind of operator which is viewed as a color code stabilizer."""
 
     ancillas: list[int] = None
 
@@ -131,11 +131,16 @@ class Stabilizer(Operator):
         super().__init__(
             length, x_positions=x_positions, z_positions=z_positions, name=name
         )
+        # color code stabilizers have either only x or only z support
+        if self.x and self.z:
+            raise RuntimeError(f"All stabilizers need to be x or z type: {self}")
+
+        # check that ancilla qubits do not overlap with data qubits
         ancillas = sorted(ancillas or [])
         if overlap := set(ancillas) & set(self.x):
-            raise ValueError(f"Overlap between ancialls and x_positions: {overlap}")
+            raise ValueError(f"Overlap between ancillas and x_positions: {overlap}")
         if overlap := set(ancillas) & set(self.z):
-            raise ValueError(f"Overlap between ancialls and z_positions: {overlap}")
+            raise ValueError(f"Overlap between ancillas and z_positions: {overlap}")
         self.ancillas = ancillas
 
     def non_ft_measurement(self, errors: list[Error] = None) -> stim.Circuit:
