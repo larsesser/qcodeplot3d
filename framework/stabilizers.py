@@ -2,6 +2,8 @@ import itertools
 import sympy
 import stim
 
+from framework.errors import Error
+
 SUBSCRIPT_NUMBER_MAP = {
     0: "₀", 1: "₁", 2: "₂", 3: "₃", 4: "₄", 5: "₅", 6: "₆", 7: "₇", 8: "₈", 9: "₉",
 }
@@ -93,6 +95,51 @@ class Operator:
     def qubits(self) -> list[int]:
         """The qubits this stabilizer has support on."""
         return self.x + self.z
+
+
+class Stabilizer(Operator):
+    """Special kind of operator which is viewed as a stabilizer."""
+    ancillas: list[int] = None
+
+    def __init__(
+        self, length: int, *, x_positions: list[int] = None,
+        z_positions: list[int] = None, name: str = None, ancillas: list[int] = None
+    ) -> None:
+        super().__init__(length, x_positions=x_positions, z_positions=z_positions, name=name)
+        ancillas = sorted(ancillas or [])
+        if overlap := set(ancillas) & set(self.x):
+            raise ValueError(f"Overlap between ancialls and x_positions: {overlap}")
+        if overlap := set(ancillas) & set(self.z):
+            raise ValueError(f"Overlap between ancialls and z_positions: {overlap}")
+        self.ancillas = ancillas
+
+    def non_ft_measurement(self, errors: list[Error] = None) -> stim.Circuit:
+        """Perform a non-fault-tolerant measurement of this stabilizer.
+
+        The call side expects that exactly one measurement on one ancilla qubit is done.
+        """
+        errors = errors or []
+        if len(self.ancillas) < 1:
+            raise ValueError("Needs at least one ancilla.")
+        ancilla = self.ancillas[0]
+
+        circ = stim.Circuit()
+        circ.append("H", [ancilla])
+        for x_pos in self.x:
+            circ.append("CX", [ancilla, x_pos])
+        for z_pos in self.z:
+            circ.append("CZ", [ancilla, z_pos])
+        circ.append("H", [ancilla])
+        if measurement_errors := [e for e in errors if e.kind.produces_measurements]:
+            if len(measurement_errors) > 1:
+                raise ValueError("Only one measurement error supported.")
+            error = measurement_errors[0]
+            error.apply()
+            circ.append("MZ", [ancilla], error.probability)
+        else:
+            circ.append("MZ", [ancilla])
+
+        return circ
 
 
 def get_check_matrix(generators: list[Operator]) -> sympy.Matrix:
