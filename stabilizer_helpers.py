@@ -57,6 +57,11 @@ class Operator:
             ret.append(f"('{self.name}')")
         return "".join(ret)
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Operator):
+            raise NotImplementedError
+        return self.x == other.x and self.z == other.z and self.length == other.length
+
     def __len__(self) -> int:
         return self.length
 
