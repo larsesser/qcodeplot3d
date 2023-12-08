@@ -3,8 +3,6 @@ import itertools
 import stim
 import sympy
 
-from framework.errors import Error
-
 SUBSCRIPT_NUMBER_MAP = {
     0: "₀",
     1: "₁",
@@ -143,34 +141,6 @@ class Stabilizer(Operator):
         if overlap := set(ancillas) & set(self.z):
             raise ValueError(f"Overlap between ancillas and z_positions: {overlap}")
         self.ancillas = ancillas
-
-    def non_ft_measurement(self, errors: list[Error] = None) -> stim.Circuit:
-        """Perform a non-fault-tolerant measurement of this stabilizer.
-
-        The call side expects that exactly one measurement on one ancilla qubit is done.
-        """
-        errors = errors or []
-        if len(self.ancillas) < 1:
-            raise ValueError("Needs at least one ancilla.")
-        ancilla = self.ancillas[0]
-
-        circ = stim.Circuit()
-        circ.append("H", [ancilla])
-        for x_pos in self.x:
-            circ.append("CX", [ancilla, x_pos])
-        for z_pos in self.z:
-            circ.append("CZ", [ancilla, z_pos])
-        circ.append("H", [ancilla])
-        if measurement_errors := [e for e in errors if e.kind.produces_measurements]:
-            if len(measurement_errors) > 1:
-                raise ValueError("Only one measurement error supported.")
-            error = measurement_errors[0]
-            error.apply()
-            circ.append("MZ", [ancilla], error.probability)
-        else:
-            circ.append("MZ", [ancilla])
-
-        return circ
 
 
 def get_check_matrix(generators: list[Operator]) -> sympy.Matrix:
