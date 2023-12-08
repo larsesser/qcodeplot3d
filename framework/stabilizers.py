@@ -118,7 +118,7 @@ class Operator:
 class Stabilizer(Operator):
     """Special kind of operator which is viewed as a color code stabilizer."""
 
-    ancillas: list[int] = None
+    ancillas: list[int]
 
     def __init__(
         self,
