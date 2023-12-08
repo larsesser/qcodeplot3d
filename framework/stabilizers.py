@@ -1,6 +1,5 @@
 import itertools
 
-import stim
 import sympy
 
 SUBSCRIPT_NUMBER_MAP = {
@@ -82,16 +81,6 @@ class Operator:
 
     def __len__(self) -> int:
         return self.length
-
-    def as_circuit(self) -> stim.Circuit:
-        """Return this operator as stim Circuit."""
-        circuit = stim.Circuit()
-        # TODO same question here
-        if self.x:
-            circuit.append("X_ERROR", self.qubits, 1)
-        if self.z:
-            circuit.append("Z_ERROR", self.qubits, 1)
-        return circuit
 
     def commutes(self, other: "Operator") -> bool:
         """Check whether two pauli operators commute or not."""
