@@ -82,6 +82,9 @@ class Operator:
     def __len__(self) -> int:
         return self.length
 
+    def __hash__(self):
+        return hash((self.length, tuple(self.x), tuple(self.z)))
+
     def commutes(self, other: "Operator") -> bool:
         """Check whether two pauli operators commute or not."""
         if not isinstance(other, Operator):
