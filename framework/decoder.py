@@ -52,11 +52,24 @@ class GraphNode:
     # id given by us, is guaranteed to be the same between corresponding objects in different graphs and unique,
     # independently if the object is a node or an edge in the different graphs
     id: int
+    # index used by rustworkx, may be different between corresponding objects in different graphs
+    index: int = dataclasses.field(default=int, init=False)
 
     def __eq__(self, other):
         if not isinstance(other, GraphNode):
             return NotImplemented
         return self.id == other.id
+
+
+@dataclass
+class GraphEdge:
+    node1: GraphNode
+    node2: GraphNode
+    # id given by us, is guaranteed to be the same between corresponding objects in different graphs and unique,
+    # independently if the object is a node or an edge in the different graphs
+    id: int
+    # index used by rustworkx, may be different between corresponding objects in different graphs
+    index: int = dataclasses.field(default=int, init=False)
 
 
 @dataclass
@@ -66,8 +79,6 @@ class DualGraphNode(GraphNode):
     A node corresponds to a stabilizer or a boundary of the primary lattice.
     """
     is_boundary: bool = False
-    # index used by rustworkx, may be different between corresponding objects in different graphs
-    index: int = dataclasses.field(default=int, init=False)
     # TODO: stabilizer
 
     @property
@@ -76,13 +87,9 @@ class DualGraphNode(GraphNode):
 
 
 @dataclass
-class DualGraphEdge:
+class DualGraphEdge(GraphEdge):
     node1: DualGraphNode
     node2: DualGraphNode
-    # id given by us, is guaranteed to be the same between corresponding objects in different graphs and unique,
-    # independently if the object is a node or an edge in the different graphs
-    id: int
-    index: int = dataclasses.field(default=int, init=False)
 
     @property
     def is_edge_between_boundaries(self):
@@ -104,7 +111,6 @@ class Mc3GraphNode(GraphNode):
     dg_edge: Optional[DualGraphEdge] = None
     # node of the dual graph which corresponds to this node
     dg_node: Optional[DualGraphNode] = None
-    index: int = dataclasses.field(default=int, init=False)
 
     @property
     def is_edge(self):
@@ -112,9 +118,17 @@ class Mc3GraphNode(GraphNode):
 
     @property
     def is_boundary(self):
-        if self.dg_edge is None:
-            return False
-        return self.dg_node.is_boundary
+        if self.dg_node:
+            return self.dg_node.is_boundary
+        if self.dg_edge:
+            return self.dg_edge.is_edge_between_boundaries
+        raise NotImplementedError
+
+
+@dataclass
+class Mc3GraphEdge(GraphEdge):
+    node1: Mc3GraphNode
+    node2: Mc3GraphNode
 
 
 @dataclass
@@ -155,72 +169,82 @@ class ConcatenatedDecoder(Decoder):
         """Construct the dual graph, restricted to nodes (and their edges) of the given colors."""
         if self._restricted_graphs:
             return self._restricted_graphs[tuple(colors)]
-        dual_graph = self.dual_graph()
-        restricted_graphs = {}
+        graphs = {}
         for num_colors in [2, 3]:
             for restricted_colors in itertools.combinations(self.colors, num_colors):
-                # restricted_graph = deepcopy(dual_graph)
-                # nodes = restricted_graph.nodes()
-                # for node in nodes:
-                #     if node.color in restricted_colors:
-                #         continue
-                #     # remove edges and nodes of other colors
-                #     for _, _, edge in restricted_graph.in_edges(node.index):
-                #         restricted_graph.remove_edge_from_index(edge.index)
-                #     restricted_graph.remove_node(node.index)
-                #     for cols in itertools.permutations(restricted_colors):
-                #         restricted_graphs[cols] = restricted_graph
-                restricted_graph = rx.PyGraph(multigraph=False)
-                for node in dual_graph.nodes():
-                    if node.color in restricted_colors:
-                        restricted_graph.add_node(deepcopy(node))
-                for index in restricted_graph.node_indices():
-                    restricted_graph[index].index = index
-                nodes_by_id = {node.id: node for node in restricted_graph.nodes()}
-                for orig_edge in dual_graph.edges():
-                    if orig_edge.node1.color in restricted_colors and orig_edge.node2.color in restricted_colors:
-                        edge = deepcopy(orig_edge)
-                        edge.node1 = nodes_by_id[edge.node1.id]
-                        edge.node2 = nodes_by_id[edge.node2.id]
-                        restricted_graph.add_edge(edge.node1.index, edge.node2.index, edge)
-                for index in restricted_graph.edge_indices():
-                    restricted_graph.edge_index_map()[index][2].index = index
+                graph = self._construct_restricted_graph(restricted_colors)
                 for cols in itertools.permutations(restricted_colors):
-                    restricted_graphs[cols] = restricted_graph
-        return restricted_graphs[tuple(colors)]
+                    graphs[cols] = graph
+        self._restricted_graphs = graphs
+        return self._restricted_graphs[tuple(colors)]
+
+    def _construct_restricted_graph(self, colors: list[Color]) -> rx.PyGraph:
+        graph = rx.PyGraph(multigraph=False)
+        dual_graph = self.dual_graph()
+        for node in dual_graph.nodes():
+            if node.color in colors:
+                graph.add_node(deepcopy(node))
+        for index in graph.node_indices():
+            graph[index].index = index
+        nodes_by_id = {node.id: node for node in graph.nodes()}
+        # take care to get the properties of the nodes associated to an edge right
+        for orig_edge in dual_graph.edges():
+            if orig_edge.node1.color in colors and orig_edge.node2.color in colors:
+                edge = deepcopy(orig_edge)
+                edge.node1 = nodes_by_id[edge.node1.id]
+                edge.node2 = nodes_by_id[edge.node2.id]
+                graph.add_edge(edge.node1.index, edge.node2.index, edge)
+        for index in graph.edge_indices():
+            graph.edge_index_map()[index][2].index = index
+        return graph
 
     def mc3_graph(self, restricted_colors: list[Color], monochromatic_color: Color) -> rx.PyGraph:
         """Construct the monochromatic graph with 3 colors based on the given colors.
 
-        The nodes of this graph are {edges of restricted graph [except edges between two boundaries], stabilizers + boundary of third color}.
-        The edges of this graph are the triangular faces of the restricted graph of all 3 colors."""
-        if len(restricted_colors) != 2:
+        The nodes of this graph are {edges of restricted graph, stabilizers & boundary of third color}.
+        The edges of this graph are the triangular faces of the restricted graph of all 3 colors.
+        """
+        if len(restricted_colors) != 2 or monochromatic_color in restricted_colors:
             raise ValueError
         if self._mc3_graphs:
             return self._mc3_graphs[tuple(restricted_colors)][monochromatic_color]
+        graphs: dict[tuple[Color, ...], dict[Color, rx.PyGraph]] = {}
+        for r_colors in itertools.combinations(self.colors, 2):
+            graphs[tuple(r_colors)] = {}
+            graphs[tuple(r_colors[::-1])] = {}
+            for m_color in set(self.colors) - set(r_colors):
+                graph = self._construct_mc3_graph(r_colors, m_color)
+                graphs[tuple(r_colors)][m_color] = graph
+                graphs[tuple(r_colors[::-1])][m_color] = graph
+        self._mc3_graphs = graphs
+        return self._mc3_graphs[tuple(restricted_colors)][monochromatic_color]
+
+    def _construct_mc3_graph(self, restricted_colors: list[Color], monochromatic_color: Color) -> rx.PyGraph:
+        global OBJECT_ID
         graph = rx.PyGraph(multigraph=False)
+        restricted_2_graph = self.restricted_graph(restricted_colors)
+        restricted_3_graph = self.restricted_graph([*restricted_colors, monochromatic_color])
+        # since we didn't remove any objects to construct the restricted graph, rustworkx guarantees that the
+        #  undirected and directed graph share the same indexes for the same objects.
+        directed_restricted_3_graph = restricted_3_graph.to_directed()
 
         # construct the nodes
         nodes = []
+        # take care: since we construct the edges via nodes of the 3-restricted graph, we use the edges from the
+        #  3-restricted graph to ensure the indices are identical.
+        edges_by_id = {edge.id: edge for edge in restricted_3_graph.edges()}
         # ... corresponding to edges of the 2-colored restricted graph
-        for edge in self.restricted_graph(restricted_colors).edges():
-            if edge.is_edge_between_boundaries:
-                continue
-            nodes.append(Mc3GraphNode(monochromatic_color, id=edge.id, dg_edge=edge))
+        for edge in restricted_2_graph.edges():
+            nodes.append(Mc3GraphNode(monochromatic_color, id=edge.id, dg_edge=edges_by_id[edge.id]))
         # ... corresponding to nodes of the 3-colored restricted graph of color monochromatic_color
-        for node in self.restricted_graph([*restricted_colors, monochromatic_color]).nodes():
+        for node in restricted_3_graph.nodes():
             if node.color == monochromatic_color:
                 nodes.append(Mc3GraphNode(monochromatic_color, id=node.id, dg_node=node))
         graph.add_nodes_from(nodes)
         for index in graph.node_indices():
             graph[index].index = index
-        pprint(nodes)
 
-        # construct the edges
-        restricted_graph = self.restricted_graph([*restricted_colors, monochromatic_color]).to_directed()
-        graphviz_draw(decoder.restricted_graph([Color.green, Color.yellow, Color.blue]), node_attr_fn, edge_attr_fn, filename="restricted_gyb2.png", method="sfdp")
-        cycles = {tuple(sorted(indices)) for indices in rx.simple_cycles(restricted_graph) if len(indices) == 3}
-        rg_node_to_mc_node = {}
+        rg_node_to_mc_node: dict[int | tuple[int, int], Mc3GraphNode] = {}
         for node in nodes:
             if node.dg_node and node.dg_edge:
                 raise RuntimeError
@@ -229,33 +253,46 @@ class ConcatenatedDecoder(Decoder):
                     raise RuntimeError
                 rg_node_to_mc_node[node.dg_node.index] = node
             elif node.dg_edge:
-                if node.dg_edge.node1.index or node.dg_edge.node2.index in rg_node_to_mc_node:
+                if (node.dg_edge.node1.index, node.dg_edge.node2.index) in rg_node_to_mc_node:
                     raise RuntimeError
-                rg_node_to_mc_node[node.dg_edge.node1.index] = node
-                rg_node_to_mc_node[node.dg_edge.node2.index] = node
+                rg_node_to_mc_node[(node.dg_edge.node1.index, node.dg_edge.node2.index)] = node
+                rg_node_to_mc_node[(node.dg_edge.node2.index, node.dg_edge.node1.index)] = node
             else:
                 raise RuntimeError
-        print(cycles)
-        print(list(map(lambda x: [rg_node_to_mc_node[i].id for i in x], cycles)))
-        # TODO adjust this to the length of qubits of one side of the tetrahedron in general
-        if len(cycles) != 7:
+
+        # graphviz_draw(restricted_3_graph, node_attr_fn, edge_attr_fn, filename="restricted_gyb2.png", method="sfdp")
+        # graphviz_draw(directed_restricted_3_graph, node_attr_fn, edge_attr_fn, filename="restricted_gyb2_direct.png", method="sfdp")
+
+        # construct the edges
+        cycles = {tuple(sorted(indices)) for indices in rx.simple_cycles(directed_restricted_3_graph) if len(indices) == 3}
+        # TODO adjust this to the length of qubits of one side of the tetrahedron in general + boundary-boundary-boundary
+        if len(cycles) != 8:
             raise RuntimeError
-        print(cycles)
         for cycle in cycles:
             # each face (== cycle) of the graph is a triangle
             if len(cycle) != 3:
                 raise RuntimeError(cycle)
-            # two of the nodes of the triangle belong to an edge which is a node in the mc lattice,
             # one of the nodes of the triangle belongs to a node
-            node1, node2, node3 = rg_node_to_mc_node[cycle[0]], rg_node_to_mc_node[cycle[1]], rg_node_to_mc_node[cycle[2]]
-            if node1 == node2:
-                graph.add_edge(node1.index, node3.index, None)
-            elif node1 == node3:
-                graph.add_edge(node1.index, node2.index, None)
-            elif node2 == node3:
-                graph.add_edge(node1.index, node2.index, None)
+            # two of the nodes of the triangle belong to an edge which is a node in the mc lattice,
+            if cycle[0] in rg_node_to_mc_node:
+                node1 = rg_node_to_mc_node[cycle[0]]
+                node2 = rg_node_to_mc_node[(cycle[1], cycle[2])]
+            elif cycle[1] in rg_node_to_mc_node:
+                node1 = rg_node_to_mc_node[cycle[1]]
+                node2 = rg_node_to_mc_node[(cycle[0], cycle[2])]
+            elif cycle[2] in rg_node_to_mc_node:
+                node1 = rg_node_to_mc_node[cycle[2]]
+                node2 = rg_node_to_mc_node[(cycle[0], cycle[1])]
             else:
-                raise RuntimeError(f"\n{node1}\n{node2}\n{node3}")
+                raise RuntimeError
+            # the edge which belongs to three boundary nodes belongs to no qubit
+            if node1.dg_node.is_boundary and node2.dg_edge.node1.is_boundary and node2.dg_edge.node2.is_boundary:
+                continue
+            graph.add_edge(node1.index, node2.index, Mc3GraphEdge(node1, node2, OBJECT_ID))
+            OBJECT_ID += 1
+
+        for index in graph.edge_indices():
+            graph.edge_index_map()[index][2].index = index
 
         return graph
 
@@ -299,4 +336,4 @@ decoder = ConcatenatedDecoder([Color.red, Color.green, Color.yellow, Color.blue]
 graphviz_draw(decoder.dual_graph(), node_attr_fn, edge_attr_fn, filename="dualgraph.png", method="sfdp")
 graphviz_draw(decoder.restricted_graph([Color.green, Color.yellow]), node_attr_fn, edge_attr_fn, filename="restricted_gy.png", method="sfdp")
 graphviz_draw(decoder.restricted_graph([Color.green, Color.yellow, Color.blue]), node_attr_fn, edge_attr_fn, filename="restricted_gyb.png", method="sfdp")
-decoder.mc3_graph([Color.green, Color.yellow], Color.blue)
+graphviz_draw(decoder.mc3_graph([Color.green, Color.yellow], Color.blue), node_attr_fn, edge_attr_fn, filename="monochrom_gy_b.png", method="sfdp")
