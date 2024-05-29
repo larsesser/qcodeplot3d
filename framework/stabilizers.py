@@ -74,12 +74,12 @@ class Operator:
             ret.append(f"('{self.name}')")
         return "".join(ret)
 
-    def __eq__(self, other: "Operator") -> bool:
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, Operator):
             raise NotImplementedError
         return self.x == other.x and self.z == other.z and self.length == other.length
 
-    def __lt__(self, other: "Operator") -> bool:
+    def __lt__(self, other: object) -> bool:
         if not isinstance(other, Operator):
             raise NotImplementedError
         if self.length != other.length:

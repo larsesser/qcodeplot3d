@@ -39,7 +39,7 @@ class LookupTableDecoder(Decoder):
         return self.lookup_table.get(syndrome.value, [])
 
 
-class Color(enum.IntEnum):
+class Color(enum.Enum):
     red = 1
     blue = 2
     green = 3
@@ -248,10 +248,10 @@ class ConcatenatedDecoder(Decoder):
     # all available colors of stabilizers of the code.
     # 2D Color Code: 3, 3D Color Code: 4.
     colors: list[Color]
-    _dual_graph: rx.PyGraph = dataclasses.field(default=None, init=False)
-    _restricted_graphs: dict[tuple[Color, ...], rx.PyGraph] = dataclasses.field(default=None, init=False)
-    _mc3_graphs: dict[tuple[Color, Color], dict[Color, rx.PyGraph]] = dataclasses.field(default=None, init=False)
-    _mc4_graphs: dict[tuple[Color, Color], dict[Color, rx.PyGraph]] = dataclasses.field(default=None, init=False)
+    _dual_graph: rx.PyGraph = dataclasses.field(default=None, init=False)  # type: ignore[arg-type]
+    _restricted_graphs: dict[tuple[Color, ...], rx.PyGraph] = dataclasses.field(default=None, init=False)  # type: ignore[arg-type]
+    _mc3_graphs: dict[tuple[Color, Color], dict[Color, rx.PyGraph]] = dataclasses.field(default=None, init=False)  # type: ignore[arg-type]
+    _mc4_graphs: dict[tuple[Color, Color], dict[Color, rx.PyGraph]] = dataclasses.field(default=None, init=False)  # type: ignore[arg-type]
 
     def primary_graph(self):
         ...
@@ -317,8 +317,9 @@ class ConcatenatedDecoder(Decoder):
         """
         if len(restricted_colors) != 2 or monochromatic_color in restricted_colors:
             raise ValueError
+        rcolors = restricted_colors[0], restricted_colors[1]
         if self._mc3_graphs:
-            return self._mc3_graphs[tuple(restricted_colors)][monochromatic_color]
+            return self._mc3_graphs[rcolors][monochromatic_color]
         graphs: dict[tuple[Color, ...], dict[Color, rx.PyGraph]] = {}
         for r_colors in itertools.combinations(self.colors, 2):
             graphs[tuple(r_colors)] = {}
@@ -328,7 +329,7 @@ class ConcatenatedDecoder(Decoder):
                 graphs[tuple(r_colors)][m_color] = graph
                 graphs[tuple(r_colors[::-1])][m_color] = graph
         self._mc3_graphs = graphs
-        return self._mc3_graphs[tuple(restricted_colors)][monochromatic_color]
+        return self._mc3_graphs[rcolors][monochromatic_color]
 
     def _construct_mc3_graph(self, restricted_colors: list[Color], monochromatic_color: Color) -> rx.PyGraph:
         global OBJECT_ID
@@ -409,19 +410,20 @@ class ConcatenatedDecoder(Decoder):
                 or monochromatic_3_color in restricted_colors or monochromatic_4_color in restricted_colors
                 or monochromatic_3_color == monochromatic_4_color):
             raise ValueError
+        rcolors = restricted_colors[0], restricted_colors[1]
         if self._mc4_graphs:
-            return self._mc4_graphs[tuple(restricted_colors)][monochromatic_3_color]
+            return self._mc4_graphs[rcolors][monochromatic_3_color]
         graphs: dict[tuple[Color, Color], dict[Color, rx.PyGraph]] = {}
         for r_colors in itertools.combinations(self.colors, 2):
-            graphs[tuple(r_colors)] = {}
-            graphs[tuple(r_colors[::-1])] = {}
+            graphs[r_colors] = {}
+            graphs[r_colors[::-1]] = {}
             for m_3_color in set(self.colors) - set(r_colors):
                 m_4_color = (set(self.colors) - set(r_colors) - {m_3_color}).pop()
                 graph = self._construct_mc4_graph(r_colors, m_3_color, m_4_color)
-                graphs[tuple(r_colors)][m_3_color] = graph
-                graphs[tuple(r_colors[::-1])][m_3_color] = graph
+                graphs[r_colors][m_3_color] = graph
+                graphs[r_colors[::-1]][m_3_color] = graph
         self._mc4_graphs = graphs
-        return self._mc4_graphs[tuple(restricted_colors)][monochromatic_3_color]
+        return self._mc4_graphs[rcolors][monochromatic_3_color]
 
     def _construct_mc4_graph(self, restricted_colors: list[Color], monochromatic_3_color: Color, monochromatic_4_color: Color) -> rx.PyGraph:
         global OBJECT_ID
