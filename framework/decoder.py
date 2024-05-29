@@ -59,6 +59,11 @@ class GraphObject(abc.ABC):
             return NotImplemented
         return self.id == other.id
 
+    def __lt__(self, other):
+        if not isinstance(other, GraphObject):
+            return NotImplemented
+        return self.id < other.id
+
 
 @dataclass
 class GraphNode(GraphObject, abc.ABC):
@@ -89,8 +94,26 @@ class DualGraphNode(GraphNode):
     A node corresponds to a stabilizer or a boundary of the primary lattice.
     """
     id: int
-    is_boundary: bool = False
-    # TODO: stabilizer
+    stabilizer: Optional[Stabilizer]
+    # if this node corresponds to a boundary, we track here which qubits are at it.
+    _adjacent_qubits: Optional[list[int]] = None
+
+    def __post_init__(self):
+        # perform sanity check: adjacent_qubits are given iff no stabilizer is given (i.e. this node is a boundary)
+        if (self.stabilizer is None and self._adjacent_qubits is None
+                or self.stabilizer is not None and self._adjacent_qubits is not None):
+            raise ValueError
+
+    @property
+    def is_boundary(self) -> bool:
+        return self.stabilizer is None
+
+    @property
+    def qubits(self) -> list[int]:
+        """Return the qubits which are adjacent to this stabilizer / boundary."""
+        if self.is_boundary:
+            return sorted(self._adjacent_qubits)
+        return self.stabilizer.qubits
 
 
 @dataclass
@@ -124,7 +147,15 @@ class RestrictedGraphNode(GraphNode):
         return self.dg_node.is_boundary
 
     @property
-    def dg_nodes(self) -> set[int]:
+    def stabilizer(self):
+        return self.dg_node.stabilizer
+
+    @property
+    def dg_nodes(self) -> list[DualGraphNode]:
+        return [self.dg_node]
+
+    @property
+    def dg_indices(self) -> set[int]:
         return {self.dg_node.index}
 
 
@@ -172,7 +203,15 @@ class Mc3GraphNode(GraphNode):
         raise NotImplementedError
 
     @property
-    def rg_nodes(self) -> set[int]:
+    def rg_nodes(self) -> list[RestrictedGraphNode]:
+        if self.rg_node:
+            return [self.rg_node]
+        elif self.rg_edge:
+            return [self.rg_edge.node1, self.rg_edge.node2]
+        raise NotImplementedError
+
+    @property
+    def rg_indices(self) -> set[int]:
         if self.rg_node:
             return {self.rg_node.index}
         elif self.rg_edge:
@@ -180,11 +219,19 @@ class Mc3GraphNode(GraphNode):
         raise NotImplementedError
 
     @property
-    def dg_nodes(self) -> set[int]:
+    def dg_nodes(self) -> list[DualGraphNode]:
         if self.rg_node:
             return self.rg_node.dg_nodes
         elif self.rg_edge:
-            return self.rg_edge.node1.dg_nodes | self.rg_edge.node2.dg_nodes
+            return [*self.rg_edge.node1.dg_nodes, *self.rg_edge.node2.dg_nodes]
+        raise NotImplementedError
+
+    @property
+    def dg_indices(self) -> set[int]:
+        if self.rg_node:
+            return self.rg_node.dg_indices
+        elif self.rg_edge:
+            return self.rg_edge.node1.dg_indices | self.rg_edge.node2.dg_indices
         raise NotImplementedError
 
 
@@ -228,11 +275,20 @@ class Mc4GraphNode(GraphNode):
         raise NotImplementedError
 
     @property
-    def dg_nodes(self) -> set[int]:
+    def dg_nodes(self) -> list[DualGraphNode]:
+        if self.dg_node:
+            return [self.dg_node]
+        elif self.mc3_edge:
+            # Do manual deduplication of nodes. Does not use sets, since our custom classes are not hashable.
+            return [k for k, _ in itertools.groupby(sorted((*self.mc3_edge.node1.dg_nodes, *self.mc3_edge.node2.dg_nodes)))]
+        raise NotImplementedError
+
+    @property
+    def dg_indices(self) -> set[int]:
         if self.dg_node:
             return {self.dg_node.index}
         elif self.mc3_edge:
-            return self.mc3_edge.node1.dg_nodes | self.mc3_edge.node2.dg_nodes
+            return self.mc3_edge.node1.dg_indices | self.mc3_edge.node2.dg_indices
         raise NotImplementedError
 
 
@@ -241,6 +297,17 @@ class Mc4GraphEdge(GraphEdge):
     id: int
     node1: Mc4GraphNode
     node2: Mc4GraphNode
+
+    @property
+    def qubit(self) -> int:
+        """Returns the qubit corresponding to this edge."""
+        dg_nodes = [*self.node1.dg_nodes, *self.node2.dg_nodes]
+        common_qubits = set(dg_nodes.pop().qubits)
+        for node in dg_nodes:
+            common_qubits &= set(node.qubits)
+        if len(common_qubits) != 1:
+            raise RuntimeError(common_qubits)
+        return common_qubits.pop()
 
 
 @dataclass
@@ -261,10 +328,25 @@ class ConcatenatedDecoder(Decoder):
             return self._dual_graph
         global OBJECT_ID
         graph = rx.PyGraph(multigraph=False)
-        # two nodes per Color
-        for color in self.colors:
-            graph.add_nodes_from([DualGraphNode(OBJECT_ID, color), DualGraphNode(OBJECT_ID+1, color, is_boundary=True)])
-            OBJECT_ID += 2
+
+        def t2p(l_in: list[str]) -> list[int]:
+            trans = {"A": 15, "B": 1, "C": 2, "D": 3, "E": 4, "F": 5, "G": 6, "H": 7, "I": 8, "J": 9, "K": 10, "M": 11,
+                     "N": 12, "P": 13, "Q": 14}
+            return [trans[e] for e in l_in]
+
+        # hard coded construction of [[15,1,3]] 3D Tetrahedral Color Code
+        nodes = [
+            DualGraphNode(OBJECT_ID+0, Color.red, Stabilizer(15, x_positions=t2p(["A", "J", "K", "H", "M", "Q", "I", "P"]))),
+            DualGraphNode(OBJECT_ID+1, Color.yellow, Stabilizer(15, x_positions=t2p(["B", "F", "N", "G", "J", "K", "M", "Q"]))),
+            DualGraphNode(OBJECT_ID+2, Color.blue, Stabilizer(15, x_positions=t2p(["F", "C", "E", "N", "M", "I", "P", "Q"]))),
+            DualGraphNode(OBJECT_ID+3, Color.green, Stabilizer(15, x_positions=t2p(["D", "G", "N", "E", "H", "K", "Q", "P"]))),
+            DualGraphNode(OBJECT_ID+4, Color.red, None, t2p(["B", "F", "C", "E", "D", "G", "N"])),
+            DualGraphNode(OBJECT_ID+5, Color.yellow, None, t2p(["A", "I", "C", "E", "D", "H", "P"])),
+            DualGraphNode(OBJECT_ID+6, Color.blue, None, t2p(["A", "J", "B", "G", "D", "H", "K"])),
+            DualGraphNode(OBJECT_ID+7, Color.green, None, t2p(["A", "J", "B", "F", "C", "I", "M"])),
+        ]
+        OBJECT_ID += 8
+        graph.add_nodes_from(nodes)
         for index in graph.node_indices():
             graph[index].index = index
         # insert edges between the nodes
@@ -358,9 +440,9 @@ class ConcatenatedDecoder(Decoder):
 
         rg_node_to_mc_node: dict[tuple[int, ...], Mc3GraphNode] = {}
         for node in nodes:
-            if tuple(node.rg_nodes) in rg_node_to_mc_node:
+            if tuple(node.rg_indices) in rg_node_to_mc_node:
                 raise RuntimeError
-            for permutation in itertools.permutations(node.rg_nodes):
+            for permutation in itertools.permutations(node.rg_indices):
                 rg_node_to_mc_node[tuple(permutation)] = node
 
         # graphviz_draw(restricted_3_graph, node_attr_fn, edge_attr_fn, filename="restricted_gyb2.png", method="sfdp")
@@ -448,9 +530,9 @@ class ConcatenatedDecoder(Decoder):
 
         dg_node_to_mc4_node: dict[tuple[int, ...], Mc4GraphNode] = {}
         for node in nodes:
-            if tuple(node.dg_nodes) in dg_node_to_mc4_node:
+            if tuple(node.dg_indices) in dg_node_to_mc4_node:
                 raise RuntimeError
-            for permutation in itertools.permutations(node.dg_nodes):
+            for permutation in itertools.permutations(node.dg_indices):
                 dg_node_to_mc4_node[tuple(permutation)] = node
 
         # construct the edges
