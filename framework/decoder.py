@@ -5,11 +5,11 @@ import itertools
 from dataclasses import dataclass
 from copy import deepcopy
 from pprint import pprint
-# from framework.layer import Syndrome
-Syndrome = None
 from typing import Optional
+from framework.layer import Syndrome
+from framework.stabilizers import Stabilizer
 import rustworkx as rx
-from rustworkx.visualization import graphviz_draw, mpl_draw
+# import pymatching as pm
 
 
 OBJECT_ID: int = 1
@@ -505,32 +505,3 @@ class ConcatenatedDecoder(Decoder):
 
         # return the lowest-weight correction
         return min(possible_corrections, key=len)
-
-
-def node_attr_fn(node: DualGraphNode):
-    label = f"{node.id}"
-    if node.is_boundary:
-        label += "B"
-    attr_dict = {
-        "style": "filled",
-        "shape": "circle",
-        "label": label,
-        "color": node.color.name,
-        "fill_color": node.color.name,
-    }
-    return attr_dict
-
-
-def edge_attr_fn(edge: DualGraphEdge):
-    attr_dict = {
-        "label": f"{edge.id}"
-    }
-    return attr_dict
-
-
-decoder = ConcatenatedDecoder([Color.red, Color.green, Color.yellow, Color.blue])
-graphviz_draw(decoder.dual_graph(), node_attr_fn, edge_attr_fn, filename="dualgraph.png", method="sfdp")
-graphviz_draw(decoder.restricted_graph([Color.green, Color.yellow]), node_attr_fn, edge_attr_fn, filename="restricted_gy.png", method="sfdp")
-graphviz_draw(decoder.restricted_graph([Color.green, Color.yellow, Color.blue]), node_attr_fn, edge_attr_fn, filename="restricted_gyb.png", method="sfdp")
-graphviz_draw(decoder.mc3_graph([Color.green, Color.yellow], Color.blue), node_attr_fn, edge_attr_fn, filename="monochrom_gy_b.png", method="sfdp")
-graphviz_draw(decoder.mc4_graph([Color.green, Color.yellow], Color.blue, Color.red), node_attr_fn, edge_attr_fn, filename="monochrom_gy_b_r.png", method="sfdp")
