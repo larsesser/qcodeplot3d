@@ -47,29 +47,37 @@ class Color(enum.IntEnum):
 
 
 @dataclass
-class GraphNode:
-    color: Color
+class GraphObject(abc.ABC):
     # id given by us, is guaranteed to be the same between corresponding objects in different graphs and unique,
     # independently if the object is a node or an edge in the different graphs
-    id: int
+    id: int = dataclasses.field(init=False)
     # index used by rustworkx, may be different between corresponding objects in different graphs
-    index: int = dataclasses.field(default=int, init=False)
+    index: int = dataclasses.field(init=False)
 
     def __eq__(self, other):
-        if not isinstance(other, GraphNode):
+        if not isinstance(other, GraphObject):
             return NotImplemented
         return self.id == other.id
 
 
 @dataclass
-class GraphEdge:
+class GraphNode(GraphObject, abc.ABC):
+    color: Color
+
+    @property
+    @abc.abstractmethod
+    def is_boundary(self) -> bool:
+        ...
+
+
+@dataclass
+class GraphEdge(GraphObject, abc.ABC):
     node1: GraphNode
     node2: GraphNode
-    # id given by us, is guaranteed to be the same between corresponding objects in different graphs and unique,
-    # independently if the object is a node or an edge in the different graphs
-    id: int
-    # index used by rustworkx, may be different between corresponding objects in different graphs
-    index: int = dataclasses.field(default=int, init=False)
+
+    @property
+    def is_edge_between_boundaries(self) -> bool:
+        return self.node1.is_boundary and self.node2.is_boundary
 
 
 # TODO add weight 0 to all edges linking only boundary nodes
@@ -80,28 +88,28 @@ class DualGraphNode(GraphNode):
 
     A node corresponds to a stabilizer or a boundary of the primary lattice.
     """
+    id: int
     is_boundary: bool = False
     # TODO: stabilizer
 
 
 @dataclass
 class DualGraphEdge(GraphEdge):
+    id: int
     node1: DualGraphNode
     node2: DualGraphNode
 
-    @property
-    def is_edge_between_boundaries(self):
-        return self.node1.is_boundary and self.node2.is_boundary
-
 
 @dataclass
-class RestrictedGraphNode:
+class RestrictedGraphNode(GraphNode):
     """Representation of one node in a restricted lattice.
 
     A small wrapper around a DualGraphNode to get the indices right.
     """
     dg_node: DualGraphNode
-    index: int = dataclasses.field(default=int, init=False)
+
+    def __init__(self, dg_node: DualGraphNode) -> None:
+        self.dg_node = dg_node
 
     @property
     def color(self):
@@ -121,19 +129,14 @@ class RestrictedGraphNode:
 
 
 @dataclass
-class RestrictedGraphEdge:
+class RestrictedGraphEdge(GraphEdge):
     node1: RestrictedGraphNode
     node2: RestrictedGraphNode
     dg_edge: DualGraphEdge
-    index: int = dataclasses.field(default=int, init=False)
 
     @property
     def id(self):
         return self.dg_edge.id
-
-    @property
-    def is_edge_between_boundaries(self):
-        return self.dg_edge.is_edge_between_boundaries
 
 
 @dataclass
@@ -153,6 +156,14 @@ class Mc3GraphNode(GraphNode):
     rg_node: Optional[RestrictedGraphNode] = None
 
     @property
+    def id(self) -> int:
+        if self.rg_node:
+            return self.rg_node.id
+        elif self.rg_edge:
+            return self.rg_edge.id
+        raise NotImplementedError
+
+    @property
     def is_boundary(self):
         if self.rg_node:
             return self.rg_node.is_boundary
@@ -166,6 +177,7 @@ class Mc3GraphNode(GraphNode):
             return {self.rg_node.index}
         elif self.rg_edge:
             return {self.rg_edge.node1.index, self.rg_edge.node2.index}
+        raise NotImplementedError
 
     @property
     def dg_nodes(self) -> set[int]:
@@ -173,16 +185,14 @@ class Mc3GraphNode(GraphNode):
             return self.rg_node.dg_nodes
         elif self.rg_edge:
             return self.rg_edge.node1.dg_nodes | self.rg_edge.node2.dg_nodes
+        raise NotImplementedError
 
 
 @dataclass
 class Mc3GraphEdge(GraphEdge):
+    id: int
     node1: Mc3GraphNode
     node2: Mc3GraphNode
-
-    @property
-    def is_edge_between_boundaries(self):
-        return self.node1.is_boundary and self.node2.is_boundary
 
 
 @dataclass
@@ -202,6 +212,14 @@ class Mc4GraphNode(GraphNode):
     dg_node: Optional[DualGraphNode] = None
 
     @property
+    def id(self) -> int:
+        if self.dg_node:
+            return self.dg_node.id
+        if self.mc3_edge:
+            return self.mc3_edge.id
+        raise NotImplementedError
+
+    @property
     def is_boundary(self):
         if self.dg_node:
             return self.dg_node.is_boundary
@@ -215,16 +233,14 @@ class Mc4GraphNode(GraphNode):
             return {self.dg_node.index}
         elif self.mc3_edge:
             return self.mc3_edge.node1.dg_nodes | self.mc3_edge.node2.dg_nodes
+        raise NotImplementedError
 
 
 @dataclass
 class Mc4GraphEdge(GraphEdge):
+    id: int
     node1: Mc4GraphNode
     node2: Mc4GraphNode
-
-    @property
-    def is_edge_between_boundaries(self):
-        return self.node1.is_boundary and self.node2.is_boundary
 
 
 @dataclass
@@ -247,7 +263,7 @@ class ConcatenatedDecoder(Decoder):
         graph = rx.PyGraph(multigraph=False)
         # two nodes per Color
         for color in self.colors:
-            graph.add_nodes_from([DualGraphNode(color, OBJECT_ID), DualGraphNode(color, OBJECT_ID+1, is_boundary=True)])
+            graph.add_nodes_from([DualGraphNode(OBJECT_ID, color), DualGraphNode(OBJECT_ID+1, color, is_boundary=True)])
             OBJECT_ID += 2
         for index in graph.node_indices():
             graph[index].index = index
@@ -255,7 +271,7 @@ class ConcatenatedDecoder(Decoder):
         for node1, node2 in itertools.combinations(graph.nodes(), 2):
             if node1.color == node2.color or graph.has_edge(node1.index, node2.index):
                 continue
-            graph.add_edge(node1.index, node2.index, DualGraphEdge(node1, node2, OBJECT_ID))
+            graph.add_edge(node1.index, node2.index, DualGraphEdge(OBJECT_ID, node1, node2))
             OBJECT_ID += 1
         for index in graph.edge_indices():
             graph.edge_index_map()[index][2].index = index
@@ -330,11 +346,11 @@ class ConcatenatedDecoder(Decoder):
         edges_by_id = {edge.id: edge for edge in restricted_3_graph.edges()}
         # ... corresponding to edges of the 2-colored restricted graph
         for edge in restricted_2_graph.edges():
-            nodes.append(Mc3GraphNode(monochromatic_color, id=edge.id, rg_edge=edges_by_id[edge.id]))
+            nodes.append(Mc3GraphNode(monochromatic_color, rg_edge=edges_by_id[edge.id]))
         # ... corresponding to nodes of the 3-colored restricted graph of color monochromatic_color
         for node in restricted_3_graph.nodes():
             if node.color == monochromatic_color:
-                nodes.append(Mc3GraphNode(monochromatic_color, id=node.id, rg_node=node))
+                nodes.append(Mc3GraphNode(monochromatic_color, rg_node=node))
         graph.add_nodes_from(nodes)
         for index in graph.node_indices():
             graph[index].index = index
@@ -375,7 +391,7 @@ class ConcatenatedDecoder(Decoder):
             # TODO add weight 0
             # if node1.is_boundary and node2.is_boundary:
             #     continue
-            graph.add_edge(node1.index, node2.index, Mc3GraphEdge(node1, node2, OBJECT_ID))
+            graph.add_edge(node1.index, node2.index, Mc3GraphEdge(OBJECT_ID, node1, node2))
             OBJECT_ID += 1
 
         for index in graph.edge_indices():
@@ -419,11 +435,11 @@ class ConcatenatedDecoder(Decoder):
         nodes = []
         # ... corresponding to edges of the mc3 graph
         for edge in mc3_graph.edges():
-            nodes.append(Mc4GraphNode(monochromatic_4_color, id=edge.id, mc3_edge=edge))
+            nodes.append(Mc4GraphNode(monochromatic_4_color, mc3_edge=edge))
         # ... corresponding to nodes of the dual graph of color monochromatic_4_color
         for node in dual_graph.nodes():
             if node.color == monochromatic_4_color:
-                nodes.append(Mc4GraphNode(monochromatic_4_color, id=node.id, dg_node=node))
+                nodes.append(Mc4GraphNode(monochromatic_4_color, dg_node=node))
         graph.add_nodes_from(nodes)
         for index in graph.node_indices():
             graph[index].index = index
@@ -468,7 +484,7 @@ class ConcatenatedDecoder(Decoder):
             # TODO add weight 0 to this edge
             # if node1.is_boundary and node2.is_boundary:
             #     continue
-            graph.add_edge(node1.index, node2.index, Mc4GraphEdge(node1, node2, OBJECT_ID))
+            graph.add_edge(node1.index, node2.index, Mc4GraphEdge(OBJECT_ID, node1, node2))
             OBJECT_ID += 1
 
         for index in graph.edge_indices():
