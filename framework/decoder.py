@@ -2,13 +2,15 @@ import abc
 import dataclasses
 import itertools
 from dataclasses import dataclass
-from copy import deepcopy
 from pprint import pprint
 from typing import Optional
+
+import pymatching
+
 from framework.layer import Syndrome
 from framework.stabilizers import Stabilizer, Color
 import rustworkx as rx
-# import pymatching as pm
+import matplotlib.pyplot as plt
 
 
 OBJECT_ID: int = 1
@@ -66,6 +68,12 @@ class GraphNode(GraphObject, abc.ABC):
     def is_boundary(self) -> bool:
         ...
 
+    def get(self, attr, default):
+        """Boilerplate code for pymatching."""
+        if attr != "is_boundary":
+            raise RuntimeError
+        return self.is_boundary
+
 
 @dataclass
 class GraphEdge(GraphObject, abc.ABC):
@@ -75,6 +83,24 @@ class GraphEdge(GraphObject, abc.ABC):
     @property
     def is_edge_between_boundaries(self) -> bool:
         return self.node1.is_boundary and self.node2.is_boundary
+
+    @property
+    def node_ids(self) -> tuple[int, int]:
+        """Easier access of node ids (first lower, then higher id)."""
+        if self.node1.id < self.node2.id:
+            return self.node1.id, self.node2.id
+        else:
+            return self.node2.id, self.node1.id
+
+    def __contains__(self, item):
+        """Boilerplate code for pymatching."""
+        return False
+
+    def get(self, attr, default):
+        """Boilerplate code for pymatching."""
+        if attr not in {"fault_ids", "weight", "error_probability"}:
+            raise RuntimeError
+        return default
 
 
 # TODO add weight 0 to all edges linking only boundary nodes
@@ -570,16 +596,114 @@ class ConcatenatedDecoder(Decoder):
 
         return graph
 
+    def _matching2nodes(self, edges: list[tuple[int, int]], edge_graph: rx.PyGraph, node_graph: rx.PyGraph) -> list[GraphNode]:
+        """Take the edges (pairs of indices) of edge_graph and return the corresponding nodes of node_graph."""
+        edges_ = self._matching2edges(edges, edge_graph)
+        ids2nodes = {node.id: node for node in node_graph.nodes()}
+        return [ids2nodes[edge.id] for edge in edges_]
+
+    @staticmethod
+    def _matching2edges(edges: list[tuple[int, int]], edge_graph: rx.PyGraph) -> list[GraphEdge]:
+        """Take the edges (pairs of indices) of edge_graph and return the corresponding edges of edge_graph."""
+        indices2ids = {node.index: node.id for node in edge_graph.nodes()}
+        ids2edges = {edge.node_ids: edge for edge in edge_graph.edges()}
+        boundary_nodes = [node for node in edge_graph.nodes() if node.is_boundary]
+        ret = []
+        for index1, index2 in edges:
+            # special case: index1 was matched against a boundary.
+            if index2 == -1:
+                # find a boundary node which shares an edge with the node with index1
+                # TODO on restricted lattices, the matched boundary should be unique. On monochromatic, it should not
+                #  matter which one we choose (if there are multiple).
+                for boundary in boundary_nodes:
+                    if edge_graph.has_edge(index1, boundary.index):
+                        index2 = boundary.index
+                        break
+            id1 = indices2ids[index1]
+            id2 = indices2ids[index2]
+            # fix sorting of id1 and id2
+            if id1 > id2:
+                id1, id2 = id2, id1
+            # get the edge of edge_graph
+            ret.append(ids2edges[id1, id2])
+        return ret
+
     def decode(self, syndrome: Syndrome) -> list[int]:
         possible_corrections: list[list[int]] = []
 
-        for restriction_colors in itertools.combinations(self.colors, 2):
+        for r_colors in itertools.combinations(self.colors, 2):
             # create restricted graph of this colors
-            monochromatic_colors = set(self.colors) - set(restriction_colors)
-            for lifting_colors in itertools.permutations(monochromatic_colors, 2):
-                for monochromatic_color in lifting_colors:
-                    # create monochromatic graph of this color (with restriction_colors and all previous monochromatic_color)
-                    possible_corrections.append([0])
+            r_graph = self.restricted_graph(r_colors)
+
+            # construct the syndrome input for the given graph
+            r_syndrome = []
+            for node in sorted(r_graph.nodes(), key=lambda x: x.index):
+                node: RestrictedGraphNode
+                if node.is_boundary:
+                    r_syndrome.append(False)
+                else:
+                    r_syndrome.append(syndrome[node.stabilizer].ancilla)
+
+            # perform the first matching
+            # TODO maybe cache this pymatching objects
+            r_matching_graph = pymatching.Matching(r_graph)
+            r_matching = r_matching_graph.decode_to_edges_array(r_syndrome)
+
+            # plt.figure()
+            # r_matching.draw()
+            # plt.savefig(fname="pymatching.png")
+            # pprint(r_matching.edges())
+
+            for lifting_colors in itertools.permutations(set(self.colors) - set(r_colors), 2):
+                mc3_color, mc4_color = lifting_colors
+                mc3_graph = self.mc3_graph(r_colors, mc3_color)
+                mc4_graph = self.mc4_graph(r_colors, mc3_color, mc4_color)
+
+                # construct the syndrome input from the previous matching and mc3_color-stabilizers.
+                mc3_nodes = self._matching2nodes(r_matching, r_graph, mc3_graph)
+                mc3_syndrome = []
+                for node in sorted(mc3_graph.nodes(), key=lambda x: x.index):
+                    node: Mc3GraphNode
+                    if node.is_boundary:
+                        if node in mc3_nodes:
+                            raise RuntimeError
+                        mc3_syndrome.append(False)
+                    elif node in mc3_nodes:
+                        mc3_syndrome.append(True)
+                    elif node.rg_node is not None and node.rg_node.stabilizer.color == mc3_color:
+                        mc3_syndrome.append(syndrome[node.rg_node.stabilizer].ancilla)
+                    else:
+                        mc3_syndrome.append(False)
+
+                # perform the second matching
+                # TODO maybe cache this pymatching objects
+                mc3_matching_graph = pymatching.Matching(mc3_graph)
+                mc3_matching = mc3_matching_graph.decode_to_edges_array(mc3_syndrome)
+
+                # construct the syndrome input from the previous matching and mc4_color-stabilizers.
+                mc4_nodes = self._matching2nodes(mc3_matching, mc3_graph, mc4_graph)
+                mc4_syndrome = []
+                for node in sorted(mc4_graph.nodes(), key=lambda x: x.index):
+                    node: Mc4GraphNode
+                    if node.is_boundary:
+                        if node in mc4_nodes:
+                            raise RuntimeError
+                        mc4_syndrome.append(False)
+                    elif node in mc4_nodes:
+                        mc4_syndrome.append(True)
+                    elif node.dg_node is not None and node.dg_node.stabilizer.color == mc4_color:
+                        mc4_syndrome.append(syndrome[node.dg_node.stabilizer].ancilla)
+                    else:
+                        mc4_syndrome.append(False)
+
+                # perform the third matching
+                # TODO maybe cache this pymatching objects
+                mc4_matching_graph = pymatching.Matching(mc4_graph)
+                mc4_matching = mc4_matching_graph.decode_to_edges_array(mc4_syndrome)
+                mc4_edges: list[Mc4GraphEdge] = self._matching2edges(mc4_matching, mc4_graph)
+
+                possible_corrections.append(sorted([edge.qubit for edge in mc4_edges]))
+                # print([r_colors, mc3_color, mc4_color, possible_corrections[-1]])
 
         # return the lowest-weight correction
         return min(possible_corrections, key=len)
