@@ -1,13 +1,12 @@
 import abc
 import dataclasses
-import enum
 import itertools
 from dataclasses import dataclass
 from copy import deepcopy
 from pprint import pprint
 from typing import Optional
 from framework.layer import Syndrome
-from framework.stabilizers import Stabilizer
+from framework.stabilizers import Stabilizer, Color
 import rustworkx as rx
 # import pymatching as pm
 
@@ -37,13 +36,6 @@ class LookupTableDecoder(Decoder):
         Use a (non-scalable) lookup table for decoding.
         """
         return self.lookup_table.get(syndrome.value, [])
-
-
-class Color(enum.Enum):
-    red = 1
-    blue = 2
-    green = 3
-    yellow = 4
 
 
 @dataclass
@@ -102,6 +94,8 @@ class DualGraphNode(GraphNode):
         # perform sanity check: adjacent_qubits are given iff no stabilizer is given (i.e. this node is a boundary)
         if (self.stabilizer is None and self._adjacent_qubits is None
                 or self.stabilizer is not None and self._adjacent_qubits is not None):
+            raise ValueError
+        if self.stabilizer is not None and self.stabilizer.color != self.color:
             raise ValueError
 
     @property
@@ -336,10 +330,10 @@ class ConcatenatedDecoder(Decoder):
 
         # hard coded construction of [[15,1,3]] 3D Tetrahedral Color Code
         nodes = [
-            DualGraphNode(OBJECT_ID+0, Color.red, Stabilizer(15, x_positions=t2p(["A", "J", "K", "H", "M", "Q", "I", "P"]))),
-            DualGraphNode(OBJECT_ID+1, Color.yellow, Stabilizer(15, x_positions=t2p(["B", "F", "N", "G", "J", "K", "M", "Q"]))),
-            DualGraphNode(OBJECT_ID+2, Color.blue, Stabilizer(15, x_positions=t2p(["F", "C", "E", "N", "M", "I", "P", "Q"]))),
-            DualGraphNode(OBJECT_ID+3, Color.green, Stabilizer(15, x_positions=t2p(["D", "G", "N", "E", "H", "K", "Q", "P"]))),
+            DualGraphNode(OBJECT_ID+0, Color.red, Stabilizer(15, Color.red, x_positions=t2p(["A", "J", "K", "H", "M", "Q", "I", "P"]))),
+            DualGraphNode(OBJECT_ID+1, Color.yellow, Stabilizer(15, Color.yellow, x_positions=t2p(["B", "F", "N", "G", "J", "K", "M", "Q"]))),
+            DualGraphNode(OBJECT_ID+2, Color.blue, Stabilizer(15, Color.blue, x_positions=t2p(["F", "C", "E", "N", "M", "I", "P", "Q"]))),
+            DualGraphNode(OBJECT_ID+3, Color.green, Stabilizer(15, Color.green, x_positions=t2p(["D", "G", "N", "E", "H", "K", "Q", "P"]))),
             DualGraphNode(OBJECT_ID+4, Color.red, None, t2p(["B", "F", "C", "E", "D", "G", "N"])),
             DualGraphNode(OBJECT_ID+5, Color.yellow, None, t2p(["A", "I", "C", "E", "D", "H", "P"])),
             DualGraphNode(OBJECT_ID+6, Color.blue, None, t2p(["A", "J", "B", "G", "D", "H", "K"])),

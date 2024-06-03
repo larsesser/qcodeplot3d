@@ -1,3 +1,4 @@
+import enum
 import itertools
 
 import sympy
@@ -112,14 +113,23 @@ class Operator:
         return self.x + self.z
 
 
+class Color(enum.Enum):
+    red = 1
+    blue = 2
+    green = 3
+    yellow = 4
+
+
 class Stabilizer(Operator):
     """Special kind of operator which is viewed as a color code stabilizer."""
 
     ancillas: list[int]
+    color: Color
 
     def __init__(
         self,
         length: int,
+        color: Color,
         *,
         x_positions: list[int] = None,
         z_positions: list[int] = None,
@@ -140,6 +150,7 @@ class Stabilizer(Operator):
         if overlap := set(ancillas) & set(self.z):
             raise ValueError(f"Overlap between ancillas and z_positions: {overlap}")
         self.ancillas = ancillas
+        self.color = color
 
 
 def get_check_matrix(generators: list[Operator]) -> sympy.Matrix:
