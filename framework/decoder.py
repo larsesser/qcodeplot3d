@@ -13,9 +13,6 @@ import rustworkx as rx
 import matplotlib.pyplot as plt
 
 
-OBJECT_ID: int = 1
-
-
 @dataclass
 class Decoder(abc.ABC):
 
@@ -339,14 +336,17 @@ class ConcatenatedDecoder(Decoder):
     _restricted_graphs: dict[tuple[Color, ...], rx.PyGraph] = dataclasses.field(default=None, init=False)  # type: ignore[arg-type]
     _mc3_graphs: dict[tuple[Color, Color], dict[Color, rx.PyGraph]] = dataclasses.field(default=None, init=False)  # type: ignore[arg-type]
     _mc4_graphs: dict[tuple[Color, Color], dict[Color, rx.PyGraph]] = dataclasses.field(default=None, init=False)  # type: ignore[arg-type]
+    _last_id: int = dataclasses.field(default=0, init=False)
 
-    def primary_graph(self):
-        ...
+    @property
+    def next_id(self) -> int:
+        """Generate the next unique id for a graph object."""
+        self._last_id += 1
+        return self._last_id
 
     def dual_graph(self) -> rx.PyGraph:
         if self._dual_graph:
             return self._dual_graph
-        global OBJECT_ID
         graph = rx.PyGraph(multigraph=False)
 
         def t2p(l_in: list[str]) -> list[int]:
@@ -356,16 +356,15 @@ class ConcatenatedDecoder(Decoder):
 
         # hard coded construction of [[15,1,3]] 3D Tetrahedral Color Code
         nodes = [
-            DualGraphNode(OBJECT_ID+0, Color.red, Stabilizer(15, Color.red, x_positions=t2p(["A", "J", "K", "H", "M", "Q", "I", "P"]))),
-            DualGraphNode(OBJECT_ID+1, Color.yellow, Stabilizer(15, Color.yellow, x_positions=t2p(["B", "F", "N", "G", "J", "K", "M", "Q"]))),
-            DualGraphNode(OBJECT_ID+2, Color.blue, Stabilizer(15, Color.blue, x_positions=t2p(["F", "C", "E", "N", "M", "I", "P", "Q"]))),
-            DualGraphNode(OBJECT_ID+3, Color.green, Stabilizer(15, Color.green, x_positions=t2p(["D", "G", "N", "E", "H", "K", "Q", "P"]))),
-            DualGraphNode(OBJECT_ID+4, Color.red, None, t2p(["B", "F", "C", "E", "D", "G", "N"])),
-            DualGraphNode(OBJECT_ID+5, Color.yellow, None, t2p(["A", "I", "C", "E", "D", "H", "P"])),
-            DualGraphNode(OBJECT_ID+6, Color.blue, None, t2p(["A", "J", "B", "G", "D", "H", "K"])),
-            DualGraphNode(OBJECT_ID+7, Color.green, None, t2p(["A", "J", "B", "F", "C", "I", "M"])),
+            DualGraphNode(self.next_id, Color.red, Stabilizer(15, Color.red, x_positions=t2p(["A", "J", "K", "H", "M", "Q", "I", "P"]))),
+            DualGraphNode(self.next_id, Color.yellow, Stabilizer(15, Color.yellow, x_positions=t2p(["B", "F", "N", "G", "J", "K", "M", "Q"]))),
+            DualGraphNode(self.next_id, Color.blue, Stabilizer(15, Color.blue, x_positions=t2p(["F", "C", "E", "N", "M", "I", "P", "Q"]))),
+            DualGraphNode(self.next_id, Color.green, Stabilizer(15, Color.green, x_positions=t2p(["D", "G", "N", "E", "H", "K", "Q", "P"]))),
+            DualGraphNode(self.next_id, Color.red, None, t2p(["B", "F", "C", "E", "D", "G", "N"])),
+            DualGraphNode(self.next_id, Color.yellow, None, t2p(["A", "I", "C", "E", "D", "H", "P"])),
+            DualGraphNode(self.next_id, Color.blue, None, t2p(["A", "J", "B", "G", "D", "H", "K"])),
+            DualGraphNode(self.next_id, Color.green, None, t2p(["A", "J", "B", "F", "C", "I", "M"])),
         ]
-        OBJECT_ID += 8
         graph.add_nodes_from(nodes)
         for index in graph.node_indices():
             graph[index].index = index
@@ -373,8 +372,7 @@ class ConcatenatedDecoder(Decoder):
         for node1, node2 in itertools.combinations(graph.nodes(), 2):
             if node1.color == node2.color or graph.has_edge(node1.index, node2.index):
                 continue
-            graph.add_edge(node1.index, node2.index, DualGraphEdge(OBJECT_ID, node1, node2))
-            OBJECT_ID += 1
+            graph.add_edge(node1.index, node2.index, DualGraphEdge(self.next_id, node1, node2))
         for index in graph.edge_indices():
             graph.edge_index_map()[index][2].index = index
         self._dual_graph = graph
@@ -434,7 +432,6 @@ class ConcatenatedDecoder(Decoder):
         return self._mc3_graphs[rcolors][monochromatic_color]
 
     def _construct_mc3_graph(self, restricted_colors: list[Color], monochromatic_color: Color) -> rx.PyGraph:
-        global OBJECT_ID
         graph = rx.PyGraph(multigraph=False)
         restricted_2_graph = self.restricted_graph(restricted_colors)
         restricted_3_graph = self.restricted_graph([*restricted_colors, monochromatic_color])
@@ -494,8 +491,7 @@ class ConcatenatedDecoder(Decoder):
             # TODO add weight 0
             # if node1.is_boundary and node2.is_boundary:
             #     continue
-            graph.add_edge(node1.index, node2.index, Mc3GraphEdge(OBJECT_ID, node1, node2))
-            OBJECT_ID += 1
+            graph.add_edge(node1.index, node2.index, Mc3GraphEdge(self.next_id, node1, node2))
 
         for index in graph.edge_indices():
             graph.edge_index_map()[index][2].index = index
@@ -528,7 +524,6 @@ class ConcatenatedDecoder(Decoder):
         return self._mc4_graphs[rcolors][monochromatic_3_color]
 
     def _construct_mc4_graph(self, restricted_colors: list[Color], monochromatic_3_color: Color, monochromatic_4_color: Color) -> rx.PyGraph:
-        global OBJECT_ID
         graph = rx.PyGraph(multigraph=False)
         mc3_graph = self.mc3_graph(restricted_colors, monochromatic_3_color)
         dual_graph = self.dual_graph()
@@ -588,8 +583,7 @@ class ConcatenatedDecoder(Decoder):
             # TODO add weight 0 to this edge
             # if node1.is_boundary and node2.is_boundary:
             #     continue
-            graph.add_edge(node1.index, node2.index, Mc4GraphEdge(OBJECT_ID, node1, node2))
-            OBJECT_ID += 1
+            graph.add_edge(node1.index, node2.index, Mc4GraphEdge(self.next_id, node1, node2))
 
         for index in graph.edge_indices():
             graph.edge_index_map()[index][2].index = index
