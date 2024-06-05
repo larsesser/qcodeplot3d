@@ -113,7 +113,7 @@ class Operator:
         return self.x + self.z
 
 
-class Color(enum.Enum):
+class Color(enum.IntEnum):
     red = 1
     blue = 2
     green = 3

@@ -350,8 +350,8 @@ class ConcatenatedDecoder(Decoder):
         graph = rx.PyGraph(multigraph=False)
 
         def t2p(l_in: list[str]) -> list[int]:
-            trans = {"A": 15, "B": 1, "C": 2, "D": 3, "E": 4, "F": 5, "G": 6, "H": 7, "I": 8, "J": 9, "K": 10, "M": 11,
-                     "N": 12, "P": 13, "Q": 14}
+            trans = {"A": 15, "B": 10, "C": 4, "D": 6, "E": 5, "F": 8, "G": 9, "H": 3, "I": 1, "J": 7, "K": 12, "M": 14,
+                     "N": 11, "P": 2, "Q": 13}
             return [trans[e] for e in l_in]
 
         # hard coded construction of [[15,1,3]] 3D Tetrahedral Color Code
