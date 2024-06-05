@@ -108,7 +108,6 @@ class DualGraphNode(GraphNode):
 
     A node corresponds to a stabilizer or a boundary of the primary lattice.
     """
-    id: int
     stabilizer: Optional[Stabilizer]
     # if this node corresponds to a boundary, we track here which qubits are at it.
     _adjacent_qubits: Optional[list[int]] = None
@@ -135,7 +134,6 @@ class DualGraphNode(GraphNode):
 
 @dataclass
 class DualGraphEdge(GraphEdge):
-    id: int
     node1: DualGraphNode
     node2: DualGraphNode
 
@@ -332,51 +330,24 @@ class ConcatenatedDecoder(Decoder):
     # all available colors of stabilizers of the code.
     # 2D Color Code: 3, 3D Color Code: 4.
     colors: list[Color]
-    _dual_graph: rx.PyGraph = dataclasses.field(default=None, init=False)  # type: ignore[arg-type]
+    dual_graph: rx.PyGraph
     _restricted_graphs: dict[tuple[Color, ...], rx.PyGraph] = dataclasses.field(default=None, init=False)  # type: ignore[arg-type]
     _mc3_graphs: dict[tuple[Color, Color], dict[Color, rx.PyGraph]] = dataclasses.field(default=None, init=False)  # type: ignore[arg-type]
     _mc4_graphs: dict[tuple[Color, Color], dict[Color, rx.PyGraph]] = dataclasses.field(default=None, init=False)  # type: ignore[arg-type]
     _last_id: int = dataclasses.field(default=0, init=False)
+
+    def __post_init__(self):
+        # assign proper ids to dual graph nodes and edges
+        for node in self.dual_graph.nodes():
+            node.id = self.next_id
+        for edge in self.dual_graph.edges():
+            edge.id = self.next_id
 
     @property
     def next_id(self) -> int:
         """Generate the next unique id for a graph object."""
         self._last_id += 1
         return self._last_id
-
-    def dual_graph(self) -> rx.PyGraph:
-        if self._dual_graph:
-            return self._dual_graph
-        graph = rx.PyGraph(multigraph=False)
-
-        def t2p(l_in: list[str]) -> list[int]:
-            trans = {"A": 15, "B": 10, "C": 4, "D": 6, "E": 5, "F": 8, "G": 9, "H": 3, "I": 1, "J": 7, "K": 12, "M": 14,
-                     "N": 11, "P": 2, "Q": 13}
-            return [trans[e] for e in l_in]
-
-        # hard coded construction of [[15,1,3]] 3D Tetrahedral Color Code
-        nodes = [
-            DualGraphNode(self.next_id, Color.red, Stabilizer(15, Color.red, x_positions=t2p(["A", "J", "K", "H", "M", "Q", "I", "P"]))),
-            DualGraphNode(self.next_id, Color.yellow, Stabilizer(15, Color.yellow, x_positions=t2p(["B", "F", "N", "G", "J", "K", "M", "Q"]))),
-            DualGraphNode(self.next_id, Color.blue, Stabilizer(15, Color.blue, x_positions=t2p(["F", "C", "E", "N", "M", "I", "P", "Q"]))),
-            DualGraphNode(self.next_id, Color.green, Stabilizer(15, Color.green, x_positions=t2p(["D", "G", "N", "E", "H", "K", "Q", "P"]))),
-            DualGraphNode(self.next_id, Color.red, None, t2p(["B", "F", "C", "E", "D", "G", "N"])),
-            DualGraphNode(self.next_id, Color.yellow, None, t2p(["A", "I", "C", "E", "D", "H", "P"])),
-            DualGraphNode(self.next_id, Color.blue, None, t2p(["A", "J", "B", "G", "D", "H", "K"])),
-            DualGraphNode(self.next_id, Color.green, None, t2p(["A", "J", "B", "F", "C", "I", "M"])),
-        ]
-        graph.add_nodes_from(nodes)
-        for index in graph.node_indices():
-            graph[index].index = index
-        # insert edges between the nodes
-        for node1, node2 in itertools.combinations(graph.nodes(), 2):
-            if node1.color == node2.color or graph.has_edge(node1.index, node2.index):
-                continue
-            graph.add_edge(node1.index, node2.index, DualGraphEdge(self.next_id, node1, node2))
-        for index in graph.edge_indices():
-            graph.edge_index_map()[index][2].index = index
-        self._dual_graph = graph
-        return graph
 
     def restricted_graph(self, colors: list[Color]) -> rx.PyGraph:
         """Construct the dual graph, restricted to nodes (and their edges) of the given colors."""
@@ -393,7 +364,7 @@ class ConcatenatedDecoder(Decoder):
 
     def _construct_restricted_graph(self, colors: list[Color]) -> rx.PyGraph:
         graph = rx.PyGraph(multigraph=False)
-        dual_graph = self.dual_graph()
+        dual_graph = self.dual_graph
         for node in dual_graph.nodes():
             if node.color in colors:
                 graph.add_node(RestrictedGraphNode(node))
@@ -526,7 +497,7 @@ class ConcatenatedDecoder(Decoder):
     def _construct_mc4_graph(self, restricted_colors: list[Color], monochromatic_3_color: Color, monochromatic_4_color: Color) -> rx.PyGraph:
         graph = rx.PyGraph(multigraph=False)
         mc3_graph = self.mc3_graph(restricted_colors, monochromatic_3_color)
-        dual_graph = self.dual_graph()
+        dual_graph = self.dual_graph
         # rustworkx guarantees that the undirected and directed graph share the same indexes for the same objects.
         directed_dual_graph = dual_graph.to_directed()
 
