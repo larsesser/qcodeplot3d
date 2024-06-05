@@ -332,8 +332,11 @@ class ConcatenatedDecoder(Decoder):
     colors: list[Color]
     dual_graph: rx.PyGraph
     _restricted_graphs: dict[tuple[Color, ...], rx.PyGraph] = dataclasses.field(default=None, init=False)  # type: ignore[arg-type]
+    _restricted_matching_graphs: dict[tuple[Color, ...], pymatching.Matching] = dataclasses.field(default=None, init=False)  # type: ignore[arg-type]
     _mc3_graphs: dict[tuple[Color, Color], dict[Color, rx.PyGraph]] = dataclasses.field(default=None, init=False)  # type: ignore[arg-type]
+    _mc3_matching_graphs: dict[tuple[Color, Color], dict[Color, pymatching.Matching]] = dataclasses.field(default=None, init=False)  # type: ignore[arg-type]
     _mc4_graphs: dict[tuple[Color, Color], dict[Color, rx.PyGraph]] = dataclasses.field(default=None, init=False)  # type: ignore[arg-type]
+    _mc4_matching_graphs: dict[tuple[Color, Color], dict[Color, pymatching.Matching]] = dataclasses.field(default=None, init=False)  # type: ignore[arg-type]
     _last_id: int = dataclasses.field(default=0, init=False)
 
     def __post_init__(self):
@@ -354,13 +357,21 @@ class ConcatenatedDecoder(Decoder):
         if self._restricted_graphs:
             return self._restricted_graphs[tuple(colors)]
         graphs = {}
+        matching_graphs = {}
         for num_colors in [2, 3]:
             for restricted_colors in itertools.combinations(self.colors, num_colors):
                 graph = self._construct_restricted_graph(restricted_colors)
                 for cols in itertools.permutations(restricted_colors):
                     graphs[cols] = graph
+                    matching_graphs[cols] = pymatching.Matching(graph)
         self._restricted_graphs = graphs
+        self._restricted_matching_graphs = matching_graphs
         return self._restricted_graphs[tuple(colors)]
+
+    def restricted_matching_graph(self, colors: list[Color]) -> pymatching.Matching:
+        if not self._restricted_matching_graphs:
+            self.restricted_graph(colors)
+        return self._restricted_matching_graphs[tuple(colors)]
 
     def _construct_restricted_graph(self, colors: list[Color]) -> rx.PyGraph:
         graph = rx.PyGraph(multigraph=False)
@@ -392,15 +403,30 @@ class ConcatenatedDecoder(Decoder):
         if self._mc3_graphs:
             return self._mc3_graphs[rcolors][monochromatic_color]
         graphs: dict[tuple[Color, ...], dict[Color, rx.PyGraph]] = {}
+        matching_graphs = {}
         for r_colors in itertools.combinations(self.colors, 2):
             graphs[tuple(r_colors)] = {}
             graphs[tuple(r_colors[::-1])] = {}
+            matching_graphs[tuple(r_colors)] = {}
+            matching_graphs[tuple(r_colors[::-1])] = {}
             for m_color in set(self.colors) - set(r_colors):
                 graph = self._construct_mc3_graph(r_colors, m_color)
                 graphs[tuple(r_colors)][m_color] = graph
                 graphs[tuple(r_colors[::-1])][m_color] = graph
+                matching_graph = pymatching.Matching(graph)
+                matching_graphs[tuple(r_colors)][m_color] = matching_graph
+                matching_graphs[tuple(r_colors[::-1])][m_color] = matching_graph
         self._mc3_graphs = graphs
+        self._mc3_matching_graphs = matching_graphs
         return self._mc3_graphs[rcolors][monochromatic_color]
+
+    def mc3_matching_graph(self, restricted_colors: list[Color], monochromatic_color: Color) -> pymatching.Matching:
+        if len(restricted_colors) != 2 or monochromatic_color in restricted_colors:
+            raise ValueError
+        rcolors = restricted_colors[0], restricted_colors[1]
+        if not self._mc3_matching_graphs:
+            self.mc3_graph(restricted_colors, monochromatic_color)
+        return self._mc3_matching_graphs[rcolors][monochromatic_color]
 
     def _construct_mc3_graph(self, restricted_colors: list[Color], monochromatic_color: Color) -> rx.PyGraph:
         graph = rx.PyGraph(multigraph=False)
@@ -483,16 +509,33 @@ class ConcatenatedDecoder(Decoder):
         if self._mc4_graphs:
             return self._mc4_graphs[rcolors][monochromatic_3_color]
         graphs: dict[tuple[Color, Color], dict[Color, rx.PyGraph]] = {}
+        matching_graphs = {}
         for r_colors in itertools.combinations(self.colors, 2):
             graphs[r_colors] = {}
             graphs[r_colors[::-1]] = {}
+            matching_graphs[r_colors] = {}
+            matching_graphs[r_colors[::-1]] = {}
             for m_3_color in set(self.colors) - set(r_colors):
                 m_4_color = (set(self.colors) - set(r_colors) - {m_3_color}).pop()
                 graph = self._construct_mc4_graph(r_colors, m_3_color, m_4_color)
                 graphs[r_colors][m_3_color] = graph
                 graphs[r_colors[::-1]][m_3_color] = graph
+                matching_graph = pymatching.Matching(graph)
+                matching_graphs[r_colors][m_3_color] = matching_graph
+                matching_graphs[r_colors[::-1]][m_3_color] = matching_graph
         self._mc4_graphs = graphs
+        self._mc4_matching_graphs = matching_graphs
         return self._mc4_graphs[rcolors][monochromatic_3_color]
+
+    def mc4_matching_graph(self, restricted_colors: list[Color], monochromatic_3_color: Color, monochromatic_4_color: Color) -> pymatching.Matching:
+        if (len(restricted_colors) != 2
+                or monochromatic_3_color in restricted_colors or monochromatic_4_color in restricted_colors
+                or monochromatic_3_color == monochromatic_4_color):
+            raise ValueError
+        rcolors = restricted_colors[0], restricted_colors[1]
+        if not self._mc4_matching_graphs:
+            self.mc4_graph(restricted_colors, monochromatic_3_color, monochromatic_4_color)
+        return self._mc4_matching_graphs[rcolors][monochromatic_3_color]
 
     def _construct_mc4_graph(self, restricted_colors: list[Color], monochromatic_3_color: Color, monochromatic_4_color: Color) -> rx.PyGraph:
         graph = rx.PyGraph(multigraph=False)
@@ -570,6 +613,8 @@ class ConcatenatedDecoder(Decoder):
     @staticmethod
     def _matching2edges(edges: list[tuple[int, int]], edge_graph: rx.PyGraph) -> list[GraphEdge]:
         """Take the edges (pairs of indices) of edge_graph and return the corresponding edges of edge_graph."""
+        # TODO should be worthwhile to cache this whole function, i.e. compute this mapping of edges -> GraphEdges
+        #  for all relevant cases and save it as a dict
         indices2ids = {node.index: node.id for node in edge_graph.nodes()}
         ids2edges = {edge.node_ids: edge for edge in edge_graph.edges()}
         boundary_nodes = [node for node in edge_graph.nodes() if node.is_boundary]
@@ -610,8 +655,7 @@ class ConcatenatedDecoder(Decoder):
                     r_syndrome.append(syndrome[node.stabilizer].ancilla)
 
             # perform the first matching
-            # TODO maybe cache this pymatching objects
-            r_matching_graph = pymatching.Matching(r_graph)
+            r_matching_graph = self.restricted_matching_graph(r_colors)
             r_matching = r_matching_graph.decode_to_edges_array(r_syndrome)
 
             # plt.figure()
@@ -641,8 +685,7 @@ class ConcatenatedDecoder(Decoder):
                         mc3_syndrome.append(False)
 
                 # perform the second matching
-                # TODO maybe cache this pymatching objects
-                mc3_matching_graph = pymatching.Matching(mc3_graph)
+                mc3_matching_graph = self.mc3_matching_graph(r_colors, mc3_color)
                 mc3_matching = mc3_matching_graph.decode_to_edges_array(mc3_syndrome)
 
                 # construct the syndrome input from the previous matching and mc4_color-stabilizers.
@@ -662,8 +705,7 @@ class ConcatenatedDecoder(Decoder):
                         mc4_syndrome.append(False)
 
                 # perform the third matching
-                # TODO maybe cache this pymatching objects
-                mc4_matching_graph = pymatching.Matching(mc4_graph)
+                mc4_matching_graph = self.mc4_matching_graph(r_colors, mc3_color, mc4_color)
                 mc4_matching = mc4_matching_graph.decode_to_edges_array(mc4_syndrome)
                 mc4_edges: list[Mc4GraphEdge] = self._matching2edges(mc4_matching, mc4_graph)
 
