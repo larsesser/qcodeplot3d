@@ -114,10 +114,44 @@ class Operator:
 
 
 class Color(enum.IntEnum):
+    # monochrome colors
     red = 1
     blue = 2
     green = 3
     yellow = 4
+
+    # mixed colors
+    rb = 11
+    rg = 12
+    ry = 13
+    bg = 14
+    by = 15
+    gy = 16
+
+    @property
+    def is_monochrome(self) -> bool:
+        """Is this color a pure color?"""
+        return self in {Color.red, Color.blue, Color.green, Color.yellow}
+
+    @property
+    def is_mixed(self) -> bool:
+        return self in {Color.rb, Color.rg, Color.ry, Color.bg, Color.by, Color.gy}
+
+    @property
+    def as_names(self) -> list[str]:
+        """Return the ingredients of the color, f.e. Color.rb -> ['red', 'blue']."""
+        return {
+            Color.red: ["red"],
+            Color.blue: ["blue"],
+            Color.green: ["green"],
+            Color.yellow: ["yellow"],
+            Color.rb: ["red", "blue"],
+            Color.rg: ["red", "green"],
+            Color.ry: ["red", "yellow"],
+            Color.bg: ["blue", "green"],
+            Color.by: ["blue", "yellow"],
+            Color.gy: ["green", "yellow"],
+        }[self]
 
 
 class Stabilizer(Operator):

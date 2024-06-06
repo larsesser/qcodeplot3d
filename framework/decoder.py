@@ -119,6 +119,10 @@ class DualGraphNode(GraphNode):
             raise ValueError
         if self.stabilizer is not None and self.stabilizer.color != self.color:
             raise ValueError
+        if not self.color.is_monochrome:
+            raise ValueError
+        if self._adjacent_qubits:
+            self._adjacent_qubits = sorted(self._adjacent_qubits)
 
     @property
     def is_boundary(self) -> bool:
@@ -128,7 +132,7 @@ class DualGraphNode(GraphNode):
     def qubits(self) -> list[int]:
         """Return the qubits which are adjacent to this stabilizer / boundary."""
         if self.is_boundary:
-            return sorted(self._adjacent_qubits)
+            return self._adjacent_qubits
         return self.stabilizer.qubits
 
 
@@ -354,6 +358,8 @@ class ConcatenatedDecoder(Decoder):
 
     def restricted_graph(self, colors: list[Color]) -> rx.PyGraph:
         """Construct the dual graph, restricted to nodes (and their edges) of the given colors."""
+        if len(colors) not in {2, 3}:
+            raise ValueError
         if self._restricted_graphs:
             return self._restricted_graphs[tuple(colors)]
         graphs = {}
