@@ -12,10 +12,6 @@ from pysat.solvers import Solver
 
 
 class PreDualGraphNode(GraphNode):
-    title: str
-    # used for graph rendering
-    initial_position: tuple[int, int] = None
-
     def __init__(self, title: str, pos: tuple[int, int] = None, is_boundary: bool = False):
         self._is_boundary = is_boundary
         self.title = title
@@ -60,9 +56,8 @@ def construct_dual_graph() -> rustworkx.PyGraph:
         dual_graph.add_edge(node1.index, node2.index, DualGraphEdge(node1, node2))
     for index in dual_graph.edge_indices():
         dual_graph.edge_index_map()[index][2].index = index
-    boundary_nodes_indices = [nodes[4].index, nodes[5].index, nodes[6].index, nodes[7].index]
 
-    coloring_qubits(dual_graph, boundary_nodes_indices, dimension=3)
+    coloring_qubits(dual_graph, dimension=3)
     return dual_graph
 
 
@@ -122,7 +117,7 @@ def _compute_simplexes(graph: rustworkx.PyGraph, dimension: int) -> set[tuple[in
     return tetrahedrons
 
 
-def coloring_qubits(dual_graph: rustworkx.PyGraph, boundary_nodes_indices: list[int] = None, dimension: int = 3) -> None:
+def coloring_qubits(dual_graph: rustworkx.PyGraph, dimension: int = 3) -> None:
     # In the following, we construct all necessary information from the graph layout:
     # - color of the nodes
     # - adjacent qubits to stabilizers / boundaries
@@ -130,11 +125,7 @@ def coloring_qubits(dual_graph: rustworkx.PyGraph, boundary_nodes_indices: list[
     if dimension not in {2, 3}:
         raise NotImplementedError
 
-    if boundary_nodes_indices is None:
-        boundary_nodes_indices = {node.index for node in dual_graph.nodes() if node.is_boundary}
-
-    # rustworkx guarantees that the undirected and directed graph share the same indexes for the same objects.
-    directed_dual_graph = dual_graph.to_directed()
+    boundary_nodes_indices = {node.index for node in dual_graph.nodes() if node.is_boundary}
 
     # compute a coloring of the graph
     colors = [Color.red, Color.blue, Color.green]
@@ -151,15 +142,17 @@ def coloring_qubits(dual_graph: rustworkx.PyGraph, boundary_nodes_indices: list[
             node2simplex[index].append(name)
 
     # add proper DualGraphNode objects for all graph nodes
-    for index in dual_graph.node_indices():
-        color = coloring[index]
-        adjacent_qubits = node2tetrahedron[index]
-        if index in boundary_nodes_indices:
-            dual_graph[index] = DualGraphNode(color, stabilizer=None, _adjacent_qubits=adjacent_qubits)
+    for node in dual_graph.nodes():
+        color = coloring[node.index]
+        adjacent_qubits = node2simplex[node.index]
+        if node.index in boundary_nodes_indices:
+            dual_graph[node.index] = DualGraphNode(color, stabilizer=None, _adjacent_qubits=adjacent_qubits)
         else:
-            stabilizer = Stabilizer(length=len(tetrahedrons), color=color, x_positions=adjacent_qubits)
-            dual_graph[index] = DualGraphNode(color, stabilizer=stabilizer)
-        dual_graph[index].index = index
+            stabilizer = Stabilizer(length=len(simplexes), color=color, x_positions=adjacent_qubits)
+            dual_graph[node.index] = DualGraphNode(color, stabilizer=stabilizer)
+        dual_graph[node.index].index = node.index
+        dual_graph[node.index].title = node.title
+        dual_graph[node.index].initial_position = node.initial_position
 
     # add proper DualGraphEdge objects for all graph edges
     for edge_index, (node_index1, node_index2, _) in dual_graph.edge_index_map().items():
@@ -250,7 +243,7 @@ def rectangular_2d_dual_graph(distance: int) -> rustworkx.PyGraph:
 
 def node_attr_fn(node: GraphNode):
     label = f"{node.index}"
-    if hasattr(node, "title"):
+    if node.title:
         label = f"{node.title}"
     if node.is_boundary:
         label += " B"
@@ -259,10 +252,10 @@ def node_attr_fn(node: GraphNode):
         "shape": "circle",
         "label": label,
     }
-    if hasattr(node, "color"):
+    if node.color:
         attr_dict["color"] = node.color.name
         attr_dict["fill_color"] = node.color.name
-    if hasattr(node, "initial_position"):
+    if node.initial_position:
         x, y = node.initial_position
         attr_dict["pos"] = f'"{x},{y}"'
     return attr_dict

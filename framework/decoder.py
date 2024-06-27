@@ -59,6 +59,10 @@ class GraphObject(abc.ABC):
 @dataclass
 class GraphNode(GraphObject, abc.ABC):
     color: Color
+    # used for graph debugging
+    title: Optional[str] = dataclasses.field(default=None, init=False)
+    # used for graph rendering
+    initial_position: tuple[int, int] = dataclasses.field(default=None, init=False)
 
     @property
     @abc.abstractmethod
