@@ -2,6 +2,7 @@ import collections
 
 import rustworkx
 
+from framework.stabilizers import check_stabilizers, Operator, check_z, check_xj
 from framework.decoder import ConcatenatedDecoder, GraphNode, GraphEdge, DualGraphNode, DualGraphEdge
 from rustworkx.visualization import graphviz_draw
 from framework.stabilizers import Color, Stabilizer
@@ -148,6 +149,7 @@ def coloring_qubits(dual_graph: rustworkx.PyGraph, dimension: int = 3) -> None:
         if node.index in boundary_nodes_indices:
             dual_graph[node.index] = DualGraphNode(color, stabilizer=None, _adjacent_qubits=adjacent_qubits)
         else:
+            # TODO only x stabilizer, z stabilizer need to be constructed on the fly?
             stabilizer = Stabilizer(length=len(simplexes), color=color, x_positions=adjacent_qubits)
             dual_graph[node.index] = DualGraphNode(color, stabilizer=stabilizer)
         dual_graph[node.index].index = node.index
@@ -270,6 +272,24 @@ def edge_attr_fn(edge: GraphEdge):
 
 graph = rectangular_2d_dual_graph(5)
 coloring_qubits(graph, dimension=2)
+
+x_stabilizer: list[Stabilizer] = [node.stabilizer for node in graph.nodes() if node.stabilizer]
+z_stabilizer: list[Stabilizer] = [Stabilizer(s.length, s.color, z_positions=s.x) for s in x_stabilizer]
+stabilizers = [*x_stabilizer, *z_stabilizer]
+check_stabilizers(stabilizers)
+
+logical_1_pos = [node for node in graph.nodes() if node.title == "bottom"][0].qubits
+z_1 = Operator(length=stabilizers[0].length, z_positions=logical_1_pos)
+x_1 = Operator(length=stabilizers[0].length, x_positions=logical_1_pos)
+
+logical_2_pos = [node for node in graph.nodes() if node.title == "top"][0].qubits
+z_2 = Operator(length=stabilizers[0].length, z_positions=logical_2_pos)
+x_2 = Operator(length=stabilizers[0].length, x_positions=logical_2_pos)
+
+check_z([z_1, z_2], stabilizers)
+check_xj(x_1, z_1, [z_2], stabilizers)
+check_xj(x_2, z_2, [z_1], stabilizers)
+
 graphviz_draw(graph, node_attr_fn, filename="2D rectangular d=3.png", method="fdp")
 
 
