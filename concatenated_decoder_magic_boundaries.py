@@ -243,6 +243,76 @@ def rectangular_2d_dual_graph(distance: int) -> rustworkx.PyGraph:
     return dual_graph
 
 
+def square_2d_dual_graph(distance: int) -> rustworkx.PyGraph:
+    if not distance % 2 == 0:
+        raise ValueError("d must be an even integer")
+
+    num_cols = num_rows = distance-1
+
+    dual_graph = rustworkx.PyGraph(multigraph=False)
+    left = PreDualGraphNode("left", pos=(-distance//2, distance//2), is_boundary=True)
+    right = PreDualGraphNode("right", pos=(3*distance//2, distance//2), is_boundary=True)
+    top = PreDualGraphNode("top", pos=(distance//2, 3*distance//2), is_boundary=True)
+    bottom = PreDualGraphNode("bottom", pos=(distance//2, -distance//2), is_boundary=True)
+    boundaries = [left, right, top, bottom]
+    # distance 4:
+    #   |   |   |
+    # – a - b - c –
+    #   | / | \ |
+    # – d – e - f -
+    #   | \ | / |
+    # – g - h - i -
+    #   |   |   |
+    # nodes = [[a, d, g], [b, e, h], [c, f, i]]
+    nodes = [[PreDualGraphNode(f"({col},{row})", pos=(col, row)) for row in reversed(range(num_rows))] for col in range(num_cols)]
+
+    dual_graph.add_nodes_from(boundaries)
+    dual_graph.add_nodes_from([node for node in itertools.chain.from_iterable(nodes) if node is not None])
+    for index in dual_graph.node_indices():
+        dual_graph[index].index = index
+
+    # construct edges
+
+    # between boundary_nodes and boundary_nodes:
+    dual_graph.add_edge(left.index, top.index, None)
+    dual_graph.add_edge(top.index, right.index, None)
+    dual_graph.add_edge(right.index, bottom.index, None)
+    dual_graph.add_edge(bottom.index, left.index, None)
+
+    # between nodes and boundary_nodes
+    for col in nodes:
+        dual_graph.add_edge(col[0].index, top.index, None)
+        dual_graph.add_edge(col[-1].index, bottom.index, None)
+    for node in nodes[0]:
+        dual_graph.add_edge(node.index, left.index, None)
+    for node in nodes[-1]:
+        dual_graph.add_edge(node.index, right.index, None)
+
+    # between nodes and nodes
+    # connect rows
+    for col1, col2 in zip(nodes, nodes[1:]):
+        for node1, node2 in zip(col1, col2):
+            dual_graph.add_edge(node1.index, node2.index, None)
+    # connect cols
+    for col in nodes:
+        for node1, node2 in zip(col, col[1:]):
+            dual_graph.add_edge(node1.index, node2.index, None)
+
+    for col_pos, col in enumerate(nodes):
+        # reached last col
+        if col_pos == num_cols-1:
+            continue
+        for row_pos, node in enumerate(col):
+            # diagonal pattern, including all odd rows from even cols and vice versa
+            if row_pos % 2 == col_pos % 2:
+                continue
+            if row_pos != num_rows-1:
+                dual_graph.add_edge(node.index, nodes[col_pos+1][row_pos+1].index, None)
+            if row_pos != 0:
+                dual_graph.add_edge(node.index, nodes[col_pos+1][row_pos-1].index, None)
+    return dual_graph
+
+
 def node_attr_fn(node: GraphNode):
     label = f"{node.index}"
     if node.title:
@@ -254,7 +324,7 @@ def node_attr_fn(node: GraphNode):
         "shape": "circle",
         "label": label,
     }
-    if node.color:
+    if hasattr(node, "color"):
         attr_dict["color"] = node.color.name
         attr_dict["fill_color"] = node.color.name
     if node.initial_position:
@@ -269,6 +339,36 @@ def edge_attr_fn(edge: GraphEdge):
     }
     return attr_dict
 
+
+d = 4
+graph = square_2d_dual_graph(d)
+coloring_qubits(graph, dimension=2)
+
+x_stabilizer: list[Stabilizer] = [node.stabilizer for node in graph.nodes() if node.stabilizer]
+z_stabilizer: list[Stabilizer] = [Stabilizer(s.length, s.color, z_positions=s.x) for s in x_stabilizer]
+stabilizers: list[Stabilizer] = [*x_stabilizer, *z_stabilizer]
+check_stabilizers(stabilizers)
+
+logical_1_pos = [node for node in graph.nodes() if node.title == "bottom"][0].qubits
+z_1 = Operator(length=stabilizers[0].length, z_positions=logical_1_pos)
+x_2 = Operator(length=stabilizers[0].length, x_positions=logical_1_pos)
+
+logical_2_pos = [node for node in graph.nodes() if node.title == "left"][0].qubits
+z_2 = Operator(length=stabilizers[0].length, z_positions=logical_2_pos)
+x_1 = Operator(length=stabilizers[0].length, x_positions=logical_2_pos)
+
+check_z([z_1, z_2], stabilizers)
+check_xj(x_1, z_1, [z_2], stabilizers)
+check_xj(x_2, z_2, [z_1], stabilizers)
+
+n = stabilizers[0].length
+k = n - len(stabilizers)
+print(f"n: {n}, k: {k}, d: {d}")
+
+graphviz_draw(graph, node_attr_fn, filename="2D square d=4.png", method="fdp")
+
+
+exit()
 
 graph = rectangular_2d_dual_graph(5)
 coloring_qubits(graph, dimension=2)
