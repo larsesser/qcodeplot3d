@@ -313,6 +313,136 @@ def square_2d_dual_graph(distance: int) -> rustworkx.PyGraph:
     return dual_graph
 
 
+def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
+    if not distance % 2 == 0:
+        raise ValueError("d must be an even integer")
+
+    num_cols = num_rows = num_layers = distance-1
+
+    dual_graph = rustworkx.PyGraph(multigraph=False)
+    left = PreDualGraphNode("left", pos=(-distance//2, distance//2), is_boundary=True)
+    right = PreDualGraphNode("right", pos=(3*distance//2, distance//2), is_boundary=True)
+    back = PreDualGraphNode("back", pos=(distance//2, 3*distance//2), is_boundary=True)
+    front = PreDualGraphNode("front", pos=(distance//2, -distance//2), is_boundary=True)
+    up = PreDualGraphNode("up", pos=(distance//2, -distance//2), is_boundary=True)
+    down = PreDualGraphNode("down", pos=(distance//2, -distance//2), is_boundary=True)
+    boundaries = [left, right, back, front, up,  down]
+    # distance 4, top layer:
+    #   |   |   |
+    # – a - b - c –
+    #   | / | \ |
+    # – d – e - f -
+    #   | \ | / |
+    # – g - h - i -
+    #   |   |   |
+    # distance 4, middle layer:
+    #   |   |   |
+    # – j - k - l –
+    #   | \ | / |
+    # – m – n - o -
+    #   | / | \ |
+    # – p - q - r -
+    #   |   |   |
+    # distance 4, bottom layer:
+    #   |   |   |
+    # – r - t - u –
+    #   | / | \ |
+    # – v – w - x -
+    #   | \ | / |
+    # – y - z - A -
+    #   |   |   |
+    # nodes = [[[a, d, g], [b, e, h], [c, f, i]], [[j, m, p], [k, n, q], [l, o, r]], [[r, v, y], [t, w, z], [u, x, A]]]
+    nodes = [[[PreDualGraphNode(f"({col},{row},{layer})", pos=(col, row - layer*distance))
+               for row in reversed(range(num_rows))] for col in range(num_cols)] for layer in range(num_layers)]
+
+    dual_graph.add_nodes_from(boundaries)
+    dual_graph.add_nodes_from([node for layer in nodes for row in layer for node in row])
+    for index in dual_graph.node_indices():
+        dual_graph[index].index = index
+
+    # construct edges
+
+    # between boundary_nodes and boundary_nodes:
+    dual_graph.add_edge(left.index, back.index, None)
+    dual_graph.add_edge(back.index, right.index, None)
+    dual_graph.add_edge(right.index, front.index, None)
+    dual_graph.add_edge(front.index, left.index, None)
+    for node in [left, right, back, front]:
+        dual_graph.add_edge(up.index, node.index, None)
+        dual_graph.add_edge(down.index, node.index, None)
+
+    # between nodes and boundary_nodes
+    for layer in nodes:
+        for col in layer:
+            dual_graph.add_edge(col[0].index, back.index, None)
+            dual_graph.add_edge(col[-1].index, front.index, None)
+        # first row
+        for node in layer[0]:
+            dual_graph.add_edge(node.index, left.index, None)
+        # last row
+        for node in layer[-1]:
+            dual_graph.add_edge(node.index, right.index, None)
+    for col in nodes[0]:
+        for node in col:
+            dual_graph.add_edge(node.index, up.index, None)
+    for col in nodes[-1]:
+        for node in col:
+            dual_graph.add_edge(node.index, down.index, None)
+
+    # between nodes and nodes
+    # inside one layer
+    for layer_pos, layer in enumerate(nodes):
+        # connect rows
+        for col1, col2 in zip(layer, layer[1:]):
+            for node1, node2 in zip(col1, col2):
+                dual_graph.add_edge(node1.index, node2.index, None)
+        # connect cols
+        for col in layer:
+            for node1, node2 in zip(col, col[1:]):
+                dual_graph.add_edge(node1.index, node2.index, None)
+        # diagonals
+        for col_pos, col in enumerate(layer):
+            # reached last col
+            if col_pos == num_cols-1:
+                continue
+            for row_pos, node in enumerate(col):
+                # diagonal pattern, changing "direction" in each layer
+                if (layer_pos % 2 == 0) and (row_pos % 2 == col_pos % 2):
+                    continue
+                if (layer_pos % 2 == 1) and (row_pos % 2 != col_pos % 2):
+                    continue
+                if row_pos != num_rows-1:
+                    dual_graph.add_edge(node.index, layer[col_pos+1][row_pos+1].index, None)
+                if row_pos != 0:
+                    dual_graph.add_edge(node.index, layer[col_pos+1][row_pos-1].index, None)
+    # between two layers
+    for layer1, layer2 in zip(nodes, nodes[1:]):
+        for col1, col2 in zip(layer1, layer2):
+            for node1, node2 in zip(col1, col2):
+                dual_graph.add_edge(node1.index, node2.index, None)
+    for layer_pos, layer in enumerate(nodes):
+        # reached last layer
+        if layer_pos == num_layers-1:
+            continue
+        for col_pos, col in enumerate(layer):
+            for row_pos, node in enumerate(col):
+                # diagonal pattern, changing "direction" in each layer
+                if (layer_pos % 2 == 0) and (row_pos % 2 == col_pos % 2):
+                    continue
+                if (layer_pos % 2 == 1) and (row_pos % 2 != col_pos % 2):
+                    continue
+                if row_pos != num_rows-1:
+                    dual_graph.add_edge(node.index, nodes[layer_pos+1][col_pos][row_pos+1].index, None)
+                if row_pos != 0:
+                    dual_graph.add_edge(node.index, nodes[layer_pos+1][col_pos][row_pos-1].index, None)
+                if col_pos != num_cols-1:
+                    dual_graph.add_edge(node.index, nodes[layer_pos+1][col_pos+1][row_pos].index, None)
+                if col_pos != 0:
+                    dual_graph.add_edge(node.index, nodes[layer_pos+1][col_pos-1][row_pos].index, None)
+
+    return dual_graph
+
+
 def node_attr_fn(node: GraphNode):
     label = f"{node.index}"
     if node.title:
@@ -339,6 +469,18 @@ def edge_attr_fn(edge: GraphEdge):
     }
     return attr_dict
 
+
+graph = cubic_3d_dual_graph(4)
+# coloring_qubits(graph, dimension=3)
+
+# x_stabilizer: list[Stabilizer] = [node.stabilizer for node in graph.nodes() if node.stabilizer]
+# z_stabilizer: list[Stabilizer] = [Stabilizer(x_stabilizer[0].length, Color.red, z_positions=edge.qubits) for edge in graph.edges()]
+# stabilizers: list[Stabilizer] = [*x_stabilizer, *z_stabilizer]
+# check_stabilizers(stabilizers)
+
+graphviz_draw(graph, node_attr_fn, filename="3D cubic d=4 2.png", method="fdp")
+
+exit()
 
 d = 4
 graph = square_2d_dual_graph(d)
