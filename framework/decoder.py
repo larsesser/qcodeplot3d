@@ -62,7 +62,9 @@ class GraphNode(GraphObject, abc.ABC):
     # used for graph debugging
     title: Optional[str] = dataclasses.field(default=None, init=False)
     # used for graph rendering
-    initial_position: tuple[int, int] = dataclasses.field(default=None, init=False)
+    initial_x: int = dataclasses.field(default=None, init=False)
+    initial_y: int = dataclasses.field(default=None, init=False)
+    initial_z: Optional[int] = dataclasses.field(default=None, init=False)
 
     @property
     @abc.abstractmethod
@@ -145,6 +147,14 @@ class DualGraphEdge(GraphEdge):
     node1: DualGraphNode
     node2: DualGraphNode
 
+    def __post_init__(self):
+        self._qubits = sorted(set(self.node1.qubits) & set(self.node2.qubits))
+
+    @property
+    def qubits(self):
+        """The qubits associated with this edge (== face in primal lattice)."""
+        return self._qubits
+
 
 @dataclass
 class RestrictedGraphNode(GraphNode):
@@ -172,6 +182,10 @@ class RestrictedGraphNode(GraphNode):
     @property
     def stabilizer(self):
         return self.dg_node.stabilizer
+
+    @property
+    def qubits(self):
+        return self.dg_node.qubits
 
     @property
     def dg_nodes(self) -> list[DualGraphNode]:

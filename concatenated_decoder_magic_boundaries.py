@@ -1,6 +1,9 @@
 import collections
 
+import numpy as np
 import rustworkx
+import shlex
+import re
 
 from framework.stabilizers import check_stabilizers, Operator, check_z, check_xj
 from framework.decoder import ConcatenatedDecoder, GraphNode, GraphEdge, DualGraphNode, DualGraphEdge
@@ -13,10 +16,13 @@ from pysat.solvers import Solver
 
 
 class PreDualGraphNode(GraphNode):
-    def __init__(self, title: str, pos: tuple[int, int] = None, is_boundary: bool = False):
+    def __init__(self, title: str, pos: tuple[int, int] | tuple[int, int, int] = None, is_boundary: bool = False):
         self._is_boundary = is_boundary
         self.title = title
-        self.initial_position = pos
+        if len(pos) == 3:
+            self.initial_x, self.initial_y, self.initial_z = pos
+        else:
+            self.initial_x, self.initial_y = pos
 
     @property
     def is_boundary(self) -> bool:
@@ -154,7 +160,7 @@ def coloring_qubits(dual_graph: rustworkx.PyGraph, dimension: int = 3) -> None:
             dual_graph[node.index] = DualGraphNode(color, stabilizer=stabilizer)
         dual_graph[node.index].index = node.index
         dual_graph[node.index].title = node.title
-        dual_graph[node.index].initial_position = node.initial_position
+        dual_graph[node.index].initial_x, initial_y, initial_z = node.initial_x, node.initial_y, node.initial_z
 
     # add proper DualGraphEdge objects for all graph edges
     for edge_index, (node_index1, node_index2, _) in dual_graph.edge_index_map().items():
@@ -352,7 +358,7 @@ def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
     # – y - z - A -
     #   |   |   |
     # nodes = [[[a, d, g], [b, e, h], [c, f, i]], [[j, m, p], [k, n, q], [l, o, r]], [[r, v, y], [t, w, z], [u, x, A]]]
-    nodes = [[[PreDualGraphNode(f"({col},{row},{layer})", pos=(col, row - layer*distance))
+    nodes = [[[PreDualGraphNode(f"({col},{row},{layer})", pos=(col, row, layer))
                for row in reversed(range(num_rows))] for col in range(num_cols)] for layer in range(num_layers)]
 
     dual_graph.add_nodes_from(boundaries)
@@ -451,21 +457,24 @@ def node_attr_fn(node: GraphNode):
         label += " B"
     attr_dict = {
         "style": "filled",
-        "shape": "circle",
+        "shape": "point",
         "label": label,
     }
     if hasattr(node, "color"):
         attr_dict["color"] = node.color.name
         attr_dict["fill_color"] = node.color.name
-    if node.initial_position:
-        x, y = node.initial_position
-        attr_dict["pos"] = f'"{x},{y}"'
+    if node.initial_x:
+        x = node.initial_x
+        y = node.initial_y
+        if z := node.initial_z:
+            attr_dict["pos"] = f'"{x},{y},{z}"'
+        else:
+            attr_dict["pos"] = f'"{x},{y}"'
     return attr_dict
 
 
 def edge_attr_fn(edge: GraphEdge):
     attr_dict = {
-        "label": f"{edge.id}, {edge.index}",
     }
     return attr_dict
 
@@ -477,8 +486,80 @@ graph = cubic_3d_dual_graph(4)
 # z_stabilizer: list[Stabilizer] = [Stabilizer(x_stabilizer[0].length, Color.red, z_positions=edge.qubits) for edge in graph.edges()]
 # stabilizers: list[Stabilizer] = [*x_stabilizer, *z_stabilizer]
 # check_stabilizers(stabilizers)
+graphviz_draw(graph, node_attr_fn, edge_attr_fn, filename="3D cubic d=4.wrl", method="neato", image_type="vrml", graph_attr={"dimen": "3"})
+# graphviz_draw(graph, node_attr_fn, edge_attr_fn, filename="3D cubic d=4.plain", method="neato", image_type="plain", graph_attr={"dimen": "3"})
+# graphviz_draw(graph, node_attr_fn, filename="3D cubic d=4 2.png", method="fdp")
 
-graphviz_draw(graph, node_attr_fn, filename="3D cubic d=4 2.png", method="fdp")
+import pyvista
+
+# see https://docs.pyvista.org/version/stable/api/core/_autosummary/pyvista.polydata.n_faces#pyvista.PolyData.n_faces
+pyvista.PolyData.use_strict_n_faces(True)
+
+
+def convert_lines(lines: list[list[int]]) -> list[int]:
+    """Pad a list of faces so that pyvista can process it."""
+    return list(itertools.chain.from_iterable([(len(line), *line) for line in lines]))
+
+
+def parse_graphviz_to_pyvista(filename: str, graph: rustworkx.PyGraph) -> pyvista.PolyData:
+    """Construct a PolyData shape from the graph and the aligned graph.
+
+    The graph must be aligned with image_type="vrml", to achieve 3D positioning.
+    """
+    with open(filename, "rt") as f:
+        data = f.readlines()
+
+    # extract the node positions from the alignment
+    node2coordinates: dict[int, list[float]] = {}
+    node_pattern = re.compile(r"^# node (?P<node_index>\d+)$")
+    pos_pattern = re.compile(r"^\s*translation (?P<x>-?\d+.\d+) (?P<y>-?\d+.\d+) (?P<z>-?\d+.\d+)$")
+    for line_nr, line in enumerate(data):
+        match = re.match(node_pattern, line)
+        if match is None:
+            continue
+        node_index = int(match.group("node_index"))
+        pos_match = re.match(pos_pattern, data[line_nr+2])
+        if pos_match is None:
+            print(data[line_nr+2])
+            raise RuntimeError(node_index, line_nr)
+        x = float(pos_match.group("x"))
+        y = float(pos_match.group("y"))
+        z = float(pos_match.group("z"))
+        node2coordinates[node_index] = [x, y, z]
+
+    # construct the pyvista object
+    points = np.asarray([node2coordinates[index] for index in graph.node_indices()])
+    rustworkx2pyvista = {rustworkx_index: pyvista_index for pyvista_index, rustworkx_index in enumerate(graph.node_indices())}
+    lines = [[rustworkx2pyvista[node_a], rustworkx2pyvista[node_b]] for node_a, node_b, _ in graph.edge_index_map().values()]
+
+    ret = pyvista.PolyData(points, lines=convert_lines(lines))
+    point_labels = []
+    for node in graph.nodes():
+        label = f"{node.index}"
+        if node.title:
+            label = f"{node.title}"
+        if node.is_boundary:
+            label += " B"
+        point_labels.append(label)
+    ret["point_labels"] = point_labels
+
+    return ret
+
+
+mesh = parse_graphviz_to_pyvista("3D cubic d=4.wrl", graph)
+
+plt = pyvista.Plotter(lighting='none')
+plt.disable_shadows()
+plt.disable_ssao()
+plt.show_axes()
+plt.add_point_labels(mesh, "point_labels", point_size=30, font_size=20)
+plt.add_mesh(mesh)
+plt.show()
+
+# pl = pyvista.Plotter()
+# pl.import_vrml("3D cubic d=4.wrl")
+# pl.show_axes()
+# pl.show()
 
 exit()
 
