@@ -15,9 +15,9 @@ import numpy.typing as npt
 pyvista.PolyData.use_strict_n_faces(True)
 
 
-def convert_lines(lines: list[list[int]]) -> list[int]:
+def convert_faces(faces: list[list[int]]) -> list[int]:
     """Pad a list of faces so that pyvista can process it."""
-    return list(itertools.chain.from_iterable([(len(line), *line) for line in lines]))
+    return list(itertools.chain.from_iterable([(len(face), *face) for face in faces]))
 
 
 def compute_simplexes(graph: rx.PyGraph, dimension: int) -> set[tuple[int, ...]]:
@@ -120,9 +120,11 @@ class Plotter3D:
 
         # generate pyvista edges from rustworkx edges
         rustworkx2pyvista = {rustworkx_index: pyvista_index for pyvista_index, rustworkx_index in enumerate(self.dual_graph.node_indices())}
-        lines = [[rustworkx2pyvista[node_a], rustworkx2pyvista[node_b]] for node_a, node_b, _ in self.dual_graph.edge_index_map().values()]
+        simplexes = compute_simplexes(self.dual_graph, dimension=3)
+        # each simplex (tetrahedron) has four faces (triangles)
+        faces = [[rustworkx2pyvista[index] for index in combination] for simplex in simplexes for combination in itertools.combinations(simplex, 3)]
 
-        ret = pyvista.PolyData(points, lines=convert_lines(lines))
+        ret = pyvista.PolyData(points, faces=convert_faces(faces))
 
         # add point labels
         point_labels = []
