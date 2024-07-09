@@ -48,9 +48,16 @@ class Plotter3D:
     dual_mesh: pyvista.PolyData = dataclasses.field(init=False)
     name: str
     storage_dir: pathlib.Path = dataclasses.field(default=pathlib.Path(__file__).parent.parent.absolute())
+    highes_tetrahedron_id: int = dataclasses.field(default=0, init=False)
 
     def __post_init__(self):
         self.dual_mesh = self._dual_mesh_from_graph()
+
+    @property
+    def next_tetrahedron_id(self) -> int:
+        """Generate the next unique id for a tetrahedron object."""
+        self.highes_tetrahedron_id += 1
+        return self.highes_tetrahedron_id
 
     def _get_3d_coordinates(self) -> dict[int, npt.NDArray[np.float64]]:
         """Calculate 3D coordinates of nodes by layouting the rustworkx graph.
@@ -136,6 +143,10 @@ class Plotter3D:
                 label += " B"
             point_labels.append(label)
         ret["point_labels"] = point_labels
+
+        # add tetrahedron ids
+        tetrahedron_ids = itertools.chain.from_iterable([[self.next_tetrahedron_id]*4 for _ in simplexes])
+        ret.cell_data["tetrahedron_ids"] = list(tetrahedron_ids)
 
         return ret
 
