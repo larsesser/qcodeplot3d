@@ -13,7 +13,7 @@ import rustworkx as rx
 import itertools
 from pysat.formula import CNF
 from pysat.solvers import Solver
-from framework.plotter import Plotter3D
+from framework.plotter import Plotter3D, compute_simplexes
 
 
 class PreDualGraphNode(GraphNode):
@@ -104,27 +104,6 @@ def _compute_coloring(graph: rustworkx.PyGraph, colors: list[Color]) -> dict[int
     return coloring
 
 
-def _compute_simplexes(graph: rustworkx.PyGraph, dimension: int) -> set[tuple[int, ...]]:
-    if dimension not in {2, 3}:
-        raise NotImplementedError
-    triangles = set()
-    for node1 in graph.nodes():
-        node1_neighbors = graph.neighbors(node1.index)
-        for node2_index in node1_neighbors:
-            for node3_index in graph.neighbors(node2_index):
-                if node3_index not in node1_neighbors:
-                    continue
-                triangles.add(tuple(sorted([node1.index, node2_index, node3_index])))
-    if dimension == 2:
-        return triangles
-    tetrahedrons = set()
-    for triangle in triangles:
-        common_neighbours = set(graph.neighbors(triangle[0])) & set(graph.neighbors(triangle[1])) & set(graph.neighbors(triangle[2]))
-        for neighbour in common_neighbours:
-            tetrahedrons.add(tuple(sorted([*triangle, neighbour])))
-    return tetrahedrons
-
-
 def coloring_qubits(dual_graph: rustworkx.PyGraph, dimension: int = 3) -> None:
     # In the following, we construct all necessary information from the graph layout:
     # - color of the nodes
@@ -142,7 +121,7 @@ def coloring_qubits(dual_graph: rustworkx.PyGraph, dimension: int = 3) -> None:
     coloring = _compute_coloring(dual_graph, colors)
 
     # find all triangles / tetrahedrons of the graph
-    simplexes = _compute_simplexes(dual_graph, dimension)
+    simplexes = compute_simplexes(dual_graph, dimension)
     simplex_map = {simplex: number for number, simplex in enumerate(simplexes, start=1)}
     node2simplex = collections.defaultdict(list)
     for simplex, name in simplex_map.items():

@@ -20,6 +20,28 @@ def convert_lines(lines: list[list[int]]) -> list[int]:
     return list(itertools.chain.from_iterable([(len(line), *line) for line in lines]))
 
 
+def compute_simplexes(graph: rx.PyGraph, dimension: int) -> set[tuple[int, ...]]:
+    """Find all simplexes of the given dimension in the graph."""
+    if dimension not in {2, 3}:
+        raise NotImplementedError
+    triangles = set()
+    for node1 in graph.nodes():
+        node1_neighbors = graph.neighbors(node1.index)
+        for node2_index in node1_neighbors:
+            for node3_index in graph.neighbors(node2_index):
+                if node3_index not in node1_neighbors:
+                    continue
+                triangles.add(tuple(sorted([node1.index, node2_index, node3_index])))
+    if dimension == 2:
+        return triangles
+    tetrahedrons = set()
+    for triangle in triangles:
+        common_neighbours = set(graph.neighbors(triangle[0])) & set(graph.neighbors(triangle[1])) & set(graph.neighbors(triangle[2]))
+        for neighbour in common_neighbours:
+            tetrahedrons.add(tuple(sorted([*triangle, neighbour])))
+    return tetrahedrons
+
+
 @dataclasses.dataclass
 class Plotter3D:
     dual_graph: rx.PyGraph
