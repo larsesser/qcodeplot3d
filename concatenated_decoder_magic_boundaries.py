@@ -45,14 +45,14 @@ def construct_dual_graph() -> rustworkx.PyGraph:
 
     dual_graph = rustworkx.PyGraph(multigraph=False)
     nodes = [
-        DualGraphNode(Color.red, Stabilizer(15, Color.red, x_positions=t2p(["A", "J", "K", "H", "M", "Q", "I", "P"]))),
-        DualGraphNode(Color.yellow, Stabilizer(15, Color.yellow, x_positions=t2p(["B", "F", "N", "G", "J", "K", "M", "Q"]))),
-        DualGraphNode(Color.blue, Stabilizer(15, Color.blue, x_positions=t2p(["F", "C", "E", "N", "M", "I", "P", "Q"]))),
-        DualGraphNode(Color.green, Stabilizer(15, Color.green, x_positions=t2p(["D", "G", "N", "E", "H", "K", "Q", "P"]))),
-        DualGraphNode(Color.red, None, t2p(["B", "F", "C", "E", "D", "G", "N"])),
-        DualGraphNode(Color.yellow, None, t2p(["A", "I", "C", "E", "D", "H", "P"])),
-        DualGraphNode(Color.blue, None, t2p(["A", "J", "B", "G", "D", "H", "K"])),
-        DualGraphNode(Color.green, None, t2p(["A", "J", "B", "F", "C", "I", "M"])),
+        DualGraphNode(Color.red, t2p(["A", "J", "K", "H", "M", "Q", "I", "P"]), is_stabilizer=True, stabilizer_length=15),
+        DualGraphNode(Color.yellow, t2p(["B", "F", "N", "G", "J", "K", "M", "Q"]), is_stabilizer=True, stabilizer_length=15),
+        DualGraphNode(Color.blue, t2p(["F", "C", "E", "N", "M", "I", "P", "Q"]), is_stabilizer=True, stabilizer_length=15),
+        DualGraphNode(Color.green, t2p(["D", "G", "N", "E", "H", "K", "Q", "P"]), is_stabilizer=True, stabilizer_length=15),
+        DualGraphNode(Color.red, t2p(["B", "F", "C", "E", "D", "G", "N"]), is_stabilizer=False),
+        DualGraphNode(Color.yellow, t2p(["A", "I", "C", "E", "D", "H", "P"]), is_stabilizer=False),
+        DualGraphNode(Color.blue, t2p(["A", "J", "B", "G", "D", "H", "K"]), is_stabilizer=False),
+        DualGraphNode(Color.green, t2p(["A", "J", "B", "F", "C", "I", "M"]), is_stabilizer=False),
     ]
     dual_graph.add_nodes_from(nodes)
     for index in dual_graph.node_indices():
@@ -131,13 +131,11 @@ def coloring_qubits(dual_graph: rustworkx.PyGraph, dimension: int = 3) -> None:
     # add proper DualGraphNode objects for all graph nodes
     for node in dual_graph.nodes():
         color = coloring[node.index]
-        adjacent_qubits = node2simplex[node.index]
+        qubits = node2simplex[node.index]
         if node.index in boundary_nodes_indices:
-            dual_graph[node.index] = DualGraphNode(color, stabilizer=None, _adjacent_qubits=adjacent_qubits)
+            dual_graph[node.index] = DualGraphNode(color, qubits, is_stabilizer=False)
         else:
-            # TODO only x stabilizer, z stabilizer need to be constructed on the fly?
-            stabilizer = Stabilizer(length=len(simplexes), color=color, x_positions=adjacent_qubits)
-            dual_graph[node.index] = DualGraphNode(color, stabilizer=stabilizer)
+            dual_graph[node.index] = DualGraphNode(color, qubits, is_stabilizer=True, stabilizer_length=len(simplexes))
         dual_graph[node.index].index = node.index
         dual_graph[node.index].title = node.title
         dual_graph[node.index].initial_x, initial_y, initial_z = node.initial_x, node.initial_y, node.initial_z

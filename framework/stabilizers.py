@@ -153,6 +153,25 @@ class Color(enum.IntEnum):
             Color.gy: ["green", "yellow"],
         }[self]
 
+    def combine(self, other: "Color") -> "Color":
+        if not (self.is_monochrome and other.is_monochrome):
+            raise ValueError
+        # only for debug purpose
+        if self == other:
+            return self
+        if self > other:
+            key = (other, self)
+        else:
+            key = (self, other)
+        return {
+            (Color.red, Color.blue): Color.rb,
+            (Color.red, Color.green): Color.rg,
+            (Color.red, Color.yellow): Color.ry,
+            (Color.blue, Color.green): Color.bg,
+            (Color.blue, Color.yellow): Color.by,
+            (Color.green, Color.yellow): Color.gy,
+        }[key]
+
 
 class Stabilizer(Operator):
     """Special kind of operator which is viewed as a color code stabilizer."""

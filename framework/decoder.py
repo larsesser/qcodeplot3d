@@ -114,46 +114,49 @@ class DualGraphNode(GraphNode):
 
     A node corresponds to a stabilizer or a boundary of the primary lattice.
     """
-    stabilizer: Optional[Stabilizer]
-    # if this node corresponds to a boundary, we track here which qubits are at it.
-    _adjacent_qubits: Optional[list[int]] = None
+    qubits: list[int]
+    is_stabilizer: bool
+    stabilizer_length: Optional[int] = None
+    stabilizer: Optional[Stabilizer] = dataclasses.field(default=None, init=False)
 
     def __post_init__(self):
-        # perform sanity check: adjacent_qubits are given iff no stabilizer is given (i.e. this node is a boundary)
-        if (self.stabilizer is None and self._adjacent_qubits is None
-                or self.stabilizer is not None and self._adjacent_qubits is not None):
-            raise ValueError
-        if self.stabilizer is not None and self.stabilizer.color != self.color:
-            raise ValueError
+        self.qubits = sorted(self.qubits)
         if not self.color.is_monochrome:
             raise ValueError
-        if self._adjacent_qubits:
-            self._adjacent_qubits = sorted(self._adjacent_qubits)
+        if self.is_stabilizer and not self.stabilizer_length:
+            raise ValueError
+        if self.is_stabilizer:
+            self.stabilizer = Stabilizer(self.stabilizer_length, self.color, x_positions=self.qubits)
 
     @property
     def is_boundary(self) -> bool:
-        return self.stabilizer is None
-
-    @property
-    def qubits(self) -> list[int]:
-        """Return the qubits which are adjacent to this stabilizer / boundary."""
-        if self.is_boundary:
-            return self._adjacent_qubits
-        return self.stabilizer.qubits
+        return not self.is_stabilizer
 
 
 @dataclass
 class DualGraphEdge(GraphEdge):
     node1: DualGraphNode
     node2: DualGraphNode
+    stabilizer: Optional[Stabilizer] = dataclasses.field(init=False)
 
     def __post_init__(self):
         self._qubits = sorted(set(self.node1.qubits) & set(self.node2.qubits))
+        if self.is_stabilizer:
+            if self.node1.is_stabilizer:
+                stab_length = self.node1.stabilizer.length
+            else:
+                stab_length = self.node2.stabilizer.length
+            self.stabilizer = Stabilizer(length=stab_length, color=self.node1.color.combine(self.node2.color), z_positions=self._qubits)
 
     @property
     def qubits(self):
         """The qubits associated with this edge (== face in primal lattice)."""
         return self._qubits
+
+    @property
+    def is_stabilizer(self):
+        """Is this edge (for a 3D color code) associated to a stabilizer?"""
+        return not self.is_edge_between_boundaries
 
 
 @dataclass
