@@ -67,12 +67,12 @@ def triangles2faces(triangles_: list[list[int]], positions2points: dict[int, np.
         # to check this, we
         # - shift one point to (0, 0, 0) by subtracting it from all other points
         # - take the remaining 3 points and check if they do _not_ span the whole
-        #   space by checking if their determinante is 0
+        #   space by checking if their determinant is "0"
         a = positions2points[(set(triangle1) - shared).pop()]
         b = positions2points[(set(triangle2) - shared).pop()] - a
         c = positions2points[shared.pop()] - a
         d = positions2points[shared.pop()] - a
-        if det(np.asarray([b, c, d])) != 0:
+        if abs(det(np.asarray([b, c, d]))) > 5000:
             continue
         neighboured[triangle1].append(triangle2)
         neighboured[triangle2].append(triangle1)
@@ -279,7 +279,7 @@ class Plotter3D:
             face_center /= len(adjacent_nodes)
 
             # extrapolate the position of the boundary node from the line through center and face_center
-            pos = face_center + (face_center - center)
+            pos = face_center + 1*(face_center - center)
             ret[boundary_index] = pos
         return ret
 
@@ -344,39 +344,27 @@ class Plotter3D:
         volumes = []
         volume_ids = []
         for point in range(self.dual_mesh.n_points):
+            node = self.get_dual_node(point)
+            # do not add a volume for boundaries
+            if node.is_boundary:
+                continue
             volume_positions = set()
             for face in all_faces:
-                # if len(face) != 3:
-                #     raise RuntimeError
                 if point in face:
                     volume_positions.update(set(faces2points[tuple(sorted(face))]))
             volume_positions = sorted(volume_positions)
-            # only look at relevant volumes, the other ones are boundary related
-            # if len(volume_positions) not in [8, 32]:
-            #     continue
             volume_points = [points[position] for position in volume_positions]
             volume_positions2points = {position: points[position] for position in volume_positions}
             # create the convex hull of all points of this volume
-            try:
-                hull = ConvexHull(volume_points)
-            except scipy.spatial.QhullError as e:
-                print(e)
-                continue
+            hull = ConvexHull(volume_points)
             # extract faces of the hull, take care to use the original points
             tmp_point_map = {k: v for k, v in zip(range(hull.npoints), volume_positions)}
             simplices = [[tmp_point_map[point] for point in face] for face in hull.simplices]
             faces = triangles2faces(simplices, volume_positions2points)
-            # again to filter out some boundary stuff
-            if len(faces) not in {6, 18}:
-                continue
             volumes.extend(faces)
 
             # add volume ids
-            # new_id = max(THETHRAEDA_IDS or [0]) + 1
-            # volume_ids.extend([new_id] * len(faces))
-            # THETHRAEDA_IDS.append(new_id)
-
-        print(volumes)
+            volume_ids.extend([self.next_id] * len(faces))
         ret = pyvista.PolyData(points, faces=convert_faces(volumes))
         ret.cell_data['face_ids'] = volume_ids
         return ret
