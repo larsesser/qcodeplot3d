@@ -10,6 +10,7 @@ import pyvista.plotting.themes
 import rustworkx as rx
 from rustworkx.visualization import graphviz_draw
 from framework.decoder import DualGraphNode
+from framework.stabilizers import Color
 import itertools
 import re
 import numpy as np
@@ -313,6 +314,10 @@ class Plotter3D:
         tetrahedron_ids = itertools.chain.from_iterable([[self.next_id]*4 for _ in simplexes])
         ret.cell_data["face_ids"] = list(tetrahedron_ids)
 
+        # add color
+        colors = [node.color for node in self.dual_graph.nodes()]
+        ret["colors"] = colors
+
         return ret
 
     def _construct_primary_mesh(self):
@@ -343,6 +348,7 @@ class Plotter3D:
         # vertices -> volumes
         volumes = []
         volume_ids = []
+        volume_colors = []
         for point in range(self.dual_mesh.n_points):
             node = self.get_dual_node(point)
             # do not add a volume for boundaries
@@ -365,8 +371,11 @@ class Plotter3D:
 
             # add volume ids
             volume_ids.extend([self.next_id] * len(faces))
+            # add volume colors
+            volume_colors.extend([node.color] * len(faces))
         ret = pyvista.PolyData(points, faces=convert_faces(volumes))
         ret.cell_data['face_ids'] = volume_ids
+        ret.cell_data['colors'] = volume_colors
         return ret
 
     def explode(self, mesh: pyvista.PolyData, factor=0.4) -> pyvista.UnstructuredGrid:
@@ -397,33 +406,36 @@ class Plotter3D:
             # convert the cell point positions
             ret_cells.extend(convert_faces([[point_converter[point] for point in cell] for cell in reconvert_faces(volume.cells)]))
             ret_celltypes.extend(volume.celltypes)
-            if 'color' in volume.cell_data:
-                ret_color.extend(volume.cell_data['color'])
-            if 'color' in volume.point_data:
-                ret_color_points.extend(volume.point_data['color'])
+            if 'colors' in volume.cell_data:
+                ret_color.extend(volume.cell_data['colors'])
+            if 'colors' in volume.point_data:
+                ret_color_points.extend(volume.point_data['colors'])
             if 'face_ids' in volume.cell_data:
                 ret_face_ids.extend(volume.cell_data['face_ids'])
             if 'point_labels' in volume.point_data:
                 ret_point_labels.extend(volume.point_data['point_labels'])
         ret = pyvista.UnstructuredGrid(ret_cells, ret_celltypes, ret_points)
         if ret_color:
-            ret.cell_data['color'] = ret_color
+            ret.cell_data['colors'] = ret_color
         if ret_color_points:
-            ret.point_data['color'] = ret_color_points
+            ret.point_data['colors'] = ret_color_points
         if ret_face_ids:
             ret.cell_data['face_ids'] = ret_face_ids
         if ret_point_labels:
             ret.point_data['point_labels'] = ret_point_labels
         return ret
 
-    def show_dual_mesh(self, show_labels: bool = False) -> None:
+    def show_dual_mesh(self, show_labels: bool = False, explode_factor: float = 0.0) -> None:
+        mesh = self.dual_mesh
+        if explode_factor != 0.0:
+            mesh = self.explode(mesh, explode_factor)
         plt = pyvista.Plotter(theme=self.pyvista_theme, lighting='none')
         plt.disable_shadows()
         plt.disable_ssao()
         plt.show_axes()
         if show_labels:
-            plt.add_point_labels(self.dual_mesh, "point_labels", point_size=30, font_size=20)
-        plt.add_mesh(self.dual_mesh)
+            plt.add_point_labels(mesh, "point_labels", point_size=30, font_size=20)
+        plt.add_mesh(mesh, scalars="colors", show_scalar_bar=False, clim=[Color.red, Color.yellow])
         plt.show()
 
     def show_primay_mesh(self, show_labels: bool = False, explode_factor: float = 0.0) -> None:
@@ -434,5 +446,5 @@ class Plotter3D:
         plt.disable_shadows()
         plt.disable_ssao()
         plt.show_axes()
-        plt.add_mesh(mesh)
+        plt.add_mesh(mesh, scalars="colors", show_scalar_bar=False, clim=[Color.red, Color.yellow])
         plt.show()
