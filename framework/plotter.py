@@ -6,15 +6,16 @@ from collections.abc import Iterable
 from typing import Any, Union
 
 import pyvista
+import pyvista.plotting.themes
 import rustworkx as rx
 from rustworkx.visualization import graphviz_draw
+from framework.decoder import DualGraphNode
 import itertools
 import re
 import numpy as np
 import numpy.typing as npt
 from scipy.spatial import ConvexHull
 from scipy.linalg import det
-import scipy.spatial
 
 
 # see https://docs.pyvista.org/version/stable/api/core/_autosummary/pyvista.polydata.n_faces#pyvista.PolyData.n_faces
@@ -192,17 +193,34 @@ class Plotter3D:
     primary_mesh: pyvista.PolyData = dataclasses.field(init=False)
     name: str
     storage_dir: pathlib.Path = dataclasses.field(default=pathlib.Path(__file__).parent.parent.absolute())
-    highes_tetrahedron_id: int = dataclasses.field(default=0, init=False)
+    pyvista_theme: pyvista.plotting.themes.DocumentTheme = dataclasses.field(default=None, init=False)
+    highes_id: int = dataclasses.field(default=0, init=False)
+    _dualmesh_to_dualgraph: dict[int, int] = dataclasses.field(default=None, init=False)
+    _dualgraph_to_dualmesh: dict[int, int] = dataclasses.field(default=None, init=False)
 
     def __post_init__(self):
-        self.dual_mesh = self._dual_mesh_from_graph()
+        self.dual_mesh = self._construct_dual_mesh()
         self.primary_mesh = self._construct_primary_mesh()
+        self.pyvista_theme = self.basic_plotting_theme()
+
+    def basic_plotting_theme(self) -> pyvista.plotting.themes.DocumentTheme:
+        theme = pyvista.plotting.themes.DocumentTheme()
+        # theme.cmap = Color.color_map()
+        theme.show_vertices = True
+        theme.show_edges = True
+        theme.lighting = 'none'
+        theme.render_points_as_spheres = True
+        theme.render_lines_as_tubes = True
+        return theme
 
     @property
-    def next_tetrahedron_id(self) -> int:
-        """Generate the next unique id for a tetrahedron object."""
-        self.highes_tetrahedron_id += 1
-        return self.highes_tetrahedron_id
+    def next_id(self) -> int:
+        """Generate the next unique id to label mesh objects."""
+        self.highes_id += 1
+        return self.highes_id
+
+    def get_dual_node(self, mesh_index: int) -> DualGraphNode:
+        return self.dual_graph[self._dualmesh_to_dualgraph[mesh_index]]
 
     def _get_3d_coordinates(self) -> dict[int, npt.NDArray[np.float64]]:
         """Calculate 3D coordinates of nodes by layouting the rustworkx graph.
@@ -265,13 +283,15 @@ class Plotter3D:
             ret[boundary_index] = pos
         return ret
 
-    def _dual_mesh_from_graph(self) -> pyvista.PolyData:
+    def _construct_dual_mesh(self) -> pyvista.PolyData:
         # calculate positions of points
         node2coordinates = self._get_3d_coordinates()
         points = np.asarray([node2coordinates[index] for index in self.dual_graph.node_indices()])
 
         # generate pyvista edges from rustworkx edges
         rustworkx2pyvista = {rustworkx_index: pyvista_index for pyvista_index, rustworkx_index in enumerate(self.dual_graph.node_indices())}
+        self._dualgraph_to_dualmesh = rustworkx2pyvista
+        self._dualmesh_to_dualgraph = {value: key for key, value in rustworkx2pyvista.items()}
         simplexes = compute_simplexes(self.dual_graph, dimension=3)
         # each simplex (tetrahedron) has four faces (triangles)
         faces = [[rustworkx2pyvista[index] for index in combination] for simplex in simplexes for combination in itertools.combinations(simplex, 3)]
@@ -290,15 +310,15 @@ class Plotter3D:
         ret["point_labels"] = point_labels
 
         # add tetrahedron ids
-        tetrahedron_ids = itertools.chain.from_iterable([[self.next_tetrahedron_id]*4 for _ in simplexes])
-        ret.cell_data["tetrahedron_ids"] = list(tetrahedron_ids)
+        tetrahedron_ids = itertools.chain.from_iterable([[self.next_id]*4 for _ in simplexes])
+        ret.cell_data["face_ids"] = list(tetrahedron_ids)
 
         return ret
 
     def _construct_primary_mesh(self):
         # group dual lattice cells by tetrahedron
         volumes2facepositions = defaultdict(list)
-        for faceposition, anid in enumerate(self.dual_mesh.cell_data['tetrahedron_ids']):
+        for faceposition, anid in enumerate(self.dual_mesh.cell_data['face_ids']):
             volumes2facepositions[anid].append(faceposition)
 
         # group dual lattice faces by points in primal lattice
@@ -358,15 +378,73 @@ class Plotter3D:
 
         print(volumes)
         ret = pyvista.PolyData(points, faces=convert_faces(volumes))
-        # ret.cell_data['tetrahedron_ids'] = volume_ids
+        ret.cell_data['face_ids'] = volume_ids
+        return ret
+
+    def explode(self, mesh: pyvista.PolyData, factor=0.4) -> pyvista.UnstructuredGrid:
+        # group cells by id
+        cells = defaultdict(list)
+        for cell, anid in enumerate(mesh.cell_data['face_ids']):
+            cells[anid].append(cell)
+
+        # extract each cell, translate it by its center of mass, and recombine
+        ret_points = []
+        ret_cells = []
+        ret_celltypes = []
+        ret_color = []
+        ret_color_points = []
+        ret_face_ids = []
+        ret_point_labels = []
+        for data in cells.values():
+            volume = mesh.extract_cells(data)
+            # translate by center of mass
+            center = np.asarray([0.0, 0.0, 0.0])
+            for point in volume.points:
+                center += point
+            center = center / len(volume.points)
+            volume.translate(factor * center, inplace=True)
+            ret_points.extend(volume.points)
+            num_points = len(ret_points)
+            point_converter = {key: value for key, value in zip(range(volume.n_points), range(num_points - volume.n_points, num_points))}
+            # convert the cell point positions
+            ret_cells.extend(convert_faces([[point_converter[point] for point in cell] for cell in reconvert_faces(volume.cells)]))
+            ret_celltypes.extend(volume.celltypes)
+            if 'color' in volume.cell_data:
+                ret_color.extend(volume.cell_data['color'])
+            if 'color' in volume.point_data:
+                ret_color_points.extend(volume.point_data['color'])
+            if 'face_ids' in volume.cell_data:
+                ret_face_ids.extend(volume.cell_data['face_ids'])
+            if 'point_labels' in volume.point_data:
+                ret_point_labels.extend(volume.point_data['point_labels'])
+        ret = pyvista.UnstructuredGrid(ret_cells, ret_celltypes, ret_points)
+        if ret_color:
+            ret.cell_data['color'] = ret_color
+        if ret_color_points:
+            ret.point_data['color'] = ret_color_points
+        if ret_face_ids:
+            ret.cell_data['face_ids'] = ret_face_ids
+        if ret_point_labels:
+            ret.point_data['point_labels'] = ret_point_labels
         return ret
 
     def show_dual_mesh(self, show_labels: bool = False) -> None:
-        plt = pyvista.Plotter(lighting='none')
+        plt = pyvista.Plotter(theme=self.pyvista_theme, lighting='none')
         plt.disable_shadows()
         plt.disable_ssao()
         plt.show_axes()
         if show_labels:
             plt.add_point_labels(self.dual_mesh, "point_labels", point_size=30, font_size=20)
         plt.add_mesh(self.dual_mesh)
+        plt.show()
+
+    def show_primay_mesh(self, show_labels: bool = False, explode_factor: float = 0.0) -> None:
+        mesh = self.primary_mesh
+        if explode_factor != 0.0:
+            mesh = self.explode(mesh, explode_factor)
+        plt = pyvista.Plotter(theme=self.pyvista_theme, lighting='none')
+        plt.disable_shadows()
+        plt.disable_ssao()
+        plt.show_axes()
+        plt.add_mesh(mesh)
         plt.show()
