@@ -4,6 +4,7 @@ import numpy as np
 import rustworkx
 import shlex
 import re
+from typing import Optional
 
 from framework.stabilizers import check_stabilizers, Operator, check_z, check_xj
 from framework.decoder import ConcatenatedDecoder, GraphNode, GraphEdge, DualGraphNode, DualGraphEdge
@@ -147,6 +148,13 @@ def coloring_qubits(dual_graph: rustworkx.PyGraph, dimension: int = 3) -> None:
         dual_graph.update_edge_by_index(edge_index, edge)
 
 
+def add_edge(graph: rustworkx.PyGraph, node1: Optional[PreDualGraphNode], node2: Optional[PreDualGraphNode]) -> None:
+    """Helper function to add an edge only if both nodes are not None."""
+    if node1 is None or node2 is None:
+        return
+    graph.add_edge(node1.index, node2.index, None)
+
+
 def rectangular_2d_dual_graph(distance: int) -> rustworkx.PyGraph:
     if not distance % 2 == 1:
         raise ValueError("d must be an odd integer")
@@ -181,36 +189,32 @@ def rectangular_2d_dual_graph(distance: int) -> rustworkx.PyGraph:
     # construct edges
 
     # between boundary_nodes and boundary_nodes:
-    dual_graph.add_edge(left.index, top.index, None)
-    dual_graph.add_edge(top.index, right.index, None)
-    dual_graph.add_edge(right.index, bottom.index, None)
-    dual_graph.add_edge(bottom.index, left.index, None)
+    add_edge(dual_graph, left, top)
+    add_edge(dual_graph, top, right)
+    add_edge(dual_graph, right, bottom)
+    add_edge(dual_graph, bottom, left)
 
     # between nodes and boundary_nodes
     for col in nodes:
-        dual_graph.add_edge(col[0].index, top.index, None)
-        dual_graph.add_edge(col[-1].index, bottom.index, None)
+        add_edge(dual_graph, col[0], top)
+        add_edge(dual_graph, col[-1], bottom)
     for row in range(num_rows):
         if row % 2 == 0:
-            dual_graph.add_edge(nodes[0][row].index, left.index, None)
+            add_edge(dual_graph, nodes[0][row], left)
         else:
-            dual_graph.add_edge(nodes[1][row].index, left.index, None)
+            add_edge(dual_graph, nodes[1][row], left)
     for node in nodes[-1]:
-        dual_graph.add_edge(node.index, right.index, None)
+        add_edge(dual_graph, node, right)
 
     # between nodes and nodes
     # connect rows
     for col1, col2 in zip(nodes, nodes[1:]):
         for node1, node2 in zip(col1, col2):
-            if node1 is None or node2 is None:
-                continue
-            dual_graph.add_edge(node1.index, node2.index, None)
+            add_edge(dual_graph, node1, node2)
     # connect cols
     for col in nodes:
         for node1, node2 in zip(col, col[1:]):
-            if node1 is None or node2 is None:
-                continue
-            dual_graph.add_edge(node1.index, node2.index, None)
+            add_edge(dual_graph, node1, node2)
 
     for col_pos, col in enumerate(nodes):
         # reached last col
@@ -221,9 +225,9 @@ def rectangular_2d_dual_graph(distance: int) -> rustworkx.PyGraph:
             if row_pos % 2 != col_pos % 2:
                 continue
             if row_pos != num_rows-1:
-                dual_graph.add_edge(node.index, nodes[col_pos+1][row_pos+1].index, None)
+                add_edge(dual_graph, node, nodes[col_pos+1][row_pos+1])
             if row_pos != 0:
-                dual_graph.add_edge(node.index, nodes[col_pos+1][row_pos-1].index, None)
+                add_edge(dual_graph, node, nodes[col_pos+1][row_pos-1])
     return dual_graph
 
 
@@ -258,29 +262,29 @@ def square_2d_dual_graph(distance: int) -> rustworkx.PyGraph:
     # construct edges
 
     # between boundary_nodes and boundary_nodes:
-    dual_graph.add_edge(left.index, top.index, None)
-    dual_graph.add_edge(top.index, right.index, None)
-    dual_graph.add_edge(right.index, bottom.index, None)
-    dual_graph.add_edge(bottom.index, left.index, None)
+    add_edge(dual_graph, left, top)
+    add_edge(dual_graph, top, right)
+    add_edge(dual_graph, right, bottom)
+    add_edge(dual_graph, bottom, left)
 
     # between nodes and boundary_nodes
     for col in nodes:
-        dual_graph.add_edge(col[0].index, top.index, None)
-        dual_graph.add_edge(col[-1].index, bottom.index, None)
+        add_edge(dual_graph, col[0], top)
+        add_edge(dual_graph, col[-1], bottom)
     for node in nodes[0]:
-        dual_graph.add_edge(node.index, left.index, None)
+        add_edge(dual_graph, node, left)
     for node in nodes[-1]:
-        dual_graph.add_edge(node.index, right.index, None)
+        add_edge(dual_graph, node, right)
 
     # between nodes and nodes
     # connect rows
     for col1, col2 in zip(nodes, nodes[1:]):
         for node1, node2 in zip(col1, col2):
-            dual_graph.add_edge(node1.index, node2.index, None)
+            add_edge(dual_graph, node1, node2)
     # connect cols
     for col in nodes:
         for node1, node2 in zip(col, col[1:]):
-            dual_graph.add_edge(node1.index, node2.index, None)
+            add_edge(dual_graph, node1, node2)
 
     for col_pos, col in enumerate(nodes):
         # reached last col
@@ -291,9 +295,9 @@ def square_2d_dual_graph(distance: int) -> rustworkx.PyGraph:
             if row_pos % 2 == col_pos % 2:
                 continue
             if row_pos != num_rows-1:
-                dual_graph.add_edge(node.index, nodes[col_pos+1][row_pos+1].index, None)
+                add_edge(dual_graph, node, nodes[col_pos+1][row_pos+1])
             if row_pos != 0:
-                dual_graph.add_edge(node.index, nodes[col_pos+1][row_pos-1].index, None)
+                add_edge(dual_graph, node, nodes[col_pos+1][row_pos-1])
     return dual_graph
 
 
@@ -347,31 +351,31 @@ def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
     # construct edges
 
     # between boundary_nodes and boundary_nodes:
-    dual_graph.add_edge(left.index, back.index, None)
-    dual_graph.add_edge(back.index, right.index, None)
-    dual_graph.add_edge(right.index, front.index, None)
-    dual_graph.add_edge(front.index, left.index, None)
+    add_edge(dual_graph, left, back)
+    add_edge(dual_graph, back, right)
+    add_edge(dual_graph, right, front)
+    add_edge(dual_graph, front, left)
     for node in [left, right, back, front]:
-        dual_graph.add_edge(up.index, node.index, None)
-        dual_graph.add_edge(down.index, node.index, None)
+        add_edge(dual_graph, up, node)
+        add_edge(dual_graph, down, node)
 
     # between nodes and boundary_nodes
     for layer in nodes:
         for col in layer:
-            dual_graph.add_edge(col[0].index, back.index, None)
-            dual_graph.add_edge(col[-1].index, front.index, None)
+            add_edge(dual_graph, col[0], back)
+            add_edge(dual_graph, col[-1], front)
         # first row
         for node in layer[0]:
-            dual_graph.add_edge(node.index, left.index, None)
+            add_edge(dual_graph, node, left)
         # last row
         for node in layer[-1]:
-            dual_graph.add_edge(node.index, right.index, None)
+            add_edge(dual_graph, node, right)
     for col in nodes[0]:
         for node in col:
-            dual_graph.add_edge(node.index, up.index, None)
+            add_edge(dual_graph, node, up)
     for col in nodes[-1]:
         for node in col:
-            dual_graph.add_edge(node.index, down.index, None)
+            add_edge(dual_graph, node, down)
 
     # between nodes and nodes
     # inside one layer
@@ -379,11 +383,11 @@ def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
         # connect rows
         for col1, col2 in zip(layer, layer[1:]):
             for node1, node2 in zip(col1, col2):
-                dual_graph.add_edge(node1.index, node2.index, None)
+                add_edge(dual_graph, node1, node2)
         # connect cols
         for col in layer:
             for node1, node2 in zip(col, col[1:]):
-                dual_graph.add_edge(node1.index, node2.index, None)
+                add_edge(dual_graph, node1, node2)
         # diagonals
         for col_pos, col in enumerate(layer):
             # reached last col
@@ -396,14 +400,14 @@ def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
                 if (layer_pos % 2 == 1) and (row_pos % 2 != col_pos % 2):
                     continue
                 if row_pos != num_rows-1:
-                    dual_graph.add_edge(node.index, layer[col_pos+1][row_pos+1].index, None)
+                    add_edge(dual_graph, node, layer[col_pos+1][row_pos+1])
                 if row_pos != 0:
-                    dual_graph.add_edge(node.index, layer[col_pos+1][row_pos-1].index, None)
+                    add_edge(dual_graph, node, layer[col_pos+1][row_pos-1])
     # between two layers
     for layer1, layer2 in zip(nodes, nodes[1:]):
         for col1, col2 in zip(layer1, layer2):
             for node1, node2 in zip(col1, col2):
-                dual_graph.add_edge(node1.index, node2.index, None)
+                add_edge(dual_graph, node1, node2)
     for layer_pos, layer in enumerate(nodes):
         # reached last layer
         if layer_pos == num_layers-1:
@@ -416,13 +420,13 @@ def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
                 if (layer_pos % 2 == 1) and (row_pos % 2 != col_pos % 2):
                     continue
                 if row_pos != num_rows-1:
-                    dual_graph.add_edge(node.index, nodes[layer_pos+1][col_pos][row_pos+1].index, None)
+                    add_edge(dual_graph, node, nodes[layer_pos+1][col_pos][row_pos+1])
                 if row_pos != 0:
-                    dual_graph.add_edge(node.index, nodes[layer_pos+1][col_pos][row_pos-1].index, None)
+                    add_edge(dual_graph, node, nodes[layer_pos+1][col_pos][row_pos-1])
                 if col_pos != num_cols-1:
-                    dual_graph.add_edge(node.index, nodes[layer_pos+1][col_pos+1][row_pos].index, None)
+                    add_edge(dual_graph, node, nodes[layer_pos+1][col_pos+1][row_pos])
                 if col_pos != 0:
-                    dual_graph.add_edge(node.index, nodes[layer_pos+1][col_pos-1][row_pos].index, None)
+                    add_edge(dual_graph, node, nodes[layer_pos+1][col_pos-1][row_pos])
 
     return dual_graph
 
