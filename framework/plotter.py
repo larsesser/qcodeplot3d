@@ -191,6 +191,7 @@ def compute_simplexes(graph: rx.PyGraph, dimension: int) -> set[tuple[int, ...]]
 class Plotter3D:
     dual_graph: rx.PyGraph
     dual_mesh: pyvista.PolyData = dataclasses.field(init=False)
+    debug_dual_mesh: pyvista.PolyData = dataclasses.field(init=False)
     primary_mesh: pyvista.PolyData = dataclasses.field(init=False)
     name: str
     storage_dir: pathlib.Path = dataclasses.field(default=pathlib.Path(__file__).parent.parent.absolute())
@@ -201,6 +202,7 @@ class Plotter3D:
 
     def __post_init__(self):
         self.dual_mesh = self._construct_dual_mesh()
+        self.debug_dual_mesh = self._construct_debug_dual_mesh()
         self.primary_mesh = self._construct_primary_mesh()
         self.pyvista_theme = self.basic_plotting_theme()
 
@@ -293,6 +295,7 @@ class Plotter3D:
         rustworkx2pyvista = {rustworkx_index: pyvista_index for pyvista_index, rustworkx_index in enumerate(self.dual_graph.node_indices())}
         self._dualgraph_to_dualmesh = rustworkx2pyvista
         self._dualmesh_to_dualgraph = {value: key for key, value in rustworkx2pyvista.items()}
+        # TODO ensure all faces of dual graph are triangles?
         simplexes = compute_simplexes(self.dual_graph, dimension=3)
         # each simplex (tetrahedron) has four faces (triangles)
         faces = [[rustworkx2pyvista[index] for index in combination] for simplex in simplexes for combination in itertools.combinations(simplex, 3)]
@@ -317,6 +320,33 @@ class Plotter3D:
         # add color
         colors = [node.color for node in self.dual_graph.nodes()]
         ret["colors"] = colors
+
+        return ret
+
+    def _construct_debug_dual_mesh(self) -> pyvista.PolyData:
+        # calculate positions of points
+        node2coordinates = self._get_3d_coordinates()
+        points = np.asarray([node2coordinates[index] for index in self.dual_graph.node_indices()])
+
+        # generate pyvista edges from rustworkx edges
+        rustworkx2pyvista = {rustworkx_index: pyvista_index for pyvista_index, rustworkx_index in enumerate(self.dual_graph.node_indices())}
+        if self._dualgraph_to_dualmesh is None:
+            self._dualgraph_to_dualmesh = rustworkx2pyvista
+            self._dualmesh_to_dualgraph = {value: key for key, value in rustworkx2pyvista.items()}
+        lines = [[rustworkx2pyvista[node1], rustworkx2pyvista[node2]] for node1, node2, _ in self.dual_graph.edge_index_map().values()]
+
+        ret = pyvista.PolyData(points, lines=convert_faces(lines))
+
+        # add point labels
+        point_labels = []
+        for node in self.dual_graph.nodes():
+            label = f"{node.index}"
+            if node.title:
+                label = f"{node.title}"
+            if node.is_boundary:
+                label += " B"
+            point_labels.append(label)
+        ret["point_labels"] = point_labels
 
         return ret
 
@@ -425,8 +455,11 @@ class Plotter3D:
             ret.point_data['point_labels'] = ret_point_labels
         return ret
 
-    def show_dual_mesh(self, show_labels: bool = False, explode_factor: float = 0.0) -> None:
+    def show_dual_mesh(self, show_labels: bool = False, explode_factor: float = 0.0, exclude_boundaries: bool = False) -> None:
         mesh = self.dual_mesh
+        if exclude_boundaries:
+            boundary_nodes = [index for index in range(mesh.n_points) if self.get_dual_node(index).is_boundary]
+            mesh, _ = mesh.remove_points(boundary_nodes)
         if explode_factor != 0.0:
             mesh = self.explode(mesh, explode_factor)
         plt = pyvista.Plotter(theme=self.pyvista_theme, lighting='none')
@@ -436,6 +469,25 @@ class Plotter3D:
         if show_labels:
             plt.add_point_labels(mesh, "point_labels", point_size=30, font_size=20)
         plt.add_mesh(mesh, scalars="colors", show_scalar_bar=False, clim=[Color.red, Color.yellow])
+        plt.show()
+
+    def show_debug_dual_mesh(self, show_labels: bool = False, explode_factor: float = 0.0, exclude_boundaries: bool = False) -> None:
+        mesh = self.debug_dual_mesh
+        if exclude_boundaries:
+            boundary_indices = {index for index in range(mesh.n_points) if self.get_dual_node(index).is_boundary}
+            lines = [line for line in reconvert_faces(mesh.lines) if set(line).isdisjoint(boundary_indices)]
+            labels = mesh["point_labels"]
+            mesh = pyvista.PolyData(mesh.points, lines=convert_faces(lines))
+            mesh["point_labels"] = labels
+        if explode_factor != 0.0:
+            mesh = self.explode(mesh, explode_factor)
+        plt = pyvista.Plotter(theme=self.pyvista_theme, lighting='none')
+        plt.disable_shadows()
+        plt.disable_ssao()
+        plt.show_axes()
+        if show_labels:
+            plt.add_point_labels(mesh, "point_labels", point_size=30, font_size=20)
+        plt.add_mesh(mesh, show_scalar_bar=False)
         plt.show()
 
     def show_primay_mesh(self, show_labels: bool = False, explode_factor: float = 0.0) -> None:
