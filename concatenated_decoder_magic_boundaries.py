@@ -18,17 +18,16 @@ from framework.plotter import Plotter3D, compute_simplexes
 
 
 class PreDualGraphNode(GraphNode):
-    def __init__(self, title: str, pos: tuple[int, int] | tuple[int, int, int] = None, is_boundary: bool = False):
+    def __init__(self, title: str, is_boundary: bool = False):
         self._is_boundary = is_boundary
         self.title = title
-        if len(pos) == 3:
-            self.initial_x, self.initial_y, self.initial_z = pos
-        else:
-            self.initial_x, self.initial_y = pos
 
     @property
     def is_boundary(self) -> bool:
         return self._is_boundary
+
+    def __repr__(self):
+        return self.title
 
 
 def construct_dual_graph() -> rustworkx.PyGraph:
@@ -139,7 +138,6 @@ def coloring_qubits(dual_graph: rustworkx.PyGraph, dimension: int = 3) -> None:
             dual_graph[node.index] = DualGraphNode(color, qubits, is_stabilizer=True, stabilizer_length=len(simplexes))
         dual_graph[node.index].index = node.index
         dual_graph[node.index].title = node.title
-        dual_graph[node.index].initial_x, initial_y, initial_z = node.initial_x, node.initial_y, node.initial_z
 
     # add proper DualGraphEdge objects for all graph edges
     for edge_index, (node_index1, node_index2, _) in dual_graph.edge_index_map().items():
@@ -163,10 +161,10 @@ def rectangular_2d_dual_graph(distance: int) -> rustworkx.PyGraph:
     num_rows = distance
 
     dual_graph = rustworkx.PyGraph(multigraph=False)
-    left = PreDualGraphNode("left", pos=(-distance//2, distance//2), is_boundary=True)
-    right = PreDualGraphNode("right", pos=(3*distance//2, distance//2), is_boundary=True)
-    top = PreDualGraphNode("top", pos=(distance//2, 3*distance//2), is_boundary=True)
-    bottom = PreDualGraphNode("bottom", pos=(distance//2, -distance//2), is_boundary=True)
+    left = PreDualGraphNode("left", is_boundary=True)
+    right = PreDualGraphNode("right", is_boundary=True)
+    top = PreDualGraphNode("top", is_boundary=True)
+    bottom = PreDualGraphNode("bottom", is_boundary=True)
     boundaries = [left, right, top, bottom]
     # distance 3:
     #   | |
@@ -177,7 +175,7 @@ def rectangular_2d_dual_graph(distance: int) -> rustworkx.PyGraph:
     # – d e –
     #   | |
     # nodes = [[a, None, d], [b, c, e]]
-    nodes = [[PreDualGraphNode(f"({col},{row})", pos=(col, row)) for row in reversed(range(num_rows))] for col in range(num_cols)]
+    nodes = [[PreDualGraphNode(f"({col},{row})") for row in reversed(range(num_rows))] for col in range(num_cols)]
     for row in range(1, num_rows, 2):
         nodes[0][row] = None
 
@@ -238,10 +236,10 @@ def square_2d_dual_graph(distance: int) -> rustworkx.PyGraph:
     num_cols = num_rows = distance-1
 
     dual_graph = rustworkx.PyGraph(multigraph=False)
-    left = PreDualGraphNode("left", pos=(-distance//2, distance//2), is_boundary=True)
-    right = PreDualGraphNode("right", pos=(3*distance//2, distance//2), is_boundary=True)
-    top = PreDualGraphNode("top", pos=(distance//2, 3*distance//2), is_boundary=True)
-    bottom = PreDualGraphNode("bottom", pos=(distance//2, -distance//2), is_boundary=True)
+    left = PreDualGraphNode("left", is_boundary=True)
+    right = PreDualGraphNode("right", is_boundary=True)
+    top = PreDualGraphNode("top", is_boundary=True)
+    bottom = PreDualGraphNode("bottom", is_boundary=True)
     boundaries = [left, right, top, bottom]
     # distance 4:
     #   |   |   |
@@ -252,7 +250,7 @@ def square_2d_dual_graph(distance: int) -> rustworkx.PyGraph:
     # – g - h - i -
     #   |   |   |
     # nodes = [[a, d, g], [b, e, h], [c, f, i]]
-    nodes = [[PreDualGraphNode(f"({col},{row})", pos=(col, row)) for row in reversed(range(num_rows))] for col in range(num_cols)]
+    nodes = [[PreDualGraphNode(f"({col},{row})") for row in reversed(range(num_rows))] for col in range(num_cols)]
 
     dual_graph.add_nodes_from(boundaries)
     dual_graph.add_nodes_from([node for node in itertools.chain.from_iterable(nodes) if node is not None])
@@ -308,12 +306,12 @@ def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
     num_cols = num_rows = num_layers = distance-1
 
     dual_graph = rustworkx.PyGraph(multigraph=False)
-    left = PreDualGraphNode("left", pos=(-distance//2, distance//2), is_boundary=True)
-    right = PreDualGraphNode("right", pos=(3*distance//2, distance//2), is_boundary=True)
-    back = PreDualGraphNode("back", pos=(distance//2, 3*distance//2), is_boundary=True)
-    front = PreDualGraphNode("front", pos=(distance//2, -distance//2), is_boundary=True)
-    up = PreDualGraphNode("up", pos=(distance//2, -distance//2), is_boundary=True)
-    down = PreDualGraphNode("down", pos=(distance//2, -distance//2), is_boundary=True)
+    left = PreDualGraphNode("left", is_boundary=True)
+    right = PreDualGraphNode("right", is_boundary=True)
+    back = PreDualGraphNode("back", is_boundary=True)
+    front = PreDualGraphNode("front", is_boundary=True)
+    up = PreDualGraphNode("top", is_boundary=True)
+    down = PreDualGraphNode("bottom", is_boundary=True)
     boundaries = [left, right, back, front, up,  down]
     # distance 4, top layer:
     #   |   |   |
@@ -340,8 +338,8 @@ def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
     # – y - z - A -
     #   |   |   |
     # nodes = [[[a, d, g], [b, e, h], [c, f, i]], [[j, m, p], [k, n, q], [l, o, r]], [[r, v, y], [t, w, z], [u, x, A]]]
-    nodes = [[[PreDualGraphNode(f"({col},{row},{layer})", pos=(col, row, layer))
-               for row in reversed(range(num_rows))] for col in range(num_cols)] for layer in range(num_layers)]
+    nodes = [[[PreDualGraphNode(f"({col},{row},{layer})")
+               for row in range(num_rows)] for col in range(num_cols)] for layer in range(num_layers)]
 
     dual_graph.add_nodes_from(boundaries)
     dual_graph.add_nodes_from([node for layer in nodes for row in layer for node in row])
@@ -445,13 +443,6 @@ def node_attr_fn(node: GraphNode):
     if hasattr(node, "color"):
         attr_dict["color"] = node.color.name
         attr_dict["fill_color"] = node.color.name
-    if node.initial_x:
-        x = node.initial_x
-        y = node.initial_y
-        if z := node.initial_z:
-            attr_dict["pos"] = f'"{x},{y},{z}"'
-        else:
-            attr_dict["pos"] = f'"{x},{y}"'
     return attr_dict
 
 

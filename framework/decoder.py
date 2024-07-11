@@ -61,10 +61,6 @@ class GraphNode(GraphObject, abc.ABC):
     color: Color
     # used for graph debugging
     title: Optional[str] = dataclasses.field(default=None, init=False)
-    # used for graph rendering
-    initial_x: int = dataclasses.field(default=None, init=False)
-    initial_y: int = dataclasses.field(default=None, init=False)
-    initial_z: Optional[int] = dataclasses.field(default=None, init=False)
 
     @property
     @abc.abstractmethod
