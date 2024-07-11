@@ -174,9 +174,9 @@ def compute_simplexes(graph: rx.PyGraph, dimension: int) -> set[tuple[int, ...]]
 @dataclasses.dataclass
 class Plotter3D:
     dual_graph: rx.PyGraph
-    dual_mesh: pyvista.PolyData = dataclasses.field(init=False)
-    debug_dual_mesh: pyvista.PolyData = dataclasses.field(init=False)
-    primary_mesh: pyvista.PolyData = dataclasses.field(init=False)
+    _dual_mesh: pyvista.PolyData = dataclasses.field(default=None, init=False)
+    _debug_dual_mesh: pyvista.PolyData = dataclasses.field(default=None, init=False)
+    _primary_mesh: pyvista.PolyData = dataclasses.field(default=None, init=False)
     name: str
     storage_dir: pathlib.Path = dataclasses.field(default=pathlib.Path(__file__).parent.parent.absolute())
     pyvista_theme: pyvista.plotting.themes.DocumentTheme = dataclasses.field(default=None, init=False)
@@ -185,10 +185,25 @@ class Plotter3D:
     _dualgraph_to_dualmesh: dict[int, int] = dataclasses.field(default=None, init=False)
 
     def __post_init__(self):
-        self.dual_mesh = self._construct_dual_mesh()
-        self.debug_dual_mesh = self._construct_debug_dual_mesh()
-        self.primary_mesh = self._construct_primary_mesh()
         self.pyvista_theme = self.basic_plotting_theme()
+
+    @property
+    def dual_mesh(self) -> pyvista.PolyData:
+        if not self._dual_mesh:
+            self._dual_mesh = self._construct_dual_mesh()
+        return self._dual_mesh
+
+    @property
+    def debug_dual_mesh(self) -> pyvista.PolyData:
+        if not self._debug_dual_mesh:
+            self._debug_dual_mesh = self._construct_debug_dual_mesh()
+        return self._debug_dual_mesh
+
+    @property
+    def primary_mesh(self) -> pyvista.PolyData:
+        if not self._primary_mesh:
+            self._primary_mesh = self._construct_primary_mesh()
+        return self._primary_mesh
 
     def basic_plotting_theme(self) -> pyvista.plotting.themes.DocumentTheme:
         theme = pyvista.plotting.themes.DocumentTheme()
@@ -382,8 +397,6 @@ class Plotter3D:
             simplexes = [[tmp_point_map[point] for point in face] for face in hull.simplices]
             # each dual graph edge corresponds to a primary graph face
             face_qubits = [edge.qubits for _, _, edge in self.dual_graph.out_edges(node.index)]
-            # TODO triangle_to_faces funktion schreiben, die eine triangulation und das wissen, welche punkte eine face bilden,
-            #  nimmt, und daraus die zusammenhängenden faces erstellt
             faces = [[qubit_to_pointposition[qubit] for qubit in face] for face in triangles_to_faces(simplexes, face_qubits)]
             volumes.extend(faces)
 
