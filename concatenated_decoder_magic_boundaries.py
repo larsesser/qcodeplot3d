@@ -433,6 +433,400 @@ def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
     return dual_graph
 
 
+def cubic2_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
+    """Magic-boundary lattice, biggest volume (c1) in center."""
+    if not distance % 2 == 0:
+        raise ValueError("d must be an even integer")
+
+    if not distance == 4:
+        raise NotImplementedError
+
+    num_cols = num_rows = num_layers = distance-1
+
+    dual_graph = rustworkx.PyGraph(multigraph=False)
+    left = PreDualGraphNode("left", is_boundary=True)
+    right = PreDualGraphNode("right", is_boundary=True)
+    back = PreDualGraphNode("back", is_boundary=True)
+    front = PreDualGraphNode("front", is_boundary=True)
+    top = PreDualGraphNode("top", is_boundary=True)
+    bottom = PreDualGraphNode("bottom", is_boundary=True)
+    boundaries = [left, right, back, front, top,  bottom]
+    # distance 4, top layer:
+    #   |   |   |
+    # – a - b - c –
+    #   | \ | / |
+    # – d – e - f -
+    #   | / | \ |
+    # – g - h - i -
+    #   |   |   |
+    # distance 4, middle layer:
+    #   |   |   |
+    # – j - k - l –
+    #   | \ | / |
+    # – m – n - o -
+    #   | / | \ |
+    # – p - q - r -
+    #   |   |   |
+    # distance 4, bottom layer:
+    #   |   |   |
+    # – r - t - u –
+    #   | \ | / |
+    # – v – w - x -
+    #   | / | \ |
+    # – y - z - A -
+    #   |   |   |
+    # nodes = [[[a, d, g], [b, e, h], [c, f, i]], [[j, m, p], [k, n, q], [l, o, r]], [[r, v, y], [t, w, z], [u, x, A]]]
+    nodes = [[[PreDualGraphNode(f"({col},{row},{layer})")
+               for row in range(num_rows)] for col in range(num_cols)] for layer in range(num_layers)]
+
+    dual_graph.add_nodes_from(boundaries)
+    dual_graph.add_nodes_from([node for layer in nodes for row in layer for node in row])
+    for index in dual_graph.node_indices():
+        dual_graph[index].index = index
+
+    # construct edges
+
+    # between boundary_nodes and boundary_nodes:
+    add_edge(dual_graph, left, back)
+    add_edge(dual_graph, back, right)
+    add_edge(dual_graph, right, front)
+    add_edge(dual_graph, front, left)
+    for node in [left, right, back, front]:
+        add_edge(dual_graph, top, node)
+        add_edge(dual_graph, bottom, node)
+
+    # between nodes and boundary_nodes
+    for layer in nodes:
+        for col in layer:
+            add_edge(dual_graph, col[0], front)
+            add_edge(dual_graph, col[-1], back)
+        # first row
+        for node in layer[0]:
+            add_edge(dual_graph, node, left)
+        # last row
+        for node in layer[-1]:
+            add_edge(dual_graph, node, right)
+    for col in nodes[0]:
+        for node in col:
+            add_edge(dual_graph, node, top)
+    for col in nodes[-1]:
+        for node in col:
+            add_edge(dual_graph, node, bottom)
+
+    # between nodes and nodes
+    # inside one layer
+    for layer_pos, layer in enumerate(nodes):
+        # connect rows
+        for col1, col2 in zip(layer, layer[1:]):
+            for node1, node2 in zip(col1, col2):
+                add_edge(dual_graph, node1, node2)
+        # connect cols
+        for col in layer:
+            for node1, node2 in zip(col, col[1:]):
+                add_edge(dual_graph, node1, node2)
+        # diagonals
+        for col_pos, col in enumerate(layer):
+            # reached last col
+            if col_pos == num_cols-1:
+                continue
+            for row_pos, node in enumerate(col):
+                # diagonal pattern
+                if not ((row_pos % 2) == 1 and (col_pos % 2) == 1):
+                    continue
+                add_edge(dual_graph, node, layer[col_pos+1][row_pos+1])
+                add_edge(dual_graph, node, layer[col_pos+1][row_pos-1])
+                add_edge(dual_graph, node, layer[col_pos-1][row_pos+1])
+                add_edge(dual_graph, node, layer[col_pos-1][row_pos-1])
+    # between two layers
+    for layer1, layer2 in zip(nodes, nodes[1:]):
+        for col1, col2 in zip(layer1, layer2):
+            for node1, node2 in zip(col1, col2):
+                add_edge(dual_graph, node1, node2)
+
+    layer0 = nodes[0]
+    layer1 = nodes[1]
+    layer2 = nodes[2]
+    for layer in [layer0, layer2]:
+        add_edge(dual_graph, layer1[1][0], layer[0][0])
+        add_edge(dual_graph, layer1[1][0], layer[2][0])
+
+        add_edge(dual_graph, layer1[2][1], layer[2][0])
+        add_edge(dual_graph, layer1[2][1], layer[2][2])
+
+        add_edge(dual_graph, layer1[1][2], layer[2][2])
+        add_edge(dual_graph, layer1[1][2], layer[0][2])
+
+        add_edge(dual_graph, layer1[0][1], layer[0][2])
+        add_edge(dual_graph, layer1[0][1], layer[0][0])
+
+        for node in itertools.chain.from_iterable(layer):
+            add_edge(dual_graph, node, layer1[1][1])
+
+    return dual_graph
+
+
+def cubic3_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
+    """Magic-boundary lattice, smallest volume (c3) in center."""
+    if not distance % 2 == 0:
+        raise ValueError("d must be an even integer")
+
+    if not distance == 4:
+        raise NotImplementedError
+
+    num_cols = num_rows = num_layers = distance-1
+
+    dual_graph = rustworkx.PyGraph(multigraph=False)
+    left = PreDualGraphNode("left", is_boundary=True)
+    right = PreDualGraphNode("right", is_boundary=True)
+    back = PreDualGraphNode("back", is_boundary=True)
+    front = PreDualGraphNode("front", is_boundary=True)
+    top = PreDualGraphNode("top", is_boundary=True)
+    bottom = PreDualGraphNode("bottom", is_boundary=True)
+    boundaries = [left, right, back, front, top,  bottom]
+    # distance 4, top layer:
+    #       |
+    #       b
+    #       |
+    # – d – e - f -
+    #       |
+    #       h
+    #       |
+    # distance 4, middle layer:
+    #   |       |
+    # – j - - - l –
+    #   | \   / |
+    #   |   n   |
+    #   | /   \ |
+    # – p - - - r -
+    #   |       |
+    # distance 4, bottom layer:
+    #       |
+    #       b
+    #       |
+    # – d – e - f -
+    #       |
+    #       h
+    #       |
+    nodes = [[[PreDualGraphNode(f"({col},{row},{layer})")
+               for row in range(num_rows)] for col in range(num_cols)] for layer in range(num_layers)]
+    for layer_pos, layer in enumerate(nodes):
+        for row_pos, row in enumerate(layer):
+            for col_pos, node in enumerate(row):
+                if (layer_pos % 2 == 0) and (row_pos % 2 != col_pos % 2 or row_pos == col_pos == 1):
+                    continue
+                if (layer_pos % 2 == 1) and (row_pos % 2 == col_pos % 2):
+                    continue
+                nodes[layer_pos][row_pos][col_pos] = None
+
+    dual_graph.add_nodes_from(boundaries)
+    dual_graph.add_nodes_from([node for layer in nodes for row in layer for node in row if node is not None])
+    for index in dual_graph.node_indices():
+        dual_graph[index].index = index
+
+    # construct edges
+
+    # between boundary_nodes and boundary_nodes:
+    add_edge(dual_graph, left, back)
+    add_edge(dual_graph, back, right)
+    add_edge(dual_graph, right, front)
+    add_edge(dual_graph, front, left)
+    for node in [left, right, back, front]:
+        add_edge(dual_graph, top, node)
+        add_edge(dual_graph, bottom, node)
+
+    # between nodes and boundary_nodes
+    for layer in nodes:
+        for col in layer:
+            add_edge(dual_graph, col[0], front)
+            add_edge(dual_graph, col[-1], back)
+        # first row
+        for node in layer[0]:
+            add_edge(dual_graph, node, left)
+        # last row
+        for node in layer[-1]:
+            add_edge(dual_graph, node, right)
+    for col in nodes[0]:
+        for node in col:
+            add_edge(dual_graph, node, top)
+    for col in nodes[-1]:
+        for node in col:
+            add_edge(dual_graph, node, bottom)
+
+    # between nodes and nodes
+
+    layer0 = nodes[0]
+    layer1 = nodes[1]
+    layer2 = nodes[2]
+
+    # inside one layer
+    for layer in [layer0, layer2]:
+        add_edge(dual_graph, layer[0][1], layer[1][1])
+        add_edge(dual_graph, layer[1][0], layer[1][1])
+        add_edge(dual_graph, layer[2][1], layer[1][1])
+        add_edge(dual_graph, layer[1][2], layer[1][1])
+
+    add_edge(dual_graph, layer1[0][0], layer1[0][2])
+    add_edge(dual_graph, layer1[0][2], layer1[2][2])
+    add_edge(dual_graph, layer1[2][2], layer1[2][0])
+    add_edge(dual_graph, layer1[2][0], layer1[0][0])
+    add_edge(dual_graph, layer1[0][0], layer1[1][1])
+    add_edge(dual_graph, layer1[0][2], layer1[1][1])
+    add_edge(dual_graph, layer1[2][2], layer1[1][1])
+    add_edge(dual_graph, layer1[2][0], layer1[1][1])
+
+    # between layers
+    for layer in [layer0, layer2]:
+        add_edge(dual_graph, layer[0][1], layer1[0][0])
+        add_edge(dual_graph, layer[1][0], layer1[0][0])
+
+        add_edge(dual_graph, layer[0][1], layer1[0][2])
+        add_edge(dual_graph, layer[1][2], layer1[0][2])
+
+        add_edge(dual_graph, layer[1][2], layer1[2][2])
+        add_edge(dual_graph, layer[2][1], layer1[2][2])
+
+        add_edge(dual_graph, layer[2][1], layer1[2][0])
+        add_edge(dual_graph, layer[1][0], layer1[2][0])
+    for node in itertools.chain.from_iterable(layer1):
+        add_edge(dual_graph, node, layer0[1][1])
+        add_edge(dual_graph, node, layer2[1][1])
+
+    return dual_graph
+
+
+def cubic4_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
+    """Magic-boundary lattice, medium volume (c2) in center."""
+    if not distance % 2 == 0:
+        raise ValueError("d must be an even integer")
+
+    if not distance == 4:
+        raise NotImplementedError
+
+    num_cols = num_rows = num_layers = distance-1
+
+    dual_graph = rustworkx.PyGraph(multigraph=False)
+    left = PreDualGraphNode("left", is_boundary=True)
+    right = PreDualGraphNode("right", is_boundary=True)
+    back = PreDualGraphNode("back", is_boundary=True)
+    front = PreDualGraphNode("front", is_boundary=True)
+    top = PreDualGraphNode("top", is_boundary=True)
+    bottom = PreDualGraphNode("bottom", is_boundary=True)
+    boundaries = [left, right, back, front, top,  bottom]
+    # distance 4, top layer:
+    #   |       |
+    # – j - - - l –
+    #   | \   / |
+    #   |   n   |
+    #   | /   \ |
+    # – p - - - r -
+    #   |       |
+    # distance 4, middle layer:
+    #       |
+    #       b
+    #       |
+    # – d – e - f -
+    #       |
+    #       h
+    #       |
+    # distance 4, bottom layer:
+    #   |       |
+    # – j - - - l –
+    #   | \   / |
+    #   |   n   |
+    #   | /   \ |
+    # – p - - - r -
+    #   |       |
+    nodes = [[[PreDualGraphNode(f"({col},{row},{layer})")
+               for row in range(num_rows)] for col in range(num_cols)] for layer in range(num_layers)]
+    for layer_pos, layer in enumerate(nodes):
+        for row_pos, row in enumerate(layer):
+            for col_pos, node in enumerate(row):
+                if (layer_pos % 2 == 1) and (row_pos % 2 != col_pos % 2 or row_pos == col_pos == 1):
+                    continue
+                if (layer_pos % 2 == 0) and (row_pos % 2 == col_pos % 2):
+                    continue
+                nodes[layer_pos][row_pos][col_pos] = None
+
+    dual_graph.add_nodes_from(boundaries)
+    dual_graph.add_nodes_from([node for layer in nodes for row in layer for node in row if node is not None])
+    for index in dual_graph.node_indices():
+        dual_graph[index].index = index
+
+    # construct edges
+
+    # between boundary_nodes and boundary_nodes:
+    add_edge(dual_graph, left, back)
+    add_edge(dual_graph, back, right)
+    add_edge(dual_graph, right, front)
+    add_edge(dual_graph, front, left)
+    for node in [left, right, back, front]:
+        add_edge(dual_graph, top, node)
+        add_edge(dual_graph, bottom, node)
+
+    # between nodes and boundary_nodes
+    for layer in nodes:
+        for col in layer:
+            add_edge(dual_graph, col[0], front)
+            add_edge(dual_graph, col[-1], back)
+        # first row
+        for node in layer[0]:
+            add_edge(dual_graph, node, left)
+        # last row
+        for node in layer[-1]:
+            add_edge(dual_graph, node, right)
+    for col in nodes[0]:
+        for node in col:
+            add_edge(dual_graph, node, top)
+    for col in nodes[-1]:
+        for node in col:
+            add_edge(dual_graph, node, bottom)
+
+    # between nodes and nodes
+
+    layer0 = nodes[0]
+    layer1 = nodes[1]
+    layer2 = nodes[2]
+
+    # inside one layer
+    add_edge(dual_graph, layer1[0][1], layer1[1][1])
+    add_edge(dual_graph, layer1[1][0], layer1[1][1])
+    add_edge(dual_graph, layer1[2][1], layer1[1][1])
+    add_edge(dual_graph, layer1[1][2], layer1[1][1])
+
+    for layer in [layer0, layer2]:
+        add_edge(dual_graph, layer[0][0], layer[0][2])
+        add_edge(dual_graph, layer[0][2], layer[2][2])
+        add_edge(dual_graph, layer[2][2], layer[2][0])
+        add_edge(dual_graph, layer[2][0], layer[0][0])
+        add_edge(dual_graph, layer[0][0], layer[1][1])
+        add_edge(dual_graph, layer[0][2], layer[1][1])
+        add_edge(dual_graph, layer[2][2], layer[1][1])
+        add_edge(dual_graph, layer[2][0], layer[1][1])
+
+    # between layers
+    for layer in [layer0, layer2]:
+        add_edge(dual_graph, layer1[0][1], layer[0][0])
+        add_edge(dual_graph, layer1[1][0], layer[0][0])
+
+        add_edge(dual_graph, layer1[0][1], layer[0][2])
+        add_edge(dual_graph, layer1[1][2], layer[0][2])
+
+        add_edge(dual_graph, layer1[1][2], layer[2][2])
+        add_edge(dual_graph, layer1[2][1], layer[2][2])
+
+        add_edge(dual_graph, layer1[2][1], layer[2][0])
+        add_edge(dual_graph, layer1[1][0], layer[2][0])
+    for layer in [layer0, layer2]:
+        for node in itertools.chain.from_iterable(layer):
+            add_edge(dual_graph, node, layer1[1][1])
+    add_edge(dual_graph, layer0[0][0], layer2[0][0])
+    add_edge(dual_graph, layer0[0][2], layer2[0][2])
+    add_edge(dual_graph, layer0[2][2], layer2[2][2])
+    add_edge(dual_graph, layer0[2][0], layer2[2][0])
+
+    return dual_graph
+
+
 def node_attr_fn(node: GraphNode):
     label = f"{node.index}"
     if node.title:
