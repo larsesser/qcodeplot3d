@@ -154,6 +154,14 @@ class Color(enum.IntEnum):
             Color.gy: ["green", "yellow"],
         }[self]
 
+    @classmethod
+    def color_map(cls) -> list[str]:
+        return ["red", "blue", "green", "yellow"]
+
+    @classmethod
+    def color_limits(cls) -> list[int]:
+        return [cls.red, cls.yellow]
+
     def combine(self, other: "Color") -> "Color":
         if not (self.is_monochrome and other.is_monochrome):
             raise ValueError

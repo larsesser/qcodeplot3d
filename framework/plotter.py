@@ -359,6 +359,17 @@ class Plotter3D:
             point_labels.append(label)
         ret["point_labels"] = point_labels
 
+        # add colors to lines
+        colors = []
+        for edge in self.dual_graph.edges():
+            if edge.is_edge_between_boundaries:
+                colors.append(Color.red)
+            elif edge.node1.is_boundary or edge.node2.is_boundary:
+                colors.append(Color.green)
+            else:
+                colors.append(Color.blue)
+        ret.cell_data["colors"] = colors
+
         return ret
 
     def _construct_primary_mesh(self):
@@ -469,7 +480,7 @@ class Plotter3D:
         plt.show_axes()
         if show_labels:
             plt.add_point_labels(mesh, "point_labels", point_size=30, font_size=20)
-        plt.add_mesh(mesh, scalars="colors", show_scalar_bar=False, clim=[Color.red, Color.yellow])
+        plt.add_mesh(mesh, scalars="colors", show_scalar_bar=False, cmap=Color.color_map(), clim=Color.color_limits())
         plt.show()
 
     def show_debug_dual_mesh(self, show_labels: bool = False, explode_factor: float = 0.0, exclude_boundaries: bool = False) -> None:
@@ -478,8 +489,10 @@ class Plotter3D:
             boundary_indices = {index for index in range(mesh.n_points) if self.get_dual_node(index).is_boundary}
             lines = [line for line in reconvert_faces(mesh.lines) if set(line).isdisjoint(boundary_indices)]
             labels = mesh["point_labels"]
+            colors = [color for color, line in zip(mesh.cell_data["colors"], reconvert_faces(mesh.lines)) if set(line).isdisjoint(boundary_indices)]
             mesh = pyvista.PolyData(mesh.points, lines=convert_faces(lines))
             mesh["point_labels"] = labels
+            mesh.cell_data["colors"] = colors
         if explode_factor != 0.0:
             mesh = self.explode(mesh, explode_factor)
         plt = pyvista.Plotter(theme=self.pyvista_theme, lighting='none')
@@ -488,7 +501,7 @@ class Plotter3D:
         plt.show_axes()
         if show_labels:
             plt.add_point_labels(mesh, "point_labels", point_size=30, font_size=20)
-        plt.add_mesh(mesh, show_scalar_bar=False)
+        plt.add_mesh(mesh, scalars="colors", show_scalar_bar=False, cmap=Color.color_map(), clim=Color.color_limits())
         plt.show()
 
     def show_primay_mesh(self, show_labels: bool = False, explode_factor: float = 0.0) -> None:
@@ -499,5 +512,5 @@ class Plotter3D:
         plt.disable_shadows()
         plt.disable_ssao()
         plt.show_axes()
-        plt.add_mesh(mesh, scalars="colors", show_scalar_bar=False, clim=[Color.red, Color.yellow])
+        plt.add_mesh(mesh, scalars="colors", show_scalar_bar=False, cmap=Color.color_map(), clim=Color.color_limits())
         plt.show()
