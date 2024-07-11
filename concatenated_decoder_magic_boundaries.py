@@ -310,9 +310,9 @@ def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
     right = PreDualGraphNode("right", is_boundary=True)
     back = PreDualGraphNode("back", is_boundary=True)
     front = PreDualGraphNode("front", is_boundary=True)
-    up = PreDualGraphNode("top", is_boundary=True)
-    down = PreDualGraphNode("bottom", is_boundary=True)
-    boundaries = [left, right, back, front, up,  down]
+    top = PreDualGraphNode("top", is_boundary=True)
+    bottom = PreDualGraphNode("bottom", is_boundary=True)
+    boundaries = [left, right, back, front, top,  bottom]
     # distance 4, top layer:
     #   |   |   |
     # – a - b - c –
@@ -354,14 +354,14 @@ def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
     add_edge(dual_graph, right, front)
     add_edge(dual_graph, front, left)
     for node in [left, right, back, front]:
-        add_edge(dual_graph, up, node)
-        add_edge(dual_graph, down, node)
+        add_edge(dual_graph, top, node)
+        add_edge(dual_graph, bottom, node)
 
     # between nodes and boundary_nodes
     for layer in nodes:
         for col in layer:
-            add_edge(dual_graph, col[0], back)
-            add_edge(dual_graph, col[-1], front)
+            add_edge(dual_graph, col[0], front)
+            add_edge(dual_graph, col[-1], back)
         # first row
         for node in layer[0]:
             add_edge(dual_graph, node, left)
@@ -370,10 +370,10 @@ def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
             add_edge(dual_graph, node, right)
     for col in nodes[0]:
         for node in col:
-            add_edge(dual_graph, node, up)
+            add_edge(dual_graph, node, top)
     for col in nodes[-1]:
         for node in col:
-            add_edge(dual_graph, node, down)
+            add_edge(dual_graph, node, bottom)
 
     # between nodes and nodes
     # inside one layer
