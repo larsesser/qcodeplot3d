@@ -145,7 +145,8 @@ class Color(enum.IntEnum):
             Color.blue: ["blue"],
             Color.green: ["green"],
             Color.yellow: ["yellow"],
-            Color.rb: ["red", "blue"],
+            # for better visibility
+            Color.rb: ["blue", "red"],
             Color.rg: ["red", "green"],
             Color.ry: ["red", "yellow"],
             Color.bg: ["blue", "green"],
