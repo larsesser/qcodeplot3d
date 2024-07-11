@@ -6,7 +6,7 @@ import shlex
 import re
 from typing import Optional
 
-from framework.stabilizers import check_stabilizers, Operator, check_z, check_xj
+from framework.stabilizers import check_stabilizers, Operator, check_z, check_xj, count_independent
 from framework.decoder import ConcatenatedDecoder, GraphNode, GraphEdge, DualGraphNode, DualGraphEdge
 from rustworkx.visualization import graphviz_draw
 from framework.stabilizers import Color, Stabilizer
@@ -453,15 +453,23 @@ def edge_attr_fn(edge: GraphEdge):
 
 
 graph = cubic_3d_dual_graph(4)
-# coloring_qubits(graph, dimension=3)
+coloring_qubits(graph, dimension=3)
 
-# x_stabilizer: list[Stabilizer] = [node.stabilizer for node in graph.nodes() if node.stabilizer]
-# z_stabilizer: list[Stabilizer] = [Stabilizer(x_stabilizer[0].length, Color.red, z_positions=edge.qubits) for edge in graph.edges()]
-# stabilizers: list[Stabilizer] = [*x_stabilizer, *z_stabilizer]
-# check_stabilizers(stabilizers)
+x_stabilizer: list[Stabilizer] = [node.stabilizer for node in graph.nodes() if node.is_stabilizer]
+z_stabilizer: list[Stabilizer] = [edge.stabilizer for edge in graph.edges() if edge.is_stabilizer]
+stabilizers: list[Stabilizer] = [*x_stabilizer, *z_stabilizer]
+
+num_independent = count_independent(stabilizers)
+print(f"Stabilizers: {len(stabilizers)}, independent: {num_independent}")
+odd_stabilizers = [stabilizer for stabilizer in stabilizers if len(stabilizer.qubits) % 2 == 1]
+print(f"Odd stabilizers: {len(odd_stabilizers)}")
+n = stabilizers[0].length
+k = n - num_independent
+print(f"n: {n}, k: {k}, expected k: 3")
 
 plotter = Plotter3D(graph, "3D cubic")
-plotter.show_dual_mesh(show_labels=False)
+plotter.show_debug_dual_mesh(show_labels=True, explode_factor=0.0, exclude_boundaries=True)
+plotter.show_primay_mesh(show_labels=True, explode_factor=0.4)
 
 exit()
 

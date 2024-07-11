@@ -233,6 +233,15 @@ def are_independent(stabilizers: list[Operator]) -> bool:
     return any(e != 0 for e in rref.row(-1))
 
 
+def count_independent(stabilizers: list[Operator]) -> int:
+    """Calculate the number of independent stabilizers.
+
+    This is the rank of their check matrix.
+    """
+    check_matrix = get_check_matrix(stabilizers)
+    return check_matrix.rank()
+
+
 def check_stabilizers(stabilizers: list[Operator]) -> None:
     """Check if a set of operators form a set of stabilizers.
 
@@ -268,7 +277,7 @@ def check_logical_operator(logical: Operator, stabilizers: list[Operator]) -> No
         )
     if not are_independent(stabilizers + [logical]):
         raise ValueError(
-            f"{logical} does not form an indepentent set with the stabilizers."
+            f"{logical} does not form an independent set with the stabilizers."
         )
 
 
