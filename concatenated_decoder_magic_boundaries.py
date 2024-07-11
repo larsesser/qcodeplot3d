@@ -104,7 +104,7 @@ def _compute_coloring(graph: rustworkx.PyGraph, colors: list[Color]) -> dict[int
     return coloring
 
 
-def coloring_qubits(dual_graph: rustworkx.PyGraph, dimension: int = 3) -> None:
+def coloring_qubits(dual_graph: rustworkx.PyGraph, dimension: int = 3, do_coloring: bool = True) -> None:
     # In the following, we construct all necessary information from the graph layout:
     # - color of the nodes
     # - adjacent qubits to stabilizers / boundaries
@@ -118,7 +118,8 @@ def coloring_qubits(dual_graph: rustworkx.PyGraph, dimension: int = 3) -> None:
     colors = [Color.red, Color.blue, Color.green]
     if dimension == 3:
         colors.append(Color.yellow)
-    coloring = _compute_coloring(dual_graph, colors)
+    if do_coloring:
+        coloring = _compute_coloring(dual_graph, colors)
 
     # find all triangles / tetrahedrons of the graph
     simplexes = compute_simplexes(dual_graph, dimension)
@@ -130,7 +131,10 @@ def coloring_qubits(dual_graph: rustworkx.PyGraph, dimension: int = 3) -> None:
 
     # add proper DualGraphNode objects for all graph nodes
     for node in dual_graph.nodes():
-        color = coloring[node.index]
+        if do_coloring:
+            color = coloring[node.index]
+        else:
+            color = Color.green
         qubits = node2simplex[node.index]
         if node.index in boundary_nodes_indices:
             dual_graph[node.index] = DualGraphNode(color, qubits, is_stabilizer=False)
@@ -452,8 +456,8 @@ def edge_attr_fn(edge: GraphEdge):
     return attr_dict
 
 
-graph = cubic_3d_dual_graph(4)
-coloring_qubits(graph, dimension=3)
+graph = cubic2_3d_dual_graph(4)
+coloring_qubits(graph, dimension=3, do_coloring=False)
 
 x_stabilizer: list[Stabilizer] = [node.stabilizer for node in graph.nodes() if node.is_stabilizer]
 z_stabilizer: list[Stabilizer] = [edge.stabilizer for edge in graph.edges() if edge.is_stabilizer]
