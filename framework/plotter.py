@@ -46,44 +46,38 @@ def to_tuple(iterable: Union[Iterable[Any], Any]) -> Union[Any, tuple[Any, ...]]
     return iterable
 
 
-def triangles2faces(triangles_: list[list[int]], positions2points: dict[int, np.ndarray]) -> list[list[int]]:
+def triangles_to_faces(triangles_: list[list[int]], faces: list[list[int]]) -> list[list[int]]:
     """Converts a triangulation of an object to the proper planes of this object.
 
-    :param triangles: list of all simplicies (triangles) by point position.
-    :param positions2points: maps each point position to an actual 3D coordinate.
+    :param triangles_: list of all simplexes (triangles).
+    :param faces: (unsorted) list of all vertices of each face.
     """
     if any(len(triangle) != 3 for triangle in triangles_):
         raise ValueError
     triangles = to_tuple(triangles_)
 
-    neighboured = defaultdict(list)
+    neighboured: dict[tuple[int, int, int], list[tuple[int, int, int]]] = defaultdict(list)
     # calculate which triangles are neighboured and at the same face
     for triangle1, triangle2 in itertools.combinations(triangles, 2):
-        # first, determine if the two triangles share an edge. This is rather
+        triangle1_set = set(triangle1)
+        triangle2_set = set(triangle2)
+        # first, determine if the two triangles are neighboured (share an edge). This is rather
         # easy, since all points of a triangle are connected, so we only need
         # to check if both triangles share at least two points.
-        if len(shared := set(triangle1) & set(triangle2)) < 2:
+        if len(triangle1_set & triangle2_set) < 2:
             continue
-        # second, determine if the two triangles lay in the same plane.
-        # to check this, we
-        # - shift one point to (0, 0, 0) by subtracting it from all other points
-        # - take the remaining 3 points and check if they do _not_ span the whole
-        #   space by checking if their determinant is "0"
-        a = positions2points[(set(triangle1) - shared).pop()]
-        b = positions2points[(set(triangle2) - shared).pop()] - a
-        c = positions2points[shared.pop()] - a
-        d = positions2points[shared.pop()] - a
-        if abs(det(np.asarray([b, c, d]))) > 5000:
-            continue
-        neighboured[triangle1].append(triangle2)
-        neighboured[triangle2].append(triangle1)
+        # second, check if the two triangles belong to the same face
+        for face in faces:
+            if triangle1_set & set(face) == triangle1_set and triangle2_set & set(face) == triangle2_set:
+                neighboured[triangle1].append(triangle2)
+                neighboured[triangle2].append(triangle1)
+                break
 
     consumed: set[tuple[int, int, int]] = set()
 
     def construct_face(triangle: tuple[int, int, int]) -> list[int]:
         """Recursive function to construct one face from all neighbouring triangles."""
         ret = [*triangle]
-        # print(f"Construct with {triangle}")
         consumed.add(triangle)
         neighbours = neighboured[triangle]
 
@@ -94,18 +88,12 @@ def triangles2faces(triangles_: list[list[int]], positions2points: dict[int, np.
 
             # construct the face of all neighbours of this neighbour
             subface = construct_face(neighbour)
-            # print(f"\nBack in {triangle} from {neighbour}")
-            # print(f"Subface: {subface}, ret: {ret}")
             # the subface and ret share exactly one edge
             shared = set(ret) & set(subface)
             if len(shared) != 2:
                 raise RuntimeError
             shared_a = shared.pop()
             shared_b = shared.pop()
-            # sort both points by their appearance in ret
-            # if ret.index(shared_a) > ret.index(shared_b):
-            #     shared_a, shared_b = shared_b, shared_a
-            # print("Shared: ", shared_a, shared_b)
 
             # sort ret in such a way that it starts with shared_a
             new_ret = []
@@ -114,7 +102,6 @@ def triangles2faces(triangles_: list[list[int]], positions2points: dict[int, np.
                 element = next(iterator)
                 if element == shared_a or new_ret:
                     new_ret.append(element)
-            # print(f"New ret: {new_ret}")
 
             # now there are two possible layouts of new_ret:
             # 1. [shared_a, ..., shared_b]
@@ -127,7 +114,6 @@ def triangles2faces(triangles_: list[list[int]], positions2points: dict[int, np.
                 element = next(iterator)
                 if element == shared_a or new_subface:
                     new_subface.append(element)
-            # print(f"New subface: {new_subface}")
 
             # now there are two possible layouts of new_subface:
             # 1. [shared_a, ..., shared_b]
@@ -152,8 +138,6 @@ def triangles2faces(triangles_: list[list[int]], positions2points: dict[int, np.
                 new_ret = [new_ret[0]] + remainder + new_ret[1:]
             else:
                 raise RuntimeError
-            # print(f"Remainder: {remainder}")
-            # print(f"New Ret: {new_ret}")
             ret = new_ret
         return ret
 
@@ -314,8 +298,20 @@ class Plotter3D:
         ret["point_labels"] = point_labels
 
         # add tetrahedron ids
+        # TODO qubit als tetrahedron id nutzen?
         tetrahedron_ids = itertools.chain.from_iterable([[self.next_id]*4 for _ in simplexes])
         ret.cell_data["face_ids"] = list(tetrahedron_ids)
+
+        # add the qubit to each face of its tetrahedron
+        qubit_labels = []
+        for simplex in simplexes:
+            qubits = set(self.dual_graph.nodes()[simplex[0]].qubits)
+            for index in simplex[1:]:
+                qubits &= set(self.dual_graph.nodes()[index].qubits)
+            if len(qubits) != 1:
+                raise RuntimeError
+            qubit_labels.extend([qubits.pop()] * len(simplex))
+        ret.cell_data["qubits"] = qubit_labels
 
         # add color
         colors = [node.color for node in self.dual_graph.nodes()]
@@ -351,52 +347,44 @@ class Plotter3D:
         return ret
 
     def _construct_primary_mesh(self):
-        # group dual lattice cells by tetrahedron
-        volumes2facepositions = defaultdict(list)
-        for faceposition, anid in enumerate(self.dual_mesh.cell_data['face_ids']):
-            volumes2facepositions[anid].append(faceposition)
-
-        # group dual lattice faces by points in primal lattice
-        # note that this uses faces and not volumes as key, to simplify the construction
-        faces2points = defaultdict(list)
+        # group dual lattice cells (of the tetrahedron) by qubit
+        qubit_to_facepositions: dict[int, list[int]] = defaultdict(list)
+        for position, qubit in enumerate(self.dual_mesh.cell_data['qubits']):
+            qubit_to_facepositions[qubit].append(position)
 
         # volumes -> vertices
-        points = []
-        all_faces = reconvert_faces(self.dual_mesh.faces)
-        for facepositions in volumes2facepositions.values():
+        points: list[npt.NDArray[np.float64]] = []
+        qubit_to_point: dict[int, npt.NDArray[np.float64]] = {}
+        qubit_to_pointposition: dict[int, int] = {}
+        for pointposition, (qubit, facepositions) in enumerate(qubit_to_facepositions.items()):
             tetrahedron = self.dual_mesh.extract_cells(facepositions)
             # find center of mass of the tetrahedron
             center = np.asarray([0.0, 0.0, 0.0])
             for point in tetrahedron.points:
                 center += point
             center = center / len(tetrahedron.points)
-            faces = [all_faces[position] for position in facepositions]
-            for face in faces:
-                faces2points[tuple(sorted(face))].append(len(points))
             points.append(center)
+            qubit_to_point[qubit] = center
+            qubit_to_pointposition[qubit] = pointposition
 
         # vertices -> volumes
         volumes = []
         volume_ids = []
         volume_colors = []
-        for point in range(self.dual_mesh.n_points):
-            node = self.get_dual_node(point)
+        for node in self.dual_graph.nodes():
             # do not add a volume for boundaries
             if node.is_boundary:
                 continue
-            volume_positions = set()
-            for face in all_faces:
-                if point in face:
-                    volume_positions.update(set(faces2points[tuple(sorted(face))]))
-            volume_positions = sorted(volume_positions)
-            volume_points = [points[position] for position in volume_positions]
-            volume_positions2points = {position: points[position] for position in volume_positions}
-            # create the convex hull of all points of this volume
+            volume_points = [qubit_to_point[qubit] for qubit in node.qubits]
             hull = ConvexHull(volume_points)
-            # extract faces of the hull, take care to use the original points
-            tmp_point_map = {k: v for k, v in zip(range(hull.npoints), volume_positions)}
-            simplices = [[tmp_point_map[point] for point in face] for face in hull.simplices]
-            faces = triangles2faces(simplices, volume_positions2points)
+            # extract faces of the hull, take care to use the qubits
+            tmp_point_map = {k: v for k, v in zip(range(hull.npoints), node.qubits)}
+            simplexes = [[tmp_point_map[point] for point in face] for face in hull.simplices]
+            # each dual graph edge corresponds to a primary graph face
+            face_qubits = [edge.qubits for _, _, edge in self.dual_graph.out_edges(node.index)]
+            # TODO triangle_to_faces funktion schreiben, die eine triangulation und das wissen, welche punkte eine face bilden,
+            #  nimmt, und daraus die zusammenhängenden faces erstellt
+            faces = [[qubit_to_pointposition[qubit] for qubit in face] for face in triangles_to_faces(simplexes, face_qubits)]
             volumes.extend(faces)
 
             # add volume ids
