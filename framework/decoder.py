@@ -119,7 +119,7 @@ class DualGraphNode(GraphNode):
         self.qubits = sorted(self.qubits)
         if not self.color.is_monochrome:
             raise ValueError
-        if self.is_stabilizer and not self.stabilizer_length:
+        if self.is_stabilizer and self.stabilizer_length is None:
             raise ValueError
         if self.is_stabilizer:
             self.stabilizer = Stabilizer(self.stabilizer_length, self.color, x_positions=self.qubits)
@@ -364,8 +364,12 @@ class ConcatenatedDecoder(Decoder):
         # assign proper ids to dual graph nodes and edges
         for node in self.dual_graph.nodes():
             node.id = self.next_id
+            if not isinstance(node, DualGraphNode):
+                raise ValueError
         for edge in self.dual_graph.edges():
             edge.id = self.next_id
+            if not isinstance(edge, DualGraphEdge):
+                raise ValueError
 
     @property
     def next_id(self) -> int:
