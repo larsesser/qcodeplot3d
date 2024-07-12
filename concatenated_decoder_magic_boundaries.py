@@ -346,7 +346,7 @@ def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
                for row in range(num_rows)] for col in range(num_cols)] for layer in range(num_layers)]
 
     dual_graph.add_nodes_from(boundaries)
-    dual_graph.add_nodes_from([node for layer in nodes for row in layer for node in row])
+    dual_graph.add_nodes_from([node for layer in nodes for row in layer for node in row if node is not None])
     for index in dual_graph.node_indices():
         dual_graph[index].index = index
 
@@ -429,6 +429,472 @@ def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
                     add_edge(dual_graph, node, nodes[layer_pos+1][col_pos+1][row_pos])
                 if col_pos != 0:
                     add_edge(dual_graph, node, nodes[layer_pos+1][col_pos-1][row_pos])
+
+    return dual_graph
+
+
+def cubic_3d_d4_dual_graph(distance: int) -> rustworkx.PyGraph:
+    """See https://www.nature.com/articles/ncomms12302#Sec12"""
+    # if not distance % 2 == 0:
+    #     raise ValueError("d must be an even integer")
+
+    dual_graph = rustworkx.PyGraph(multigraph=False)
+
+    left = PreDualGraphNode("left", is_boundary=True)
+    right = PreDualGraphNode("right", is_boundary=True)
+    back = PreDualGraphNode("back", is_boundary=True)
+    front = PreDualGraphNode("front", is_boundary=True)
+    top = PreDualGraphNode("top", is_boundary=True)
+    bottom = PreDualGraphNode("bottom", is_boundary=True)
+    boundaries = [left, right, back, front, top, bottom]
+
+    # distance 4, top layer:
+    #    |     |     |
+    # – 000 - 001 - 002 –
+    #    |  \  |  /  |
+    # – 010 – 011 - 012 -
+    #    |  /  |  \  |
+    # – 020 - 021 - 022 -
+    #    |     |     |
+    # distance 4, middle layer:
+    #    |     |     |
+    # – 100 - 101 - 102 –
+    #    |  /  |  \  |
+    # – 110 – 111 - 112 -
+    #    |  \  |  /  |
+    # – 120 - 121 - 122 -
+    #    |     |     |
+    # distance 4, bottom layer:
+    #    |     |     |
+    # – 200 - 201 - 202 –
+    #    |  \  |  /  |
+    # – 210 – 211 - 212 -
+    #    |  /  |  \  |
+    # – 220 - 221 - 222 -
+    #    |     |     |
+
+    node_000 = PreDualGraphNode("000")
+    node_001 = PreDualGraphNode("001")
+    node_002 = PreDualGraphNode("002")
+    node_010 = PreDualGraphNode("010")
+    node_011 = PreDualGraphNode("011")
+    node_012 = PreDualGraphNode("012")
+    node_020 = PreDualGraphNode("020")
+    node_021 = PreDualGraphNode("021")
+    node_022 = PreDualGraphNode("022")
+    node_100 = PreDualGraphNode("100")
+    node_101 = PreDualGraphNode("101")
+    node_102 = PreDualGraphNode("102")
+    node_110 = PreDualGraphNode("110")
+    node_111 = PreDualGraphNode("111")
+    node_112 = PreDualGraphNode("112")
+    node_120 = PreDualGraphNode("120")
+    node_121 = PreDualGraphNode("121")
+    node_122 = PreDualGraphNode("122")
+    node_200 = PreDualGraphNode("200")
+    node_201 = PreDualGraphNode("201")
+    node_202 = PreDualGraphNode("202")
+    node_210 = PreDualGraphNode("210")
+    node_211 = PreDualGraphNode("211")
+    node_212 = PreDualGraphNode("212")
+    node_220 = PreDualGraphNode("220")
+    node_221 = PreDualGraphNode("221")
+    node_222 = PreDualGraphNode("222")
+
+    nodes = [node_000, node_001, node_002,
+             node_010, node_011, node_012,
+             node_020, node_021, node_022,
+             node_100, node_101, node_102,
+             node_110, node_111, node_112,
+             node_120, node_121, node_122,
+             node_200, node_201, node_202,
+             node_210, node_211, node_212,
+             node_220, node_221, node_222]
+
+    dual_graph.add_nodes_from(boundaries)
+    dual_graph.add_nodes_from(nodes)
+    for index in dual_graph.node_indices():
+        dual_graph[index].index = index
+
+    # boundaries with boundaries
+    add_edge(dual_graph, left, back)
+    add_edge(dual_graph, back, right)
+    add_edge(dual_graph, right, front)
+    add_edge(dual_graph, front, left)
+    for node in [left, right, back, front]:
+        add_edge(dual_graph, top, node)
+        add_edge(dual_graph, bottom, node)
+
+    # nodes with boundaries
+    for node in [node_000, node_010, node_020,
+                 node_100, node_110, node_120,
+                 node_200, node_210, node_220]:
+        add_edge(dual_graph, node, left)
+    for node in [node_002, node_012, node_022,
+                 node_102, node_112, node_122,
+                 node_202, node_212, node_222]:
+        add_edge(dual_graph, node, right)
+    for node in [node_000, node_001, node_002,
+                 node_100, node_101, node_102,
+                 node_200, node_201, node_202]:
+        add_edge(dual_graph, node, back)
+    for node in [node_020, node_021, node_022,
+                 node_120, node_121, node_122,
+                 node_220, node_221, node_222]:
+        add_edge(dual_graph, node, front)
+    for node in [node_000, node_001, node_002,
+                 node_010, node_011, node_012,
+                 node_020, node_021, node_022]:
+        add_edge(dual_graph, node, top)
+    for node in [node_200, node_201, node_202,
+                 node_210, node_211, node_212,
+                 node_220, node_221, node_222]:
+        add_edge(dual_graph, node, bottom)
+
+    # nodes back-front
+    add_edge(dual_graph, node_000, node_010)
+    add_edge(dual_graph, node_010, node_020)
+    add_edge(dual_graph, node_001, node_011)
+    add_edge(dual_graph, node_011, node_021)
+    add_edge(dual_graph, node_002, node_012)
+    add_edge(dual_graph, node_012, node_022)
+
+    add_edge(dual_graph, node_100, node_110)
+    add_edge(dual_graph, node_110, node_120)
+    add_edge(dual_graph, node_101, node_111)
+    add_edge(dual_graph, node_111, node_121)
+    add_edge(dual_graph, node_102, node_112)
+    add_edge(dual_graph, node_112, node_122)
+
+    add_edge(dual_graph, node_200, node_210)
+    add_edge(dual_graph, node_210, node_220)
+    add_edge(dual_graph, node_201, node_211)
+    add_edge(dual_graph, node_211, node_221)
+    add_edge(dual_graph, node_202, node_212)
+    add_edge(dual_graph, node_212, node_222)
+
+    # nodes left-right
+    add_edge(dual_graph, node_000, node_001)
+    add_edge(dual_graph, node_001, node_002)
+    add_edge(dual_graph, node_010, node_011)
+    add_edge(dual_graph, node_011, node_012)
+    add_edge(dual_graph, node_020, node_021)
+    add_edge(dual_graph, node_021, node_022)
+
+    add_edge(dual_graph, node_100, node_101)
+    add_edge(dual_graph, node_101, node_102)
+    add_edge(dual_graph, node_110, node_111)
+    add_edge(dual_graph, node_111, node_112)
+    add_edge(dual_graph, node_120, node_121)
+    add_edge(dual_graph, node_121, node_122)
+
+    add_edge(dual_graph, node_200, node_201)
+    add_edge(dual_graph, node_201, node_202)
+    add_edge(dual_graph, node_210, node_211)
+    add_edge(dual_graph, node_211, node_212)
+    add_edge(dual_graph, node_220, node_221)
+    add_edge(dual_graph, node_221, node_222)
+
+    # nodes top-bottom (first, second, third row)
+    add_edge(dual_graph, node_000, node_100)
+    add_edge(dual_graph, node_100, node_200)
+    add_edge(dual_graph, node_001, node_101)
+    add_edge(dual_graph, node_101, node_201)
+    add_edge(dual_graph, node_002, node_102)
+    add_edge(dual_graph, node_102, node_202)
+
+    add_edge(dual_graph, node_010, node_110)
+    add_edge(dual_graph, node_110, node_210)
+    add_edge(dual_graph, node_011, node_111)
+    add_edge(dual_graph, node_111, node_211)
+    add_edge(dual_graph, node_012, node_112)
+    add_edge(dual_graph, node_112, node_212)
+
+    add_edge(dual_graph, node_020, node_120)
+    add_edge(dual_graph, node_120, node_220)
+    add_edge(dual_graph, node_021, node_121)
+    add_edge(dual_graph, node_121, node_221)
+    add_edge(dual_graph, node_022, node_122)
+    add_edge(dual_graph, node_122, node_222)
+
+    # nodes diagonal (first, second, third layer)
+    add_edge(dual_graph, node_000, node_011)
+    add_edge(dual_graph, node_002, node_011)
+    add_edge(dual_graph, node_020, node_011)
+    add_edge(dual_graph, node_022, node_011)
+
+    add_edge(dual_graph, node_110, node_121)
+    add_edge(dual_graph, node_121, node_112)
+    add_edge(dual_graph, node_112, node_101)
+    add_edge(dual_graph, node_101, node_110)
+
+    add_edge(dual_graph, node_200, node_211)
+    add_edge(dual_graph, node_202, node_211)
+    add_edge(dual_graph, node_220, node_211)
+    add_edge(dual_graph, node_222, node_211)
+
+    # nodes diagonal between layers
+    add_edge(dual_graph, node_000, node_110)
+    add_edge(dual_graph, node_020, node_110)
+    add_edge(dual_graph, node_200, node_110)
+    add_edge(dual_graph, node_220, node_110)
+
+    add_edge(dual_graph, node_020, node_121)
+    add_edge(dual_graph, node_022, node_121)
+    add_edge(dual_graph, node_220, node_121)
+    add_edge(dual_graph, node_222, node_121)
+
+    add_edge(dual_graph, node_022, node_112)
+    add_edge(dual_graph, node_002, node_112)
+    add_edge(dual_graph, node_222, node_112)
+    add_edge(dual_graph, node_202, node_112)
+
+    add_edge(dual_graph, node_000, node_101)
+    add_edge(dual_graph, node_002, node_101)
+    add_edge(dual_graph, node_200, node_101)
+    add_edge(dual_graph, node_202, node_101)
+
+    add_edge(dual_graph, node_110, node_011)
+    add_edge(dual_graph, node_121, node_011)
+    add_edge(dual_graph, node_112, node_011)
+    add_edge(dual_graph, node_101, node_011)
+
+    add_edge(dual_graph, node_110, node_211)
+    add_edge(dual_graph, node_121, node_211)
+    add_edge(dual_graph, node_112, node_211)
+    add_edge(dual_graph, node_101, node_211)
+
+    return dual_graph
+
+
+def cubic_3d_d4_2_dual_graph(distance: int) -> rustworkx.PyGraph:
+    """See https://www.nature.com/articles/ncomms12302#Sec12"""
+    # if not distance % 2 == 0:
+    #     raise ValueError("d must be an even integer")
+
+    dual_graph = rustworkx.PyGraph(multigraph=False)
+
+    left = PreDualGraphNode("left", is_boundary=True)
+    right = PreDualGraphNode("right", is_boundary=True)
+    back = PreDualGraphNode("back", is_boundary=True)
+    front = PreDualGraphNode("front", is_boundary=True)
+    top = PreDualGraphNode("top", is_boundary=True)
+    bottom = PreDualGraphNode("bottom", is_boundary=True)
+    boundaries = [left, right, back, front, top, bottom]
+
+    # distance 4, top layer:
+    #    |     |     |
+    # – 000 - 001 - 002 –
+    #    |  /  |  \  |
+    # – 010 – 011 - 012 -
+    #    |  \  |  /  |
+    # – 020 - 021 - 022 -
+    #    |     |     |
+    # distance 4, middle layer:
+    #    |     |     |
+    # – 100 - 101 - 102 –
+    #    |  \  |  /  |
+    # – 110 – 111 - 112 -
+    #    |  /  |  \  |
+    # – 120 - 121 - 122 -
+    #    |     |     |
+    # distance 4, bottom layer:
+    #    |     |     |
+    # – 200 - 201 - 202 –
+    #    |  /  |  \  |
+    # – 210 – 211 - 212 -
+    #    |  \  |  /  |
+    # – 220 - 221 - 222 -
+    #    |     |     |
+
+    node_000 = PreDualGraphNode("000")
+    node_001 = PreDualGraphNode("001")
+    node_002 = PreDualGraphNode("002")
+    node_010 = PreDualGraphNode("010")
+    node_011 = PreDualGraphNode("011")
+    node_012 = PreDualGraphNode("012")
+    node_020 = PreDualGraphNode("020")
+    node_021 = PreDualGraphNode("021")
+    node_022 = PreDualGraphNode("022")
+    node_100 = PreDualGraphNode("100")
+    node_101 = PreDualGraphNode("101")
+    node_102 = PreDualGraphNode("102")
+    node_110 = PreDualGraphNode("110")
+    node_111 = PreDualGraphNode("111")
+    node_112 = PreDualGraphNode("112")
+    node_120 = PreDualGraphNode("120")
+    node_121 = PreDualGraphNode("121")
+    node_122 = PreDualGraphNode("122")
+    node_200 = PreDualGraphNode("200")
+    node_201 = PreDualGraphNode("201")
+    node_202 = PreDualGraphNode("202")
+    node_210 = PreDualGraphNode("210")
+    node_211 = PreDualGraphNode("211")
+    node_212 = PreDualGraphNode("212")
+    node_220 = PreDualGraphNode("220")
+    node_221 = PreDualGraphNode("221")
+    node_222 = PreDualGraphNode("222")
+
+    nodes = [node_000, node_001, node_002,
+             node_010, node_011, node_012,
+             node_020, node_021, node_022,
+             node_100, node_101, node_102,
+             node_110, node_111, node_112,
+             node_120, node_121, node_122,
+             node_200, node_201, node_202,
+             node_210, node_211, node_212,
+             node_220, node_221, node_222]
+
+    dual_graph.add_nodes_from(boundaries)
+    dual_graph.add_nodes_from(nodes)
+    for index in dual_graph.node_indices():
+        dual_graph[index].index = index
+
+    # boundaries with boundaries
+    add_edge(dual_graph, left, back)
+    add_edge(dual_graph, back, right)
+    add_edge(dual_graph, right, front)
+    add_edge(dual_graph, front, left)
+    for node in [left, right, back, front]:
+        add_edge(dual_graph, top, node)
+        add_edge(dual_graph, bottom, node)
+
+    # nodes with boundaries
+    for node in [node_000, node_010, node_020,
+                 node_100, node_110, node_120,
+                 node_200, node_210, node_220]:
+        add_edge(dual_graph, node, left)
+    for node in [node_002, node_012, node_022,
+                 node_102, node_112, node_122,
+                 node_202, node_212, node_222]:
+        add_edge(dual_graph, node, right)
+    for node in [node_000, node_001, node_002,
+                 node_100, node_101, node_102,
+                 node_200, node_201, node_202]:
+        add_edge(dual_graph, node, back)
+    for node in [node_020, node_021, node_022,
+                 node_120, node_121, node_122,
+                 node_220, node_221, node_222]:
+        add_edge(dual_graph, node, front)
+    for node in [node_000, node_001, node_002,
+                 node_010, node_011, node_012,
+                 node_020, node_021, node_022]:
+        add_edge(dual_graph, node, top)
+    for node in [node_200, node_201, node_202,
+                 node_210, node_211, node_212,
+                 node_220, node_221, node_222]:
+        add_edge(dual_graph, node, bottom)
+
+    # nodes back-front
+    add_edge(dual_graph, node_000, node_010)
+    add_edge(dual_graph, node_010, node_020)
+    add_edge(dual_graph, node_001, node_011)
+    add_edge(dual_graph, node_011, node_021)
+    add_edge(dual_graph, node_002, node_012)
+    add_edge(dual_graph, node_012, node_022)
+
+    add_edge(dual_graph, node_100, node_110)
+    add_edge(dual_graph, node_110, node_120)
+    add_edge(dual_graph, node_101, node_111)
+    add_edge(dual_graph, node_111, node_121)
+    add_edge(dual_graph, node_102, node_112)
+    add_edge(dual_graph, node_112, node_122)
+
+    add_edge(dual_graph, node_200, node_210)
+    add_edge(dual_graph, node_210, node_220)
+    add_edge(dual_graph, node_201, node_211)
+    add_edge(dual_graph, node_211, node_221)
+    add_edge(dual_graph, node_202, node_212)
+    add_edge(dual_graph, node_212, node_222)
+
+    # nodes left-right
+    add_edge(dual_graph, node_000, node_001)
+    add_edge(dual_graph, node_001, node_002)
+    add_edge(dual_graph, node_010, node_011)
+    add_edge(dual_graph, node_011, node_012)
+    add_edge(dual_graph, node_020, node_021)
+    add_edge(dual_graph, node_021, node_022)
+
+    add_edge(dual_graph, node_100, node_101)
+    add_edge(dual_graph, node_101, node_102)
+    add_edge(dual_graph, node_110, node_111)
+    add_edge(dual_graph, node_111, node_112)
+    add_edge(dual_graph, node_120, node_121)
+    add_edge(dual_graph, node_121, node_122)
+
+    add_edge(dual_graph, node_200, node_201)
+    add_edge(dual_graph, node_201, node_202)
+    add_edge(dual_graph, node_210, node_211)
+    add_edge(dual_graph, node_211, node_212)
+    add_edge(dual_graph, node_220, node_221)
+    add_edge(dual_graph, node_221, node_222)
+
+    # nodes top-bottom (first, second, third row)
+    add_edge(dual_graph, node_000, node_100)
+    add_edge(dual_graph, node_100, node_200)
+    add_edge(dual_graph, node_001, node_101)
+    add_edge(dual_graph, node_101, node_201)
+    add_edge(dual_graph, node_002, node_102)
+    add_edge(dual_graph, node_102, node_202)
+
+    add_edge(dual_graph, node_010, node_110)
+    add_edge(dual_graph, node_110, node_210)
+    add_edge(dual_graph, node_011, node_111)
+    add_edge(dual_graph, node_111, node_211)
+    add_edge(dual_graph, node_012, node_112)
+    add_edge(dual_graph, node_112, node_212)
+
+    add_edge(dual_graph, node_020, node_120)
+    add_edge(dual_graph, node_120, node_220)
+    add_edge(dual_graph, node_021, node_121)
+    add_edge(dual_graph, node_121, node_221)
+    add_edge(dual_graph, node_022, node_122)
+    add_edge(dual_graph, node_122, node_222)
+
+    # nodes diagonal (first, second, third layer)
+    add_edge(dual_graph, node_010, node_021)
+    add_edge(dual_graph, node_021, node_012)
+    add_edge(dual_graph, node_012, node_001)
+    add_edge(dual_graph, node_001, node_010)
+
+    add_edge(dual_graph, node_100, node_111)
+    add_edge(dual_graph, node_102, node_111)
+    add_edge(dual_graph, node_120, node_111)
+    add_edge(dual_graph, node_122, node_111)
+
+    add_edge(dual_graph, node_210, node_221)
+    add_edge(dual_graph, node_221, node_212)
+    add_edge(dual_graph, node_212, node_201)
+    add_edge(dual_graph, node_201, node_210)
+
+    # nodes diagonal between layers
+    add_edge(dual_graph, node_001, node_100)
+    add_edge(dual_graph, node_010, node_100)
+    add_edge(dual_graph, node_010, node_120)
+    add_edge(dual_graph, node_021, node_120)
+    add_edge(dual_graph, node_021, node_122)
+    add_edge(dual_graph, node_012, node_122)
+    add_edge(dual_graph, node_012, node_102)
+    add_edge(dual_graph, node_001, node_102)
+
+    add_edge(dual_graph, node_001, node_111)
+    add_edge(dual_graph, node_010, node_111)
+    add_edge(dual_graph, node_021, node_111)
+    add_edge(dual_graph, node_012, node_111)
+
+    add_edge(dual_graph, node_201, node_100)
+    add_edge(dual_graph, node_210, node_100)
+    add_edge(dual_graph, node_210, node_120)
+    add_edge(dual_graph, node_221, node_120)
+    add_edge(dual_graph, node_221, node_122)
+    add_edge(dual_graph, node_212, node_122)
+    add_edge(dual_graph, node_212, node_102)
+    add_edge(dual_graph, node_201, node_102)
+
+    add_edge(dual_graph, node_201, node_111)
+    add_edge(dual_graph, node_210, node_111)
+    add_edge(dual_graph, node_221, node_111)
+    add_edge(dual_graph, node_212, node_111)
 
     return dual_graph
 
