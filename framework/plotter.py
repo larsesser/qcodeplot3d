@@ -150,24 +150,37 @@ def triangles_to_faces(triangles_: list[list[int]], faces: list[list[int]]) -> l
 
 
 def compute_simplexes(graph: rx.PyGraph, dimension: int) -> set[tuple[int, ...]]:
-    """Find all simplexes of the given dimension in the graph."""
+    """Find all simplexes of the given dimension in the graph.
+
+    This excludes simplexes which vertices are all boundary vertices.
+    """
     if dimension not in {2, 3}:
         raise NotImplementedError
     triangles = set()
+    filtered_triangles = set()
     for node1 in graph.nodes():
         node1_neighbors = graph.neighbors(node1.index)
         for node2_index in node1_neighbors:
             for node3_index in graph.neighbors(node2_index):
                 if node3_index not in node1_neighbors:
                     continue
-                triangles.add(tuple(sorted([node1.index, node2_index, node3_index])))
+                triangle = tuple(sorted([node1.index, node2_index, node3_index]))
+                triangles.add(triangle)
+                # exclude triangles between only boundary nodes
+                if all(graph.nodes()[index].is_boundary for index in triangle):
+                    continue
+                filtered_triangles.add(triangle)
     if dimension == 2:
-        return triangles
+        return filtered_triangles
     tetrahedrons = set()
     for triangle in triangles:
         common_neighbours = set(graph.neighbors(triangle[0])) & set(graph.neighbors(triangle[1])) & set(graph.neighbors(triangle[2]))
         for neighbour in common_neighbours:
-            tetrahedrons.add(tuple(sorted([*triangle, neighbour])))
+            tetrahedron = tuple(sorted([*triangle, neighbour]))
+            # exclude tetrahedrons between only boundary nodes
+            if all(graph.nodes()[index].is_boundary for index in tetrahedron):
+                continue
+            tetrahedrons.add(tetrahedron)
     return tetrahedrons
 
 
