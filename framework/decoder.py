@@ -2,7 +2,6 @@ import abc
 import dataclasses
 import itertools
 from dataclasses import dataclass
-from pprint import pprint
 from typing import Optional
 
 import pymatching
@@ -10,7 +9,6 @@ import pymatching
 from framework.layer import Syndrome
 from framework.stabilizers import Stabilizer, Color
 import rustworkx as rx
-import matplotlib.pyplot as plt
 
 
 @dataclass
@@ -101,8 +99,6 @@ class GraphEdge(GraphObject, abc.ABC):
             raise RuntimeError
         return default
 
-
-# TODO add weight 0 to all edges linking only boundary nodes
 
 @dataclass
 class DualGraphNode(GraphNode):
@@ -396,6 +392,8 @@ class ConcatenatedDecoder(Decoder):
     _last_id: int = dataclasses.field(default=0, init=False)
 
     def __post_init__(self):
+        if len(self.colors) != 4:
+            raise NotImplementedError
         # assign proper ids to dual graph nodes and edges
         for node in self.dual_graph.nodes():
             node.id = self.next_id
@@ -494,9 +492,6 @@ class ConcatenatedDecoder(Decoder):
         graph = rx.PyGraph(multigraph=False)
         restricted_2_graph = self.restricted_graph(restricted_colors)
         restricted_3_graph = self.restricted_graph([*restricted_colors, monochromatic_color])
-        # since we didn't remove any objects to construct the restricted graph, rustworkx guarantees that the
-        #  undirected and directed graph share the same indexes for the same objects.
-        directed_restricted_3_graph = restricted_3_graph.to_directed()
 
         # construct the nodes
         nodes = []
@@ -521,35 +516,24 @@ class ConcatenatedDecoder(Decoder):
             for permutation in itertools.permutations(node.rg_indices):
                 rg_node_to_mc_node[tuple(permutation)] = node
 
-        # graphviz_draw(restricted_3_graph, node_attr_fn, edge_attr_fn, filename="restricted_gyb2.png", method="sfdp")
-        # graphviz_draw(directed_restricted_3_graph, node_attr_fn, edge_attr_fn, filename="restricted_gyb2_direct.png", method="sfdp")
-
         # construct the edges
-        cycles = {tuple(sorted(indices)) for indices in rx.simple_cycles(directed_restricted_3_graph) if len(indices) == 3}
-        # TODO adjust this to the length of qubits of one side of the tetrahedron in general + boundary-boundary-boundary
-        if len(cycles) != 8:
-            raise RuntimeError
-        for cycle in cycles:
-            # each face (== cycle) of the graph is a triangle
-            if len(cycle) != 3:
-                raise RuntimeError(cycle)
+        triangles = compute_simplexes(restricted_3_graph, dimension=2)
+        for triangle in triangles:
             # one of the nodes of the triangle belongs to a node
             # two of the nodes of the triangle belong to an edge which is a node in the mc lattice,
-            if (cycle[0], ) in rg_node_to_mc_node:
-                node1 = rg_node_to_mc_node[(cycle[0], )]
-                node2 = rg_node_to_mc_node[(cycle[1], cycle[2])]
-            elif (cycle[1], ) in rg_node_to_mc_node:
-                node1 = rg_node_to_mc_node[(cycle[1], )]
-                node2 = rg_node_to_mc_node[(cycle[0], cycle[2])]
-            elif (cycle[2], ) in rg_node_to_mc_node:
-                node1 = rg_node_to_mc_node[(cycle[2], )]
-                node2 = rg_node_to_mc_node[(cycle[0], cycle[1])]
+            if (triangle[0], ) in rg_node_to_mc_node:
+                node1 = rg_node_to_mc_node[(triangle[0], )]
+                node2 = rg_node_to_mc_node[(triangle[1], triangle[2])]
+            elif (triangle[1], ) in rg_node_to_mc_node:
+                node1 = rg_node_to_mc_node[(triangle[1], )]
+                node2 = rg_node_to_mc_node[(triangle[0], triangle[2])]
+            elif (triangle[2], ) in rg_node_to_mc_node:
+                node1 = rg_node_to_mc_node[(triangle[2], )]
+                node2 = rg_node_to_mc_node[(triangle[0], triangle[1])]
             else:
                 raise RuntimeError
-            # the edge which belongs to three boundary nodes belongs to no qubit
-            # TODO add weight 0
-            # if node1.is_boundary and node2.is_boundary:
-            #     continue
+            # do not exclude the edge which belongs to three boundary nodes,
+            # since we need it for construction of the mc4 graph.
             graph.add_edge(node1.index, node2.index, Mc3GraphEdge(self.next_id, node1, node2))
 
         for index in graph.edge_indices():
@@ -603,8 +587,6 @@ class ConcatenatedDecoder(Decoder):
         graph = rx.PyGraph(multigraph=False)
         mc3_graph = self.mc3_graph(restricted_colors, monochromatic_3_color)
         dual_graph = self.dual_graph
-        # rustworkx guarantees that the undirected and directed graph share the same indexes for the same objects.
-        directed_dual_graph = dual_graph.to_directed()
 
         # construct the nodes
         nodes = []
@@ -627,17 +609,7 @@ class ConcatenatedDecoder(Decoder):
                 dg_node_to_mc4_node[tuple(permutation)] = node
 
         # construct the edges
-        # first, we find each 3-cycle (corresponding to a triangle face) of the lattice
-        cycles = {tuple(sorted(indices)) for indices in rx.simple_cycles(directed_dual_graph) if len(indices) == 3}
-        # then, we find for each 3-cycle all nodes which are connected with all of them, forming a tetrahedron
-        tetrahedrons = set()
-        for cycle in cycles:
-            common_neighbours = set(dual_graph.neighbors(cycle[0])) & set(dual_graph.neighbors(cycle[1])) & set(dual_graph.neighbors(cycle[2]))
-            for neighbour in common_neighbours:
-                tetrahedrons.add(tuple(sorted([*cycle, neighbour])))
-        # TODO adjust this to the length of qubits of one side of the tetrahedron in general + boundary-boundary-boundary
-        if len(tetrahedrons) != 16:
-            raise RuntimeError(len(tetrahedrons))
+        tetrahedrons = compute_simplexes(dual_graph, dimension=3)
         for tetrahedron in tetrahedrons:
             # one of the nodes of the tetrahedron belongs to a node
             # three of the nodes of the tetrahedron belong to an edge of the mc3 lattice
@@ -655,10 +627,8 @@ class ConcatenatedDecoder(Decoder):
                 node2 = dg_node_to_mc4_node[(tetrahedron[0], tetrahedron[1], tetrahedron[2])]
             else:
                 raise RuntimeError
-            # the edge which belongs to four boundary nodes belongs to no qubit
-            # TODO add weight 0 to this edge
-            # if node1.is_boundary and node2.is_boundary:
-            #     continue
+            # do not exclude the edge which belongs to four boundary nodes, though it belongs to no qubit,
+            # for symmetry reason with mc3 graph, and it does no harm during decoding.
             graph.add_edge(node1.index, node2.index, Mc4GraphEdge(self.next_id, node1, node2))
 
         for index in graph.edge_indices():
