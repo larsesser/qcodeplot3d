@@ -7,7 +7,7 @@ import pyvista
 import pyvista.plotting.themes
 import rustworkx as rx
 from rustworkx.visualization import graphviz_draw
-from framework.decoder import DualGraphNode
+from framework.decoder import DualGraphNode, compute_simplexes
 from framework.stabilizers import Color
 import itertools
 import re
@@ -96,41 +96,6 @@ def project_to_plane(points: list[list[float]]) -> list[list[float]]:
     ret = [[np.dot(p, ex), np.dot(p, ey)] for p in projected]
 
     return ret
-
-
-def compute_simplexes(graph: rx.PyGraph, dimension: int, exclude_boundary_simplexes: bool = False) -> set[tuple[int, ...]]:
-    """Find all simplexes of the given dimension in the graph.
-
-    param exclude_boundary_simplexes: If True, exclude simplexes which vertices are all boundary vertices.
-    """
-    if dimension not in {2, 3}:
-        raise NotImplementedError
-    triangles = set()
-    filtered_triangles = set()
-    for node1 in graph.nodes():
-        node1_neighbors = graph.neighbors(node1.index)
-        for node2_index in node1_neighbors:
-            for node3_index in graph.neighbors(node2_index):
-                if node3_index not in node1_neighbors:
-                    continue
-                triangle = tuple(sorted([node1.index, node2_index, node3_index]))
-                triangles.add(triangle)
-                # exclude triangles between only boundary nodes
-                if exclude_boundary_simplexes and all(graph.nodes()[index].is_boundary for index in triangle):
-                    continue
-                filtered_triangles.add(triangle)
-    if dimension == 2:
-        return filtered_triangles
-    tetrahedrons = set()
-    for triangle in triangles:
-        common_neighbours = set(graph.neighbors(triangle[0])) & set(graph.neighbors(triangle[1])) & set(graph.neighbors(triangle[2]))
-        for neighbour in common_neighbours:
-            tetrahedron = tuple(sorted([*triangle, neighbour]))
-            # exclude tetrahedrons between only boundary nodes
-            if exclude_boundary_simplexes and all(graph.nodes()[index].is_boundary for index in tetrahedron):
-                continue
-            tetrahedrons.add(tetrahedron)
-    return tetrahedrons
 
 
 @dataclasses.dataclass

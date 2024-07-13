@@ -7,14 +7,14 @@ import re
 from typing import Optional
 
 from framework.stabilizers import check_stabilizers, Operator, check_z, check_xj, count_independent
-from framework.decoder import ConcatenatedDecoder, GraphNode, GraphEdge, DualGraphNode, DualGraphEdge
+from framework.decoder import ConcatenatedDecoder, GraphNode, GraphEdge, DualGraphNode, DualGraphEdge, compute_simplexes
 from rustworkx.visualization import graphviz_draw
 from framework.stabilizers import Color, Stabilizer
 import rustworkx as rx
 import itertools
 from pysat.formula import CNF
 from pysat.solvers import Solver
-from framework.plotter import Plotter3D, compute_simplexes
+from framework.plotter import Plotter3D
 
 
 class PreDualGraphNode(GraphNode):
