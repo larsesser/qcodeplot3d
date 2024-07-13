@@ -98,10 +98,10 @@ def project_to_plane(points: list[list[float]]) -> list[list[float]]:
     return ret
 
 
-def compute_simplexes(graph: rx.PyGraph, dimension: int) -> set[tuple[int, ...]]:
+def compute_simplexes(graph: rx.PyGraph, dimension: int, exclude_boundary_simplexes: bool = False) -> set[tuple[int, ...]]:
     """Find all simplexes of the given dimension in the graph.
 
-    This excludes simplexes which vertices are all boundary vertices.
+    param exclude_boundary_simplexes: If True, exclude simplexes which vertices are all boundary vertices.
     """
     if dimension not in {2, 3}:
         raise NotImplementedError
@@ -116,7 +116,7 @@ def compute_simplexes(graph: rx.PyGraph, dimension: int) -> set[tuple[int, ...]]
                 triangle = tuple(sorted([node1.index, node2_index, node3_index]))
                 triangles.add(triangle)
                 # exclude triangles between only boundary nodes
-                if all(graph.nodes()[index].is_boundary for index in triangle):
+                if exclude_boundary_simplexes and all(graph.nodes()[index].is_boundary for index in triangle):
                     continue
                 filtered_triangles.add(triangle)
     if dimension == 2:
@@ -127,7 +127,7 @@ def compute_simplexes(graph: rx.PyGraph, dimension: int) -> set[tuple[int, ...]]
         for neighbour in common_neighbours:
             tetrahedron = tuple(sorted([*triangle, neighbour]))
             # exclude tetrahedrons between only boundary nodes
-            if all(graph.nodes()[index].is_boundary for index in tetrahedron):
+            if exclude_boundary_simplexes and all(graph.nodes()[index].is_boundary for index in tetrahedron):
                 continue
             tetrahedrons.add(tetrahedron)
     return tetrahedrons
@@ -257,7 +257,7 @@ class Plotter3D:
         self._dualgraph_to_dualmesh = rustworkx2pyvista
         self._dualmesh_to_dualgraph = {value: key for key, value in rustworkx2pyvista.items()}
         # TODO ensure all faces of dual graph are triangles?
-        simplexes = compute_simplexes(self.dual_graph, dimension=3)
+        simplexes = compute_simplexes(self.dual_graph, dimension=3, exclude_boundary_simplexes=True)
         # each simplex (tetrahedron) has four faces (triangles)
         faces = [[rustworkx2pyvista[index] for index in combination] for simplex in simplexes for combination in itertools.combinations(simplex, 3)]
 

@@ -122,7 +122,7 @@ def coloring_qubits(dual_graph: rustworkx.PyGraph, dimension: int = 3, do_colori
         coloring = _compute_coloring(dual_graph, colors)
 
     # find all triangles / tetrahedrons of the graph
-    simplexes = compute_simplexes(dual_graph, dimension)
+    simplexes = compute_simplexes(dual_graph, dimension, exclude_boundary_simplexes=True)
     simplex_map = {simplex: number for number, simplex in enumerate(simplexes, start=1)}
     node2simplex = collections.defaultdict(list)
     for simplex, name in simplex_map.items():
