@@ -682,30 +682,38 @@ def cubic_3d_d4_2_dual_graph(distance: int) -> rustworkx.PyGraph:
     bottom = PreDualGraphNode("bottom", is_boundary=True)
     boundaries = [left, right, back, front, top, bottom]
 
+    #              911
+    #
     # distance 4, top layer:
-    #    |     |     |
-    # – 000 - 001 - 002 –
-    #    |  /  |  \  |
-    # – 010 – 011 - 012 -
-    #    |  \  |  /  |
-    # – 020 - 021 - 022 -
-    #    |     |     |
+    #          |     |     |
+    #       – 000 - 001 - 002 –
+    #          |  /  |  \  |
+    #       – 010 – 011 - 012 -
+    #          |  \  |  /  |
+    #       – 020 - 021 - 022 -
+    #          |     |     |
     # distance 4, middle layer:
-    #    |     |     |
-    # – 100 - 101 - 102 –
-    #    |  \  |  /  |
-    # – 110 – 111 - 112 -
-    #    |  /  |  \  |
-    # – 120 - 121 - 122 -
-    #    |     |     |
+    #                |
+    #               191
+    #          |  /  |  \  |
+    #       – 100 - 101 - 102 –
+    #       /  |  \  |  /  |  \
+    # - 119 – 110 – 111 - 112 - 113 -
+    #       \  |  /  |  \  |  /
+    #       – 120 - 121 - 122 -
+    #          |  \  |  /  |
+    #               131
+    #                |
     # distance 4, bottom layer:
-    #    |     |     |
-    # – 200 - 201 - 202 –
-    #    |  /  |  \  |
-    # – 210 – 211 - 212 -
-    #    |  \  |  /  |
-    # – 220 - 221 - 222 -
-    #    |     |     |
+    #          |     |     |
+    #       – 200 - 201 - 202 –
+    #          |  /  |  \  |
+    #       – 210 – 211 - 212 -
+    #          |  \  |  /  |
+    #       – 220 - 221 - 222 -
+    #          |     |     |
+    #
+    #               311
 
     node_000 = PreDualGraphNode("000")
     node_001 = PreDualGraphNode("001")
@@ -735,6 +743,13 @@ def cubic_3d_d4_2_dual_graph(distance: int) -> rustworkx.PyGraph:
     node_221 = PreDualGraphNode("221")
     node_222 = PreDualGraphNode("222")
 
+    node_911 = PreDualGraphNode("911")
+    node_119 = PreDualGraphNode("119")
+    node_131 = PreDualGraphNode("131")
+    node_113 = PreDualGraphNode("113")
+    node_191 = PreDualGraphNode("191")
+    node_311 = PreDualGraphNode("311")
+
     nodes = [node_000, node_001, node_002,
              node_010, node_011, node_012,
              node_020, node_021, node_022,
@@ -743,7 +758,9 @@ def cubic_3d_d4_2_dual_graph(distance: int) -> rustworkx.PyGraph:
              node_120, node_121, node_122,
              node_200, node_201, node_202,
              node_210, node_211, node_212,
-             node_220, node_221, node_222]
+             node_220, node_221, node_222,
+             node_911, node_119, node_131,
+             node_113, node_191, node_311]
 
     dual_graph.add_nodes_from(boundaries)
     dual_graph.add_nodes_from(nodes)
@@ -761,27 +778,27 @@ def cubic_3d_d4_2_dual_graph(distance: int) -> rustworkx.PyGraph:
 
     # nodes with boundaries
     for node in [node_000, node_010, node_020,
-                 node_100, node_110, node_120,
+                 node_100, node_119, node_120,
                  node_200, node_210, node_220]:
         add_edge(dual_graph, node, left)
     for node in [node_002, node_012, node_022,
-                 node_102, node_112, node_122,
+                 node_102, node_113, node_122,
                  node_202, node_212, node_222]:
         add_edge(dual_graph, node, right)
     for node in [node_000, node_001, node_002,
-                 node_100, node_101, node_102,
+                 node_100, node_191, node_102,
                  node_200, node_201, node_202]:
         add_edge(dual_graph, node, back)
     for node in [node_020, node_021, node_022,
-                 node_120, node_121, node_122,
+                 node_120, node_131, node_122,
                  node_220, node_221, node_222]:
         add_edge(dual_graph, node, front)
     for node in [node_000, node_001, node_002,
-                 node_010, node_011, node_012,
+                 node_010, node_911, node_012,
                  node_020, node_021, node_022]:
         add_edge(dual_graph, node, top)
     for node in [node_200, node_201, node_202,
-                 node_210, node_211, node_212,
+                 node_210, node_311, node_212,
                  node_220, node_221, node_222]:
         add_edge(dual_graph, node, bottom)
 
@@ -895,6 +912,44 @@ def cubic_3d_d4_2_dual_graph(distance: int) -> rustworkx.PyGraph:
     add_edge(dual_graph, node_210, node_111)
     add_edge(dual_graph, node_221, node_111)
     add_edge(dual_graph, node_212, node_111)
+
+    # special nodes
+    # left
+    add_edge(dual_graph, node_100, node_119)
+    add_edge(dual_graph, node_110, node_119)
+    add_edge(dual_graph, node_120, node_119)
+    add_edge(dual_graph, node_010, node_119)
+    add_edge(dual_graph, node_210, node_119)
+    # front
+    add_edge(dual_graph, node_120, node_131)
+    add_edge(dual_graph, node_121, node_131)
+    add_edge(dual_graph, node_122, node_131)
+    add_edge(dual_graph, node_021, node_131)
+    add_edge(dual_graph, node_221, node_131)
+    # right
+    add_edge(dual_graph, node_102, node_113)
+    add_edge(dual_graph, node_112, node_113)
+    add_edge(dual_graph, node_122, node_113)
+    add_edge(dual_graph, node_012, node_113)
+    add_edge(dual_graph, node_212, node_113)
+    # back
+    add_edge(dual_graph, node_100, node_191)
+    add_edge(dual_graph, node_101, node_191)
+    add_edge(dual_graph, node_102, node_191)
+    add_edge(dual_graph, node_001, node_191)
+    add_edge(dual_graph, node_201, node_191)
+    # bottom
+    add_edge(dual_graph, node_201, node_311)
+    add_edge(dual_graph, node_210, node_311)
+    add_edge(dual_graph, node_221, node_311)
+    add_edge(dual_graph, node_212, node_311)
+    add_edge(dual_graph, node_211, node_311)
+    # top
+    add_edge(dual_graph, node_001, node_911)
+    add_edge(dual_graph, node_010, node_911)
+    add_edge(dual_graph, node_021, node_911)
+    add_edge(dual_graph, node_012, node_911)
+    add_edge(dual_graph, node_011, node_911)
 
     return dual_graph
 
@@ -1316,8 +1371,8 @@ def edge_attr_fn(edge: GraphEdge):
     return attr_dict
 
 
-graph = cubic2_3d_dual_graph(4)
-coloring_qubits(graph, dimension=3, do_coloring=False)
+graph = cubic_3d_d4_2_dual_graph(4)
+coloring_qubits(graph, dimension=3, do_coloring=True)
 
 x_stabilizer: list[Stabilizer] = [node.stabilizer for node in graph.nodes() if node.is_stabilizer]
 z_stabilizer: list[Stabilizer] = [edge.stabilizer for edge in graph.edges() if edge.is_stabilizer]
@@ -1326,7 +1381,10 @@ stabilizers: list[Stabilizer] = [*x_stabilizer, *z_stabilizer]
 num_independent = count_independent(stabilizers)
 print(f"Stabilizers: {len(stabilizers)}, independent: {num_independent}")
 odd_stabilizers = [stabilizer for stabilizer in stabilizers if len(stabilizer.qubits) % 2 == 1]
-print(f"Odd stabilizers: {len(odd_stabilizers)}")
+num_odd_independent = count_independent(odd_stabilizers)
+odd_stabilizers_lenghts = collections.Counter([len(stabilizer.qubits) for stabilizer in odd_stabilizers])
+print(f"Odd stabilizers: {len(odd_stabilizers)}, independent: {num_odd_independent}")
+print("  " + ", ".join(f"length {length}: {count}" for length, count in odd_stabilizers_lenghts.most_common()))
 n = stabilizers[0].length
 k = n - num_independent
 print(f"n: {n}, k: {k}, expected k: 3")
