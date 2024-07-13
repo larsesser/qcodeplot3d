@@ -2,8 +2,6 @@
 import dataclasses
 import pathlib
 from collections import defaultdict
-from collections.abc import Iterable
-from typing import Any, Union
 
 import pyvista
 import pyvista.plotting.themes
@@ -15,8 +13,7 @@ import itertools
 import re
 import numpy as np
 import numpy.typing as npt
-from scipy.spatial import ConvexHull
-from scipy.linalg import det
+from scipy.spatial import Delaunay
 
 
 # see https://docs.pyvista.org/version/stable/api/core/_autosummary/pyvista.polydata.n_faces#pyvista.PolyData.n_faces
@@ -25,7 +22,7 @@ pyvista.PolyData.use_strict_n_faces(True)
 
 def convert_faces(faces: list[list[int]]) -> list[int]:
     """Pad a list of faces so that pyvista can process it."""
-    return list(itertools.chain.from_iterable([(len(face), *face) for face in faces]))
+    return np.asarray(list(itertools.chain.from_iterable([(len(face), *face) for face in faces])), np.integer)
 
 
 def reconvert_faces(faces: list[int]) -> list[list[int]]:
@@ -40,113 +37,65 @@ def reconvert_faces(faces: list[int]) -> list[list[int]]:
     return ret
 
 
-def to_tuple(iterable: Union[Iterable[Any], Any]) -> Union[Any, tuple[Any, ...]]:
-    if isinstance(iterable, Iterable):
-        return tuple(to_tuple(e) for e in iterable)
-    return iterable
+def triangles_to_face(triangles: list[list[int]]) -> list[int]:
+    """Converts a triangulation of a 2D plane to a single plane.
 
-
-def triangles_to_faces(triangles_: list[list[int]], faces: list[list[int]]) -> list[list[int]]:
-    """Converts a triangulation of an object to the proper planes of this object.
-
-    :param triangles_: list of all simplexes (triangles).
-    :param faces: (unsorted) list of all vertices of each face.
+    :param triangles: list of all simplexes (triangles) of the plane.
     """
-    if any(len(triangle) != 3 for triangle in triangles_):
+    if any(len(triangle) != 3 for triangle in triangles):
         raise ValueError
-    triangles = to_tuple(triangles_)
 
-    neighboured: dict[tuple[int, int, int], list[tuple[int, int, int]]] = defaultdict(list)
-    # calculate which triangles are neighboured and at the same face
-    for triangle1, triangle2 in itertools.combinations(triangles, 2):
-        triangle1_set = set(triangle1)
-        triangle2_set = set(triangle2)
-        # first, determine if the two triangles are neighboured (share an edge). This is rather
-        # easy, since all points of a triangle are connected, so we only need
-        # to check if both triangles share at least two points.
-        if len(triangle1_set & triangle2_set) < 2:
-            continue
-        # second, check if the two triangles belong to the same face
-        for face in faces:
-            if triangle1_set & set(face) == triangle1_set and triangle2_set & set(face) == triangle2_set:
-                neighboured[triangle1].append(triangle2)
-                neighboured[triangle2].append(triangle1)
-                break
-
-    consumed: set[tuple[int, int, int]] = set()
-
-    def construct_face(triangle: tuple[int, int, int]) -> list[int]:
-        """Recursive function to construct one face from all neighbouring triangles."""
-        ret = [*triangle]
-        consumed.add(triangle)
-        neighbours = neighboured[triangle]
-
-        for neighbour in neighbours:
-            # take care to take each triangle only once into account
-            if neighbour in consumed:
-                continue
-
-            # construct the face of all neighbours of this neighbour
-            subface = construct_face(neighbour)
-            # the subface and ret share exactly one edge
-            shared = set(ret) & set(subface)
-            if len(shared) != 2:
-                raise RuntimeError
-            shared_a = shared.pop()
-            shared_b = shared.pop()
-
-            # sort ret in such a way that it starts with shared_a
-            new_ret = []
-            iterator = itertools.cycle(ret)
-            while len(new_ret) != len(ret):
-                element = next(iterator)
-                if element == shared_a or new_ret:
-                    new_ret.append(element)
-
-            # now there are two possible layouts of new_ret:
-            # 1. [shared_a, ..., shared_b]
-            # 2. [shared_a, shared_b, ...]
-
-            # sort subface in such a way that it starts with shared_a
-            new_subface = []
-            iterator = itertools.cycle(subface)
-            while len(new_subface) != len(subface):
-                element = next(iterator)
-                if element == shared_a or new_subface:
-                    new_subface.append(element)
-
-            # now there are two possible layouts of new_subface:
-            # 1. [shared_a, ..., shared_b]
-            # 2. [shared_a, shared_b, ...]
-
-            # finally, include new_subface into new_ret, depending on the cases:
-            # 1. and 1.: reverse remainder and append it to new_ret
-            if new_ret[-1] == shared_b and new_subface[-1] == shared_b:
-                remainder = new_subface[1:-1][::-1]
-                new_ret.extend(remainder)
-            # 1. and 2.: append remainder to new_ret
-            elif new_ret[-1] == shared_b and new_subface[-1] != shared_b:
-                remainder = new_subface[2:]
-                new_ret.extend(remainder)
-            # 2. and 1.: insert remainder between shared_a and shared_b
-            elif new_ret[-1] != shared_b and new_subface[-1] == shared_b:
-                remainder = new_subface[1:-1]
-                new_ret = [new_ret[0]] + remainder + new_ret[1:]
-            # 2. and 2.: reverse remainder and insert it between shared_a and shared_b
-            elif new_ret[-1] != shared_b and new_subface[-1] != shared_b:
-                remainder = new_subface[2:][::-1]
-                new_ret = [new_ret[0]] + remainder + new_ret[1:]
-            else:
-                raise RuntimeError
-            ret = new_ret
-        return ret
-
-    ret2 = []
+    # Each edge "inside" the plane is present exactly twice, while each edge
+    # at the boundary of the plane is present exactly once.
+    boundary_edges = set()
     for triangle in triangles:
-        if triangle in consumed:
-            continue
-        ret2.append(construct_face(triangle))
-    return ret2
+        for a, b in itertools.combinations(triangle, 2):
+            if a < b:
+                edge = (a, b)
+            else:
+                edge = (b, a)
+            if edge in boundary_edges:
+                boundary_edges.remove(edge)
+            else:
+                boundary_edges.add(edge)
+
+    # Each point of the plane is present in exactly two different boundary edges.
+    start, _ = boundary_edges.pop()
+    face = [start]
+    while boundary_edges:
+        for edge in boundary_edges:
+            a, b = edge
+            if face[-1] == a:
+                face.append(b)
+                break
+            if face[-1] == b:
+                face.append(a)
+                break
+        boundary_edges.remove(edge)
+    return face
+
+
+def project_to_plane(points: list[list[float]]) -> list[list[float]]:
+    """Take a bunch of 3D points laying in (approximately) one 2D plane and project them to 2D points wrt this plane."""
+    if any(len(point) != 3 for point in points):
+        raise ValueError("All points must have 3D coordinates.")
+    if len(points) < 3:
+        raise ValueError("Need at least 3 points to determine the plane.")
+    points = np.asarray(points)
+
+    # calculate the normal vector of the plane spanned by the first three points
+    a, b, c = points[0], points[1], points[2]
+    normal = np.cross(a-b, a-c)
+
+    # calculate the new base vectors of the 2D plane
+    ex = (a-b) / np.abs(a-b)
+    ey = np.cross(normal, ex) / np.abs(np.cross(normal, ex))
+
+    # project the points on the plane
+    projected = [p - (np.dot(p, normal) / np.dot(normal, normal)) * normal for p in points]
+    ret = [[np.dot(p, ex), np.dot(p, ey)] for p in projected]
+
+    return ret
 
 
 def compute_simplexes(graph: rx.PyGraph, dimension: int) -> set[tuple[int, ...]]:
@@ -294,7 +243,7 @@ class Plotter3D:
             face_center /= len(adjacent_nodes)
 
             # extrapolate the position of the boundary node from the line through center and face_center
-            pos = face_center + 1*(face_center - center)
+            pos = face_center + 2*(face_center - center)
             ret[boundary_index] = pos
         return ret
 
@@ -414,16 +363,20 @@ class Plotter3D:
             # do not add a volume for boundaries
             if node.is_boundary:
                 continue
-            volume_points = [qubit_to_point[qubit] for qubit in node.qubits]
-            hull = ConvexHull(volume_points)
-            # extract faces of the hull, take care to use the qubits
-            tmp_point_map = {k: v for k, v in zip(range(hull.npoints), node.qubits)}
-            simplexes = [[tmp_point_map[point] for point in face] for face in hull.simplices]
             # each dual graph edge corresponds to a primary graph face
-            face_qubits = [edge.qubits for _, _, edge in self.dual_graph.out_edges(node.index)]
-            faces = [[qubit_to_pointposition[qubit] for qubit in face] for face in triangles_to_faces(simplexes, face_qubits)]
+            all_face_qubits = [edge.qubits for _, _, edge in self.dual_graph.out_edges(node.index)]
+            faces = []
+            for face_qubits in all_face_qubits:
+                face_points = [qubit_to_point[qubit] for qubit in face_qubits]
+                # project the points to a 2D plane with 2D coordinates, then calculate their triangulation
+                triangulation = Delaunay(project_to_plane(face_points), qhull_options="QJ")
+                # extract faces of the triangulation, take care to use the qubits
+                tmp_point_map = {k: v for k, v in zip(range(triangulation.npoints), face_qubits)}
+                simplexes = [[tmp_point_map[point] for point in face] for face in triangulation.simplices]
+                face = [qubit_to_pointposition[qubit] for qubit in triangles_to_face(simplexes)]
+                faces.append(face)
+            # add volume faces
             volumes.extend(faces)
-
             # add volume ids
             volume_ids.extend([self.next_id] * len(faces))
             # add volume colors
