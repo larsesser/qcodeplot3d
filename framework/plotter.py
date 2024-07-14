@@ -82,13 +82,23 @@ def project_to_plane(points: list[list[float]]) -> list[list[float]]:
     if len(points) < 3:
         raise ValueError("Need at least 3 points to determine the plane.")
     points = np.asarray(points)
+    p_transposed = points.transpose()
 
-    # calculate the normal vector of the plane spanned by the first three points
-    a, b, c = points[0], points[1], points[2]
-    normal = np.cross(a-b, a-c)
+    # paragraph taken from https://math.stackexchange.com/a/99317
+    # "center of mass" of the plane
+    centeroid = np.mean(p_transposed, axis=1, keepdims=True)
+    # calculate the singular value decomposition of the centered points
+    svd = np.linalg.svd(p_transposed - centeroid)
+    # the left singular vector is the searched normal vector
+    normal = svd[0][:, -1]
 
     # calculate the new base vectors of the 2D plane
-    ex = (a-b) / np.abs(a-b)
+    for a, b in itertools.combinations(points, 2):
+        # choose points which do not share any coordinates
+        if any(coordinate == 0.0 for coordinate in a-b):
+            continue
+        ex = (a-b) / np.abs(a-b)
+        break
     ey = np.cross(normal, ex) / np.abs(np.cross(normal, ex))
 
     # project the points on the plane
