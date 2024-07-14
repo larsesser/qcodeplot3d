@@ -304,6 +304,7 @@ def square_2d_dual_graph(distance: int) -> rustworkx.PyGraph:
 
 
 def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
+    """See https://www.nature.com/articles/ncomms12302#Sec12"""
     if not distance % 2 == 0:
         raise ValueError("d must be an even integer")
 
@@ -317,36 +318,87 @@ def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
     top = PreDualGraphNode("top", is_boundary=True)
     bottom = PreDualGraphNode("bottom", is_boundary=True)
     boundaries = [left, right, back, front, top,  bottom]
+    #              -111
+    #
     # distance 4, top layer:
-    #   |   |   |
-    # – a - b - c –
-    #   | / | \ |
-    # – d – e - f -
-    #   | \ | / |
-    # – g - h - i -
-    #   |   |   |
+    #          |     |     |
+    #       — 000 — 001 — 002 —
+    #          |  /  |  \  |
+    #       — 010 — 011 — 012 —
+    #          |  \  |  /  |
+    #       — 020 — 021 — 022 —
+    #          |     |     |
     # distance 4, middle layer:
-    #   |   |   |
-    # – j - k - l –
-    #   | \ | / |
-    # – m – n - o -
-    #   | / | \ |
-    # – p - q - r -
-    #   |   |   |
+    #                 |
+    #                1-11
+    #           |  /  |  \  |
+    #        — 100 — 101 — 102 —
+    #        /  |  \  |  /  |  \
+    # — 11-1 — 110 — 111 — 112 — 113 —
+    #        \  |  /  |  \  |  /
+    #        — 120 — 121 — 122 —
+    #           |  \  |  /  |
+    #                131
+    #                 |
     # distance 4, bottom layer:
-    #   |   |   |
-    # – r - t - u –
-    #   | / | \ |
-    # – v – w - x -
-    #   | \ | / |
-    # – y - z - A -
-    #   |   |   |
-    # nodes = [[[a, d, g], [b, e, h], [c, f, i]], [[j, m, p], [k, n, q], [l, o, r]], [[r, v, y], [t, w, z], [u, x, A]]]
+    #          |     |     |
+    #       — 200 — 201 — 202 —
+    #          |  /  |  \  |
+    #       — 210 — 211 — 212 —
+    #          |  \  |  /  |
+    #       — 220 — 221 — 222 —
+    #          |     |     |
+    #
+    #               311
+    #
+    # nodes = [[[000, 010, 020], [001, 011, 021], [002, 012, 022]],
+    #          [[100, 110, 120], [102, 111, 121], [102, 112, 122]],
+    #          [[200, 210, 220], [202, 211, 221], [202, 212, 222]]]
+    #
+    # face_nodes = [-111, 1-11, 11-1, 131, 113, 311]
     nodes = [[[PreDualGraphNode(f"({col},{row},{layer})")
                for row in range(num_rows)] for col in range(num_cols)] for layer in range(num_layers)]
 
+    face_nodes: dict[tuple[int, int, int], PreDualGraphNode] = {}
+    nodepos_to_facenodepos = {}
+    facenodepos_to_nodepos = {}
+    for layer in range(num_layers):
+        for row in range(num_rows):
+            for col in range(num_cols):
+                # one of the three indices is 0 or maximal (at the boundary)
+                if (layer in {0, num_layers - 1}
+                        # the other two indices are both odd
+                        and row % 2 == col % 2 == 1
+                        # and neither 0 nor maximal (at the boundary)
+                        and row not in {0, num_rows - 1} and col not in {0, num_cols - 1}):
+                    new_layer = -1 if layer == 0 else layer + 1
+                    face_nodes[(col, row, new_layer)] = PreDualGraphNode(f"({col},{row},{new_layer})")
+                    nodepos_to_facenodepos[(col, row, layer)] = (col, row, new_layer)
+                    facenodepos_to_nodepos[(col, row, new_layer)] = (col, row, layer)
+                # one of the three indices is 0 or maximal (at the boundary)
+                elif (row in {0, num_rows - 1}
+                        # the other two indices are both odd
+                        and layer % 2 == col % 2 == 1
+                        # and neither 0 nor maximal (at the boundary)
+                        and layer not in {0, num_layers - 1} and col not in {0, num_cols - 1}):
+                    new_row = -1 if row == 0 else row + 1
+                    face_nodes[(col, new_row, layer)] = PreDualGraphNode(f"({col},{new_row},{layer})")
+                    nodepos_to_facenodepos[(col, row, layer)] = (col, new_row, layer)
+                    facenodepos_to_nodepos[(col, new_row, layer)] = (col, row, layer)
+                # one of the three indices is 0 or maximal (at the boundary)
+                elif (col in {0, num_cols - 1}
+                        # the other two indices are both odd
+                        and row % 2 == layer % 2 == 1
+                        # and neither 0 nor maximal (at the boundary)
+                        and row not in {0, num_rows - 1} and layer not in {0, num_layers - 1}):
+                    new_col = -1 if col == 0 else col + 1
+                    face_nodes[(new_col, row, layer)] = PreDualGraphNode(f"({new_col},{row},{layer})")
+                    nodepos_to_facenodepos[(col, row, layer)] = (new_col, row, layer)
+                    facenodepos_to_nodepos[(new_col, row, layer)] = (col, row, layer)
+
     dual_graph.add_nodes_from(boundaries)
     dual_graph.add_nodes_from([node for layer in nodes for row in layer for node in row if node is not None])
+    dual_graph.add_nodes_from([face_node for face_node in face_nodes.values()])
     for index in dual_graph.node_indices():
         dual_graph[index].index = index
 
@@ -361,23 +413,41 @@ def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
         add_edge(dual_graph, top, node)
         add_edge(dual_graph, bottom, node)
 
-    # between nodes and boundary_nodes
-    for layer in nodes:
-        for col in layer:
-            add_edge(dual_graph, col[0], front)
-            add_edge(dual_graph, col[-1], back)
+    # between nodes/face_nodes and boundary_nodes
+    for layer_pos, layer in enumerate(nodes):
+        for col_pos, col in enumerate(layer):
+            if face_node := face_nodes.get((col_pos, -1, layer_pos)):
+                add_edge(dual_graph, face_node, front)
+            else:
+                add_edge(dual_graph, col[0], front)
+            if face_node := face_nodes.get((col_pos, num_rows, layer_pos)):
+                add_edge(dual_graph, face_node, back)
+            else:
+                add_edge(dual_graph, col[-1], back)
         # first row
-        for node in layer[0]:
-            add_edge(dual_graph, node, left)
+        for row_pos, node in enumerate(layer[0]):
+            if face_node := face_nodes.get((-1, row_pos, layer_pos)):
+                add_edge(dual_graph, face_node, left)
+            else:
+                add_edge(dual_graph, node, left)
         # last row
-        for node in layer[-1]:
-            add_edge(dual_graph, node, right)
-    for col in nodes[0]:
-        for node in col:
-            add_edge(dual_graph, node, top)
-    for col in nodes[-1]:
-        for node in col:
-            add_edge(dual_graph, node, bottom)
+        for row_pos, node in enumerate(layer[-1]):
+            if face_node := face_nodes.get((num_cols, row_pos, layer_pos)):
+                add_edge(dual_graph, face_node, right)
+            else:
+                add_edge(dual_graph, node, right)
+    for col_pos, col in enumerate(nodes[0]):
+        for row_pos, node in enumerate(col):
+            if face_node := face_nodes.get((col_pos, row_pos, -1)):
+                add_edge(dual_graph, face_node, top)
+            else:
+                add_edge(dual_graph, node, top)
+    for col_pos, col in enumerate(nodes[-1]):
+        for row_pos, node in enumerate(col):
+            if face_node := face_nodes.get((col_pos, row_pos, num_layers)):
+                add_edge(dual_graph, face_node, bottom)
+            else:
+                add_edge(dual_graph, node, bottom)
 
     # between nodes and nodes
     # inside one layer
@@ -429,6 +499,29 @@ def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
                     add_edge(dual_graph, node, nodes[layer_pos+1][col_pos+1][row_pos])
                 if col_pos != 0:
                     add_edge(dual_graph, node, nodes[layer_pos+1][col_pos-1][row_pos])
+
+    # between nodes and face_nodes
+    for node_pos, face_node_pos in nodepos_to_facenodepos.items():
+        face_node = face_nodes[face_node_pos]
+        col_pos, row_pos, layer_pos = node_pos
+        add_edge(dual_graph, nodes[layer_pos][col_pos][row_pos], face_node)
+        if col_pos in {0, num_cols - 1}:
+            add_edge(dual_graph, nodes[layer_pos - 1][col_pos][row_pos], face_node)
+            add_edge(dual_graph, nodes[layer_pos + 1][col_pos][row_pos], face_node)
+            add_edge(dual_graph, nodes[layer_pos][col_pos][row_pos - 1], face_node)
+            add_edge(dual_graph, nodes[layer_pos][col_pos][row_pos + 1], face_node)
+        elif row_pos in {0, num_rows - 1}:
+            add_edge(dual_graph, nodes[layer_pos - 1][col_pos][row_pos], face_node)
+            add_edge(dual_graph, nodes[layer_pos + 1][col_pos][row_pos], face_node)
+            add_edge(dual_graph, nodes[layer_pos][col_pos - 1][row_pos], face_node)
+            add_edge(dual_graph, nodes[layer_pos][col_pos + 1][row_pos], face_node)
+        elif layer_pos in {0, num_layers - 1}:
+            add_edge(dual_graph, nodes[layer_pos][col_pos - 1][row_pos], face_node)
+            add_edge(dual_graph, nodes[layer_pos][col_pos + 1][row_pos], face_node)
+            add_edge(dual_graph, nodes[layer_pos][col_pos][row_pos - 1], face_node)
+            add_edge(dual_graph, nodes[layer_pos][col_pos][row_pos + 1], face_node)
+        else:
+            raise RuntimeError
 
     return dual_graph
 
@@ -1371,7 +1464,7 @@ def edge_attr_fn(edge: GraphEdge):
     return attr_dict
 
 
-graph = cubic_3d_d4_2_dual_graph(4)
+graph = cubic_3d_dual_graph(4)
 coloring_qubits(graph, dimension=3, do_coloring=True)
 
 x_stabilizer: list[Stabilizer] = [node.stabilizer for node in graph.nodes() if node.is_stabilizer]
@@ -1381,10 +1474,10 @@ stabilizers: list[Stabilizer] = [*x_stabilizer, *z_stabilizer]
 num_independent = count_independent(stabilizers)
 print(f"Stabilizers: {len(stabilizers)}, independent: {num_independent}")
 odd_stabilizers = [stabilizer for stabilizer in stabilizers if len(stabilizer.qubits) % 2 == 1]
-num_odd_independent = count_independent(odd_stabilizers)
 odd_stabilizers_lenghts = collections.Counter([len(stabilizer.qubits) for stabilizer in odd_stabilizers])
-print(f"Odd stabilizers: {len(odd_stabilizers)}, independent: {num_odd_independent}")
-print("  " + ", ".join(f"length {length}: {count}" for length, count in odd_stabilizers_lenghts.most_common()))
+print(f"Odd stabilizers: {len(odd_stabilizers)}")
+if odd_stabilizers:
+    print("  " + ", ".join(f"length {length}: {count}" for length, count in odd_stabilizers_lenghts.most_common()))
 n = stabilizers[0].length
 k = n - num_independent
 print(f"n: {n}, k: {k}, expected k: 3")
