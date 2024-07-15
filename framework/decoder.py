@@ -126,6 +126,23 @@ class DualGraphNode(GraphNode):
 
 
 @dataclass
+class XDualGraphNode(DualGraphNode):
+    """Representation of one node in the x dual lattice.
+
+    A node corresponds to an edge of the regular dual lattice (so a face of the primary lattice), which hosts either a
+    stabilizer or is a boundary.
+    """
+    def __post_init__(self):
+        self.qubits = sorted(self.qubits)
+        if not self.color.is_mixed:
+            raise ValueError
+        if self.is_stabilizer and self.stabilizer_length is None:
+            raise ValueError
+        if self.is_stabilizer:
+            self.stabilizer = Stabilizer(self.stabilizer_length, self.color, z_positions=self.qubits)
+
+
+@dataclass
 class DualGraphEdge(GraphEdge):
     node1: DualGraphNode
     node2: DualGraphNode
@@ -149,6 +166,13 @@ class DualGraphEdge(GraphEdge):
     def is_stabilizer(self):
         """Is this edge (for a 3D color code) associated to a stabilizer?"""
         return not self.is_edge_between_boundaries
+
+
+@dataclass
+class XDualGraphEdge(DualGraphEdge):
+    @property
+    def is_stabilizer(self):
+        return False
 
 
 @dataclass
@@ -200,6 +224,11 @@ class RestrictedGraphEdge(GraphEdge):
     @property
     def id(self):
         return self.dg_edge.id
+
+    @property
+    def qubits(self):
+        """The qubits associated with this edge (== face in primal lattice)."""
+        return self.dg_edge.qubits
 
 
 @dataclass

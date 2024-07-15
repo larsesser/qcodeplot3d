@@ -7,7 +7,7 @@ import re
 from typing import Optional
 
 from framework.stabilizers import check_stabilizers, Operator, check_z, check_xj, count_independent
-from framework.decoder import ConcatenatedDecoder, GraphNode, GraphEdge, DualGraphNode, DualGraphEdge, compute_simplexes
+from framework.decoder import ConcatenatedDecoder, GraphNode, GraphEdge, DualGraphNode, DualGraphEdge, compute_simplexes, XDualGraphNode, XDualGraphEdge
 from rustworkx.visualization import graphviz_draw
 from framework.layer import Syndrome, SyndromeValue
 from framework.stabilizers import Color, Stabilizer
@@ -1050,6 +1050,7 @@ def cubic_3d_d4_2_dual_graph(distance: int) -> rustworkx.PyGraph:
 
 def cubic2_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
     """Magic-boundary lattice, biggest volume (c1) in center."""
+    # TODO: Ecken anders abschneiden? Sodass sie nicht zu beiden boundaries gehören, dafür aber nicht weight-5 kanten produzieren?
     if not distance % 2 == 0:
         raise ValueError("d must be an even integer")
 
@@ -1440,6 +1441,34 @@ def cubic4_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
     add_edge(dual_graph, layer0[2][0], layer2[2][0])
 
     return dual_graph
+
+
+def construct_x_dual_graph(dual_graph: rustworkx.PyGraph) -> rustworkx.PyGraph:
+    """Where each edge of the dual_graph is a node in the x_dual_graph."""
+    nodes = []
+    for edge in dual_graph.edges():
+        color = edge.node1.color.combine(edge.node2.color)
+        stabilizer_length = None
+        if edge.is_stabilizer:
+            stabilizer_length = edge.stabilizer.length
+        node = XDualGraphNode(color, edge.qubits, edge.is_stabilizer, stabilizer_length)
+        nodes.append(node)
+
+    x_dual_graph = rustworkx.PyGraph(multigraph=False)
+    x_dual_graph.add_nodes_from(nodes)
+    for index in x_dual_graph.node_indices():
+        x_dual_graph[index].index = index
+
+    # insert edges between the nodes
+    for node1, node2 in itertools.combinations(x_dual_graph.nodes(), 2):
+        if x_dual_graph.has_edge(node1.index, node2.index):
+            continue
+        elif set(node1.qubits) & set(node2.qubits):
+            x_dual_graph.add_edge(node1.index, node2.index, XDualGraphEdge(node1, node2))
+    for index in x_dual_graph.edge_indices():
+        x_dual_graph.edge_index_map()[index][2].index = index
+
+    return x_dual_graph
 
 
 def node_attr_fn(node: GraphNode):
