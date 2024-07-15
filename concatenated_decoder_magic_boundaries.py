@@ -1,14 +1,28 @@
 import collections
 
-from framework.stabilizers import check_stabilizers, Operator, check_z, check_xj, count_independent
 from rustworkx.visualization import graphviz_draw
-from framework.layer import Syndrome, SyndromeValue
-from framework.stabilizers import Color, Stabilizer
-from framework.cc_3d.plotter import Plotter3D
-from framework.cc_3d.base import GraphNode, GraphEdge
-from framework.cc_3d.construction import cubic_3d_dual_graph, construct_x_dual_graph, construct_dual_graph, square_2d_dual_graph, rectangular_2d_dual_graph
-from framework.cc_3d.util import coloring_qubits
+
+from framework.cc_3d.base import GraphEdge, GraphNode
+from framework.cc_3d.construction import (
+    construct_x_dual_graph,
+    cubic_3d_dual_graph,
+    rectangular_2d_dual_graph,
+    square_2d_dual_graph,
+    tetrahedron_3d_dual_graph,
+)
 from framework.cc_3d.decoder import ConcatenatedDecoder
+from framework.cc_3d.plotter import Plotter3D
+from framework.cc_3d.util import coloring_qubits
+from framework.layer import Syndrome, SyndromeValue
+from framework.stabilizers import (
+    Color,
+    Operator,
+    Stabilizer,
+    check_stabilizers,
+    check_xj,
+    check_z,
+    count_independent,
+)
 
 
 def node_attr_fn(node: GraphNode):
