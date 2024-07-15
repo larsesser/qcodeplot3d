@@ -7,7 +7,8 @@ import pyvista
 import pyvista.plotting.themes
 import rustworkx as rx
 from rustworkx.visualization import graphviz_draw
-from framework.decoder import DualGraphNode, compute_simplexes
+from framework.cc_3d.base import DualGraphNode
+from framework.cc_3d.util import compute_simplexes
 from framework.stabilizers import Color
 import itertools
 import re
