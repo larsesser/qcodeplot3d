@@ -1500,7 +1500,48 @@ coloring_qubits(graph, dimension=3, do_coloring=True)
 x_stabilizer: list[Stabilizer] = [node.stabilizer for node in graph.nodes() if node.is_stabilizer]
 z_stabilizer: list[Stabilizer] = [edge.stabilizer for edge in graph.edges() if edge.is_stabilizer]
 stabilizers: list[Stabilizer] = [*x_stabilizer, *z_stabilizer]
-print(f"# x-stabilizer: {len(x_stabilizer)}, # z-stabilizer: {len(z_stabilizer)}")
+
+independent_x = count_independent(x_stabilizer)
+independent_z = count_independent(z_stabilizer)
+num_independent = independent_x + independent_z
+print(f"Stabilizers: {num_independent}/{len(stabilizers)}")
+print(f"  x stabilizer: {independent_x}/{len(x_stabilizer)}")
+print(f"  z stabilizer: {independent_z}/{len(z_stabilizer)}")
+
+x_stabilizer_by_color = collections.defaultdict(list)
+for stabilizer in x_stabilizer:
+    x_stabilizer_by_color[stabilizer.color].append(stabilizer)
+print(f"\nx stabilizers:")
+for color, stabilizers in x_stabilizer_by_color.items():
+    print(f"  color {color.name}: {count_independent(stabilizers)}/{len(stabilizers)}")
+
+z_stabilizer_by_color = collections.defaultdict(list)
+for stabilizer in z_stabilizer:
+    z_stabilizer_by_color[stabilizer.color].append(stabilizer)
+print(f"\nz stabilizers:")
+for color, stabilizers in z_stabilizer_by_color.items():
+    included_qubits = set()
+    for stabilizer in stabilizers:
+        included_qubits.update(stabilizer.qubits)
+    print(f"  color {color.name}: {count_independent(stabilizers)}/{len(stabilizers)}, covered qubits {len(included_qubits)}")
+
+odd_stabilizers = [stabilizer for stabilizer in stabilizers if len(stabilizer.qubits) % 2 == 1]
+odd_stabilizers_lenghts = collections.Counter([len(stabilizer.qubits) for stabilizer in odd_stabilizers])
+print(f"\nOdd stabilizers: {len(odd_stabilizers)}")
+if odd_stabilizers:
+    print("  " + ", ".join(f"length {length}: {count}" for length, count in odd_stabilizers_lenghts.most_common()))
+
+n = stabilizers[0].length
+k = n - num_independent
+print(f"\nn: {n}, k: {k}, expected k: 3")
+
+plotter = Plotter3D(graph)
+debug_mesh = plotter.construct_debug_mesh(graph)
+plotter.show_debug_mesh(debug_mesh, show_labels=True, exclude_boundaries=False)
+plotter.show_dual_mesh(show_labels=False, explode_factor=1, exclude_boundaries=False)
+plotter.show_primary_mesh(explode_factor=0.4)
+
+exit()
 
 decoder = ConcatenatedDecoder([Color.red, Color.blue, Color.green, Color.yellow], graph)
 restricted_graph = decoder.restricted_graph([Color.red, Color.blue])
@@ -1511,9 +1552,9 @@ qubits = set()
 for stabilizer in x_stabilizer:
     qubits.update(stabilizer.qubits)
 qubits = sorted(qubits)
-print(f"# qubits: {len(qubits)}")
 
 # emulate no qubit errors
+print("\nEmulate single-qubit errors")
 results = decoder.decode(Syndrome({stabilizer: SyndromeValue(False) for stabilizer in x_stabilizer}))
 if any(result != [] for result in results):
     print(None, results)
@@ -1525,25 +1566,22 @@ for qubit in qubits:
     if any(result != [qubit] for result in results):
         print(qubit, results)
 
-num_independent = count_independent(stabilizers)
-print(f"Stabilizers: {len(stabilizers)}, independent: {num_independent}")
-odd_stabilizers = [stabilizer for stabilizer in stabilizers if len(stabilizer.qubits) % 2 == 1]
-odd_stabilizers_lenghts = collections.Counter([len(stabilizer.qubits) for stabilizer in odd_stabilizers])
-print(f"Odd stabilizers: {len(odd_stabilizers)}")
-if odd_stabilizers:
-    print("  " + ", ".join(f"length {length}: {count}" for length, count in odd_stabilizers_lenghts.most_common()))
-n = stabilizers[0].length
-k = n - num_independent
-print(f"n: {n}, k: {k}, expected k: 3")
-
-plotter = Plotter3D(graph)
-debug_mesh = plotter.construct_debug_mesh(graph)
-plotter.show_debug_mesh(debug_mesh, show_labels=True, exclude_boundaries=False)
 for g in [graph, restricted_graph, mc3_graph, mc4_graph]:
     debug_mesh = plotter.construct_debug_mesh(g)
     plotter.show_debug_mesh(debug_mesh, show_labels=False, exclude_boundaries=True)
-plotter.show_dual_mesh(show_labels=False, explode_factor=1, exclude_boundaries=False)
-plotter.show_primary_mesh(explode_factor=1)
+
+exit()
+
+x_dual_graph = construct_x_dual_graph(graph)
+
+decoder = ConcatenatedDecoder([Color.rb, Color.rg, Color.ry, Color.bg, Color.by, Color.gy], x_dual_graph)
+restricted_graph = decoder.restricted_graph([Color.rg, Color.by])
+print(len(restricted_graph.edges()))
+if any(len(edge.qubits) != 1 for edge in restricted_graph.edges()):
+    print("No 1:1 mapping from edges to qubits.")
+plotter = Plotter3D(x_dual_graph)
+debug_mesh = plotter.construct_debug_mesh(restricted_graph)
+plotter.show_debug_mesh(debug_mesh, show_labels=False, exclude_boundaries=False)
 
 exit()
 
