@@ -118,10 +118,9 @@ class Plotter3D:
     pyvista_theme: pyvista.plotting.themes.DocumentTheme = dataclasses.field(default=None, init=False)
     highes_id: int = dataclasses.field(default=0, init=False)
     _dualmesh_to_dualgraph: dict[int, int] = dataclasses.field(default=None, init=False)
-    _dualgraph_to_dualmesh: dict[int, int] = dataclasses.field(default=None, init=False)
 
     def __post_init__(self):
-        self.pyvista_theme = self.basic_plotting_theme()
+        self.pyvista_theme = self.get_plotting_theme()
 
     @property
     def dual_mesh(self) -> pyvista.PolyData:
@@ -135,7 +134,8 @@ class Plotter3D:
             self._primary_mesh = self._construct_primary_mesh()
         return self._primary_mesh
 
-    def basic_plotting_theme(self) -> pyvista.plotting.themes.DocumentTheme:
+    @staticmethod
+    def get_plotting_theme() -> pyvista.plotting.themes.DocumentTheme:
         theme = pyvista.plotting.themes.DocumentTheme()
         # theme.cmap = Color.color_map()
         theme.show_vertices = True
@@ -218,7 +218,6 @@ class Plotter3D:
 
         # generate pyvista edges from rustworkx edges
         rustworkx2pyvista = {rustworkx_index: pyvista_index for pyvista_index, rustworkx_index in enumerate(self.dual_graph.node_indices())}
-        self._dualgraph_to_dualmesh = rustworkx2pyvista
         self._dualmesh_to_dualgraph = {value: key for key, value in rustworkx2pyvista.items()}
         # TODO ensure all faces of dual graph are triangles?
         simplexes = compute_simplexes(self.dual_graph, dimension=3, exclude_boundary_simplexes=True)
@@ -357,7 +356,8 @@ class Plotter3D:
         ret.cell_data['colors'] = volume_colors
         return ret
 
-    def explode(self, mesh: pyvista.PolyData, factor=0.4) -> pyvista.UnstructuredGrid:
+    @staticmethod
+    def explode(mesh: pyvista.PolyData, factor=0.4) -> pyvista.UnstructuredGrid:
         # group cells by id
         cells = defaultdict(list)
         for cell, anid in enumerate(mesh.cell_data['face_ids']):
@@ -439,7 +439,8 @@ class Plotter3D:
         plt.add_mesh(mesh, scalars="colors", show_scalar_bar=False, cmap=Color.color_map(), clim=Color.color_limits())
         plt.show()
 
-    def show_primay_mesh(self, show_labels: bool = False, explode_factor: float = 0.0) -> None:
+    def show_primary_mesh(self, explode_factor: float = 0.0) -> None:
+        # TODO implement show_labels? in which way?
         mesh = self.primary_mesh
         if explode_factor != 0.0:
             mesh = self.explode(mesh, explode_factor)

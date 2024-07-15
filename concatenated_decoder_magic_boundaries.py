@@ -1514,7 +1514,7 @@ for g in [graph, restricted_graph, mc3_graph, mc4_graph]:
     debug_mesh = plotter.construct_debug_mesh(g)
     plotter.show_debug_mesh(debug_mesh, show_labels=False, exclude_boundaries=True)
 plotter.show_dual_mesh(show_labels=False, explode_factor=1, exclude_boundaries=False)
-plotter.show_primay_mesh(show_labels=False, explode_factor=1)
+plotter.show_primary_mesh(explode_factor=1)
 
 exit()
 
