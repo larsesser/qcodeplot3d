@@ -9,6 +9,7 @@ from typing import Optional
 from framework.stabilizers import check_stabilizers, Operator, check_z, check_xj, count_independent
 from framework.decoder import ConcatenatedDecoder, GraphNode, GraphEdge, DualGraphNode, DualGraphEdge, compute_simplexes
 from rustworkx.visualization import graphviz_draw
+from framework.layer import Syndrome, SyndromeValue
 from framework.stabilizers import Color, Stabilizer
 import rustworkx as rx
 import itertools
@@ -1470,6 +1471,30 @@ coloring_qubits(graph, dimension=3, do_coloring=True)
 x_stabilizer: list[Stabilizer] = [node.stabilizer for node in graph.nodes() if node.is_stabilizer]
 z_stabilizer: list[Stabilizer] = [edge.stabilizer for edge in graph.edges() if edge.is_stabilizer]
 stabilizers: list[Stabilizer] = [*x_stabilizer, *z_stabilizer]
+print(f"# x-stabilizer: {len(x_stabilizer)}, # z-stabilizer: {len(z_stabilizer)}")
+
+decoder = ConcatenatedDecoder([Color.red, Color.blue, Color.green, Color.yellow], graph)
+restricted_graph = decoder.restricted_graph([Color.red, Color.blue])
+mc3_graph = decoder.mc3_graph([Color.red, Color.blue], Color.green)
+mc4_graph = decoder.mc4_graph([Color.red, Color.blue], Color.green, Color.yellow)
+
+qubits = set()
+for stabilizer in x_stabilizer:
+    qubits.update(stabilizer.qubits)
+qubits = sorted(qubits)
+print(f"# qubits: {len(qubits)}")
+
+# emulate no qubit errors
+results = decoder.decode(Syndrome({stabilizer: SyndromeValue(False) for stabilizer in x_stabilizer}))
+if any(result != [] for result in results):
+    print(None, results)
+# emulate single-qubit errors
+for qubit in qubits:
+    true_stabilizer = [stabilizer for stabilizer in x_stabilizer if qubit in stabilizer.qubits]
+    syndrome = Syndrome({stabilizer: SyndromeValue(stabilizer in true_stabilizer) for stabilizer in x_stabilizer})
+    results = decoder.decode(syndrome)
+    if any(result != [qubit] for result in results):
+        print(qubit, results)
 
 num_independent = count_independent(stabilizers)
 print(f"Stabilizers: {len(stabilizers)}, independent: {num_independent}")
