@@ -4,13 +4,10 @@ from typing import Optional
 import rustworkx
 
 from framework.cc_3d.base import (
-    DualGraphEdge,
-    DualGraphNode,
     GraphNode,
     XDualGraphEdge,
     XDualGraphNode,
 )
-from framework.stabilizers import Color
 
 
 class PreDualGraphNode(GraphNode):
@@ -24,40 +21,6 @@ class PreDualGraphNode(GraphNode):
 
     def __repr__(self):
         return self.title
-
-
-def construct_dual_graph() -> rustworkx.PyGraph:
-    # TODO refactor to behave like the other functions, i.e. using PreDualGraphNodes and None for edges
-
-    # hard coded construction of [[15,1,3]] 3D Tetrahedral Color Code
-    def t2p(l_in: list[str]) -> list[int]:
-        trans = {"A": 15, "B": 10, "C": 4, "D": 6, "E": 5, "F": 8, "G": 9, "H": 3, "I": 1, "J": 7, "K": 12, "M": 14,
-                 "N": 11, "P": 2, "Q": 13}
-        return [trans[e] for e in l_in]
-
-    dual_graph = rustworkx.PyGraph(multigraph=False)
-    nodes = [
-        DualGraphNode(Color.red, t2p(["A", "J", "K", "H", "M", "Q", "I", "P"]), is_stabilizer=True, stabilizer_length=15),
-        DualGraphNode(Color.yellow, t2p(["B", "F", "N", "G", "J", "K", "M", "Q"]), is_stabilizer=True, stabilizer_length=15),
-        DualGraphNode(Color.blue, t2p(["F", "C", "E", "N", "M", "I", "P", "Q"]), is_stabilizer=True, stabilizer_length=15),
-        DualGraphNode(Color.green, t2p(["D", "G", "N", "E", "H", "K", "Q", "P"]), is_stabilizer=True, stabilizer_length=15),
-        DualGraphNode(Color.red, t2p(["B", "F", "C", "E", "D", "G", "N"]), is_stabilizer=False),
-        DualGraphNode(Color.yellow, t2p(["A", "I", "C", "E", "D", "H", "P"]), is_stabilizer=False),
-        DualGraphNode(Color.blue, t2p(["A", "J", "B", "G", "D", "H", "K"]), is_stabilizer=False),
-        DualGraphNode(Color.green, t2p(["A", "J", "B", "F", "C", "I", "M"]), is_stabilizer=False),
-    ]
-    dual_graph.add_nodes_from(nodes)
-    for index in dual_graph.node_indices():
-        dual_graph[index].index = index
-    # insert edges between the nodes
-    for node1, node2 in itertools.combinations(dual_graph.nodes(), 2):
-        if node1.color == node2.color or dual_graph.has_edge(node1.index, node2.index):
-            continue
-        dual_graph.add_edge(node1.index, node2.index, DualGraphEdge(node1, node2))
-    for index in dual_graph.edge_indices():
-        dual_graph.edge_index_map()[index][2].index = index
-
-    return dual_graph
 
 
 def add_edge(graph: rustworkx.PyGraph, node1: Optional[PreDualGraphNode], node2: Optional[PreDualGraphNode]) -> None:
@@ -210,6 +173,42 @@ def square_2d_dual_graph(distance: int) -> rustworkx.PyGraph:
                 add_edge(dual_graph, node, nodes[col_pos+1][row_pos+1])
             if row_pos != 0:
                 add_edge(dual_graph, node, nodes[col_pos+1][row_pos-1])
+    return dual_graph
+
+
+def tetrahedron_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
+    if distance != 3:
+        raise NotImplementedError
+
+    dual_graph = rustworkx.PyGraph(multigraph=False)
+    left = PreDualGraphNode("left", is_boundary=True)
+    right = PreDualGraphNode("right", is_boundary=True)
+    back = PreDualGraphNode("back", is_boundary=True)
+    front = PreDualGraphNode("front", is_boundary=True)
+    boundaries = [left, right, back, front]
+
+    nodes = [PreDualGraphNode("1"), PreDualGraphNode("2"), PreDualGraphNode("3"), PreDualGraphNode("4")]
+
+    dual_graph.add_nodes_from(boundaries)
+    dual_graph.add_nodes_from(nodes)
+    for index in dual_graph.node_indices():
+        dual_graph[index].index = index
+
+    # edges between boundary and boundary
+    for node1, node2 in itertools.combinations(boundaries, 2):
+        add_edge(dual_graph, node1, node2)
+
+    # edges between boundary and node
+    for excluded_index, boundary in enumerate(boundaries):
+        for index, node in enumerate(nodes):
+            if excluded_index == index:
+                continue
+            add_edge(dual_graph, boundary, node)
+
+    # edges between node and node
+    for node1, node2 in itertools.combinations(nodes, 2):
+        add_edge(dual_graph, node1, node2)
+
     return dual_graph
 
 
