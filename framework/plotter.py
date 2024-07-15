@@ -14,6 +14,7 @@ import re
 import numpy as np
 import numpy.typing as npt
 from scipy.spatial import Delaunay
+from tempfile import NamedTemporaryFile
 
 
 # see https://docs.pyvista.org/version/stable/api/core/_autosummary/pyvista.polydata.n_faces#pyvista.PolyData.n_faces
@@ -114,7 +115,6 @@ class Plotter3D:
     _dual_mesh: pyvista.PolyData = dataclasses.field(default=None, init=False)
     _debug_dual_mesh: pyvista.PolyData = dataclasses.field(default=None, init=False)
     _primary_mesh: pyvista.PolyData = dataclasses.field(default=None, init=False)
-    name: str
     storage_dir: pathlib.Path = dataclasses.field(default=pathlib.Path(__file__).parent.parent.absolute())
     pyvista_theme: pyvista.plotting.themes.DocumentTheme = dataclasses.field(default=None, init=False)
     highes_id: int = dataclasses.field(default=0, init=False)
@@ -161,25 +161,22 @@ class Plotter3D:
     def get_dual_node(self, mesh_index: int) -> DualGraphNode:
         return self.dual_graph[self._dualmesh_to_dualgraph[mesh_index]]
 
-    def _get_3d_coordinates(self) -> dict[int, npt.NDArray[np.float64]]:
+    @staticmethod
+    def _get_3d_coordinates(graph: rx.PyGraph) -> dict[int, npt.NDArray[np.float64]]:
         """Calculate 3D coordinates of nodes by layouting the rustworkx graph.
 
         Take special care to place boundary nodes at a meaningful position.
 
         :returns: Mapping of rx node indices to [x, y, z] coordinates.
         """
-        filename = self.name + ".wrl"
-        path = self.storage_dir / filename
-
         # remove boundary nodes for bulk positioning
-        graph = self.dual_graph.copy()
-        boundary_node_indices = [node.index for node in graph.nodes() if node.is_boundary]
-        graph.remove_nodes_from(boundary_node_indices)
+        graph_without_boundaries = graph.copy()
+        boundary_node_indices = [node.index for node in graph_without_boundaries.nodes() if node.is_boundary]
+        graph_without_boundaries.remove_nodes_from(boundary_node_indices)
 
-        # TODO do we want to cache the result? I.e., change this to "if not path.is_file()"
-        graphviz_draw(graph, lambda node: {"shape": "point"}, filename=str(path), method="neato", image_type="vrml",
-                      graph_attr={"dimen": "3"})
-        with open(path, "rt") as f:
+        with NamedTemporaryFile("w+t", suffix=".wrl") as f:
+            graphviz_draw(graph_without_boundaries, lambda node: {"shape": "point"}, filename=f.name, method="neato",
+                          image_type="vrml", graph_attr={"dimen": "3"})
             data = f.readlines()
 
         # position of non-boundary nodes
@@ -208,8 +205,7 @@ class Plotter3D:
 
         # position of boundary nodes
         for boundary_index in boundary_node_indices:
-            adjacent_nodes = [index for index in self.dual_graph.neighbors(boundary_index)
-                              if not self.dual_graph[index].is_boundary]
+            adjacent_nodes = [index for index in graph.neighbors(boundary_index) if not graph[index].is_boundary]
             face_center = np.asarray([0.0, 0.0, 0.0])
             for index, position in ret.items():
                 if index not in adjacent_nodes:
@@ -224,7 +220,7 @@ class Plotter3D:
 
     def _construct_dual_mesh(self) -> pyvista.PolyData:
         # calculate positions of points
-        node2coordinates = self._get_3d_coordinates()
+        node2coordinates = self._get_3d_coordinates(self.dual_graph)
         points = np.asarray([node2coordinates[index] for index in self.dual_graph.node_indices()])
 
         # generate pyvista edges from rustworkx edges
@@ -273,7 +269,7 @@ class Plotter3D:
 
     def _construct_debug_dual_mesh(self) -> pyvista.PolyData:
         # calculate positions of points
-        node2coordinates = self._get_3d_coordinates()
+        node2coordinates = self._get_3d_coordinates(self.dual_graph)
         points = np.asarray([node2coordinates[index] for index in self.dual_graph.node_indices()])
 
         # generate pyvista edges from rustworkx edges
