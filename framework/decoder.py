@@ -1,5 +1,6 @@
 import abc
 from dataclasses import dataclass
+
 from framework.layer import Syndrome
 
 

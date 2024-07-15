@@ -1,3 +1,4 @@
+import enum
 import itertools
 
 import sympy
@@ -74,12 +75,12 @@ class Operator:
             ret.append(f"('{self.name}')")
         return "".join(ret)
 
-    def __eq__(self, other: "Operator") -> bool:
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, Operator):
             raise NotImplementedError
         return self.x == other.x and self.z == other.z and self.length == other.length
 
-    def __lt__(self, other: "Operator") -> bool:
+    def __lt__(self, other: object) -> bool:
         if not isinstance(other, Operator):
             raise NotImplementedError
         if self.length != other.length:
@@ -112,14 +113,85 @@ class Operator:
         return self.x + self.z
 
 
+class Color(enum.IntEnum):
+    # monochrome colors
+    red = 1
+    blue = 2
+    green = 3
+    yellow = 4
+
+    # mixed colors
+    rb = 11
+    rg = 12
+    ry = 13
+    bg = 14
+    by = 15
+    gy = 16
+
+    @property
+    def is_monochrome(self) -> bool:
+        """Is this color a pure color?"""
+        return self in {Color.red, Color.blue, Color.green, Color.yellow}
+
+    @property
+    def is_mixed(self) -> bool:
+        return self in {Color.rb, Color.rg, Color.ry, Color.bg, Color.by, Color.gy}
+
+    @property
+    def as_names(self) -> list[str]:
+        """Return the ingredients of the color, f.e. Color.rb -> ['red', 'blue']."""
+        return {
+            Color.red: ["red"],
+            Color.blue: ["blue"],
+            Color.green: ["green"],
+            Color.yellow: ["yellow"],
+            # for better visibility
+            Color.rb: ["blue", "red"],
+            Color.rg: ["red", "green"],
+            Color.ry: ["red", "yellow"],
+            Color.bg: ["blue", "green"],
+            Color.by: ["blue", "yellow"],
+            Color.gy: ["green", "yellow"],
+        }[self]
+
+    @classmethod
+    def color_map(cls) -> list[str]:
+        return ["red", "blue", "green", "yellow"]
+
+    @classmethod
+    def color_limits(cls) -> list[int]:
+        return [cls.red, cls.yellow]
+
+    def combine(self, other: "Color") -> "Color":
+        if not (self.is_monochrome and other.is_monochrome):
+            raise ValueError
+        # only for debug purpose
+        if self == other:
+            return self
+        if self > other:
+            key = (other, self)
+        else:
+            key = (self, other)
+        return {
+            (Color.red, Color.blue): Color.rb,
+            (Color.red, Color.green): Color.rg,
+            (Color.red, Color.yellow): Color.ry,
+            (Color.blue, Color.green): Color.bg,
+            (Color.blue, Color.yellow): Color.by,
+            (Color.green, Color.yellow): Color.gy,
+        }[key]
+
+
 class Stabilizer(Operator):
     """Special kind of operator which is viewed as a color code stabilizer."""
 
     ancillas: list[int]
+    color: Color
 
     def __init__(
         self,
         length: int,
+        color: Color,
         *,
         x_positions: list[int] = None,
         z_positions: list[int] = None,
@@ -140,6 +212,7 @@ class Stabilizer(Operator):
         if overlap := set(ancillas) & set(self.z):
             raise ValueError(f"Overlap between ancillas and z_positions: {overlap}")
         self.ancillas = ancillas
+        self.color = color
 
 
 def get_check_matrix(generators: list[Operator]) -> sympy.Matrix:
@@ -167,6 +240,15 @@ def are_independent(stabilizers: list[Operator]) -> bool:
     # the rows are linear independent if there is no row with only zeros
     # rows are sorted, so checking the last row is sufficient
     return any(e != 0 for e in rref.row(-1))
+
+
+def count_independent(stabilizers: list[Operator]) -> int:
+    """Calculate the number of independent stabilizers.
+
+    This is the rank of their check matrix.
+    """
+    check_matrix = get_check_matrix(stabilizers)
+    return check_matrix.rank()
 
 
 def check_stabilizers(stabilizers: list[Operator]) -> None:
@@ -204,7 +286,7 @@ def check_logical_operator(logical: Operator, stabilizers: list[Operator]) -> No
         )
     if not are_independent(stabilizers + [logical]):
         raise ValueError(
-            f"{logical} does not form an indepentent set with the stabilizers."
+            f"{logical} does not form an independent set with the stabilizers."
         )
 
 
