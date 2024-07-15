@@ -1,22 +1,22 @@
 """Plotting dual lattice & constructed primary lattice from graph definition."""
 import dataclasses
+import itertools
 import pathlib
+import re
 from collections import defaultdict
+from tempfile import NamedTemporaryFile
 
+import numpy as np
+import numpy.typing as npt
 import pyvista
 import pyvista.plotting.themes
 import rustworkx as rx
 from rustworkx.visualization import graphviz_draw
+from scipy.spatial import Delaunay
+
 from framework.cc_3d.base import DualGraphNode
 from framework.cc_3d.util import compute_simplexes
 from framework.stabilizers import Color
-import itertools
-import re
-import numpy as np
-import numpy.typing as npt
-from scipy.spatial import Delaunay
-from tempfile import NamedTemporaryFile
-
 
 # see https://docs.pyvista.org/version/stable/api/core/_autosummary/pyvista.polydata.n_faces#pyvista.PolyData.n_faces
 pyvista.PolyData.use_strict_n_faces(True)

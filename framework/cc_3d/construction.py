@@ -1,10 +1,16 @@
-import rustworkx
-
+import itertools
 from typing import Optional
 
+import rustworkx
+
+from framework.cc_3d.base import (
+    DualGraphEdge,
+    DualGraphNode,
+    GraphNode,
+    XDualGraphEdge,
+    XDualGraphNode,
+)
 from framework.stabilizers import Color
-import itertools
-from framework.cc_3d.base import GraphNode, DualGraphNode, DualGraphEdge, XDualGraphEdge, XDualGraphNode
 
 
 class PreDualGraphNode(GraphNode):

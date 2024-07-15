@@ -1,11 +1,12 @@
 import collections
-import rustworkx
-
-from framework.stabilizers import Color
-from framework.cc_3d.base import DualGraphEdge, DualGraphNode
 import itertools
+
+import rustworkx
 from pysat.formula import CNF
 from pysat.solvers import Solver
+
+from framework.cc_3d.base import DualGraphEdge, DualGraphNode
+from framework.stabilizers import Color
 
 
 def compute_simplexes(graph: rustworkx.PyGraph, dimension: int, exclude_boundary_simplexes: bool = False) -> set[tuple[int, ...]]:

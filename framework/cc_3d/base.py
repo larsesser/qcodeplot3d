@@ -3,7 +3,7 @@ import dataclasses
 from dataclasses import dataclass
 from typing import Optional
 
-from framework.stabilizers import Stabilizer, Color
+from framework.stabilizers import Color, Stabilizer
 
 
 @dataclass
