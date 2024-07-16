@@ -4,6 +4,7 @@ from typing import Optional
 import rustworkx
 
 from framework.cc_3d.base import GraphNode, XDualGraphEdge, XDualGraphNode
+from framework.cc_3d.util import coloring_qubits
 
 
 class PreDualGraphNode(GraphNode):
@@ -99,6 +100,8 @@ def rectangular_2d_dual_graph(distance: int) -> rustworkx.PyGraph:
                 add_edge(dual_graph, node, nodes[col_pos+1][row_pos+1])
             if row_pos != 0:
                 add_edge(dual_graph, node, nodes[col_pos+1][row_pos-1])
+
+    coloring_qubits(dual_graph, dimension=2)
     return dual_graph
 
 
@@ -169,6 +172,8 @@ def square_2d_dual_graph(distance: int) -> rustworkx.PyGraph:
                 add_edge(dual_graph, node, nodes[col_pos+1][row_pos+1])
             if row_pos != 0:
                 add_edge(dual_graph, node, nodes[col_pos+1][row_pos-1])
+
+    coloring_qubits(dual_graph, dimension=2)
     return dual_graph
 
 
@@ -205,6 +210,7 @@ def tetrahedron_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
     for node1, node2 in itertools.combinations(nodes, 2):
         add_edge(dual_graph, node1, node2)
 
+    coloring_qubits(dual_graph, dimension=3)
     return dual_graph
 
 
@@ -428,6 +434,7 @@ def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
         else:
             raise RuntimeError
 
+    coloring_qubits(dual_graph, dimension=3)
     return dual_graph
 
 
@@ -662,6 +669,7 @@ def cubic_3d_d4_dual_graph(distance: int) -> rustworkx.PyGraph:
     add_edge(dual_graph, node_112, node_211)
     add_edge(dual_graph, node_101, node_211)
 
+    coloring_qubits(dual_graph, dimension=3, do_coloring=False)
     return dual_graph
 
 
@@ -949,6 +957,7 @@ def cubic_3d_d4_2_dual_graph(distance: int) -> rustworkx.PyGraph:
     add_edge(dual_graph, node_012, node_911)
     add_edge(dual_graph, node_011, node_911)
 
+    coloring_qubits(dual_graph, dimension=3, do_coloring=True)
     return dual_graph
 
 
@@ -1082,6 +1091,7 @@ def cubic2_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
         for node in itertools.chain.from_iterable(layer):
             add_edge(dual_graph, node, layer1[1][1])
 
+    coloring_qubits(dual_graph, dimension=3, do_coloring=False)
     return dual_graph
 
 
@@ -1211,6 +1221,7 @@ def cubic3_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
         add_edge(dual_graph, node, layer0[1][1])
         add_edge(dual_graph, node, layer2[1][1])
 
+    coloring_qubits(dual_graph, dimension=3, do_coloring=False)
     return dual_graph
 
 
@@ -1344,6 +1355,7 @@ def cubic4_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
     add_edge(dual_graph, layer0[2][2], layer2[2][2])
     add_edge(dual_graph, layer0[2][0], layer2[2][0])
 
+    coloring_qubits(dual_graph, dimension=3, do_coloring=False)
     return dual_graph
 
 

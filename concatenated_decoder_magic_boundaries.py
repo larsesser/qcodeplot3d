@@ -12,7 +12,6 @@ from framework.cc_3d.construction import (
 )
 from framework.cc_3d.decoder import ConcatenatedDecoder
 from framework.cc_3d.plotter import Plotter3D
-from framework.cc_3d.util import coloring_qubits
 from framework.layer import Syndrome, SyndromeValue
 from framework.stabilizers import (
     Color,
@@ -49,7 +48,6 @@ def edge_attr_fn(edge: GraphEdge):
 
 
 graph = cubic_3d_dual_graph(4)
-coloring_qubits(graph, dimension=3, do_coloring=True)
 
 x_stabilizer: list[Stabilizer] = [node.stabilizer for node in graph.nodes() if node.is_stabilizer]
 z_stabilizer: list[Stabilizer] = [edge.stabilizer for edge in graph.edges() if edge.is_stabilizer]
@@ -141,7 +139,6 @@ exit()
 
 d = 4
 graph = square_2d_dual_graph(d)
-coloring_qubits(graph, dimension=2)
 
 x_stabilizer: list[Stabilizer] = [node.stabilizer for node in graph.nodes() if node.stabilizer]
 z_stabilizer: list[Stabilizer] = [Stabilizer(s.length, s.color, z_positions=s.x) for s in x_stabilizer]
@@ -170,7 +167,6 @@ graphviz_draw(graph, node_attr_fn, filename="2D square d=4.png", method="fdp")
 exit()
 
 graph = rectangular_2d_dual_graph(5)
-coloring_qubits(graph, dimension=2)
 
 x_stabilizer: list[Stabilizer] = [node.stabilizer for node in graph.nodes() if node.stabilizer]
 z_stabilizer: list[Stabilizer] = [Stabilizer(s.length, s.color, z_positions=s.x) for s in x_stabilizer]
