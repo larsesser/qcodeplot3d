@@ -99,6 +99,7 @@ def coloring_qubits(dual_graph: rustworkx.PyGraph, dimension: int = 3, do_colori
     # find all triangles / tetrahedrons of the graph
     simplexes = compute_simplexes(dual_graph, dimension, exclude_boundary_simplexes=True)
     simplex_map = {simplex: number for number, simplex in enumerate(simplexes, start=1)}
+    all_qubits = sorted(simplex_map.values())
     node2simplex = collections.defaultdict(list)
     for simplex, name in simplex_map.items():
         for index in simplex:
@@ -111,10 +112,7 @@ def coloring_qubits(dual_graph: rustworkx.PyGraph, dimension: int = 3, do_colori
         else:
             color = Color.green
         qubits = node2simplex[node.index]
-        if node.index in boundary_nodes_indices:
-            dual_graph[node.index] = DualGraphNode(color, qubits, is_stabilizer=False)
-        else:
-            dual_graph[node.index] = DualGraphNode(color, qubits, is_stabilizer=True, stabilizer_length=len(simplexes))
+        dual_graph[node.index] = DualGraphNode(color, qubits, is_stabilizer=(node.index not in boundary_nodes_indices), all_qubits=all_qubits)
         dual_graph[node.index].index = node.index
         dual_graph[node.index].title = node.title
 

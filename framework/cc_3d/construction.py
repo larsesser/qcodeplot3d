@@ -1364,10 +1364,7 @@ def construct_x_dual_graph(dual_graph: rustworkx.PyGraph) -> rustworkx.PyGraph:
     nodes = []
     for edge in dual_graph.edges():
         color = edge.node1.color.combine(edge.node2.color)
-        stabilizer_length = None
-        if edge.is_stabilizer:
-            stabilizer_length = edge.stabilizer.length
-        node = XDualGraphNode(color, edge.qubits, edge.is_stabilizer, stabilizer_length)
+        node = XDualGraphNode(color, edge.qubits, edge.is_stabilizer, edge.all_qubits)
         nodes.append(node)
 
     x_dual_graph = rustworkx.PyGraph(multigraph=False)

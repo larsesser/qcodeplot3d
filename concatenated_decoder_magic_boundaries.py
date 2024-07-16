@@ -100,10 +100,7 @@ restricted_graph = decoder.restricted_graph([Color.red, Color.blue])
 mc3_graph = decoder.mc3_graph([Color.red, Color.blue], Color.green)
 mc4_graph = decoder.mc4_graph([Color.red, Color.blue], Color.green, Color.yellow)
 
-qubits = set()
-for stabilizer in x_stabilizer:
-    qubits.update(stabilizer.qubits)
-qubits = sorted(qubits)
+qubits = graph.nodes()[0].all_qubits
 
 # emulate no qubit errors
 print("\nEmulate single-qubit errors")

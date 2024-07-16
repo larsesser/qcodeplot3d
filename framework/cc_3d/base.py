@@ -79,17 +79,16 @@ class DualGraphNode(GraphNode):
     """
     qubits: list[int]
     is_stabilizer: bool
-    stabilizer_length: Optional[int] = None
+    # all (physical) qubits of the color code where this node belongs to
+    all_qubits: list[int]
     stabilizer: Optional[Stabilizer] = dataclasses.field(default=None, init=False)
 
     def __post_init__(self):
         self.qubits = sorted(self.qubits)
         if not self.color.is_monochrome:
             raise ValueError
-        if self.is_stabilizer and self.stabilizer_length is None:
-            raise ValueError
         if self.is_stabilizer:
-            self.stabilizer = Stabilizer(self.stabilizer_length, self.color, x_positions=self.qubits)
+            self.stabilizer = Stabilizer(len(self.all_qubits), self.color, x_positions=self.qubits)
 
     @property
     def is_boundary(self) -> bool:
@@ -107,10 +106,8 @@ class XDualGraphNode(DualGraphNode):
         self.qubits = sorted(self.qubits)
         if not self.color.is_mixed:
             raise ValueError
-        if self.is_stabilizer and self.stabilizer_length is None:
-            raise ValueError
         if self.is_stabilizer:
-            self.stabilizer = Stabilizer(self.stabilizer_length, self.color, z_positions=self.qubits)
+            self.stabilizer = Stabilizer(len(self.all_qubits), self.color, z_positions=self.qubits)
 
 
 @dataclass
@@ -129,12 +126,17 @@ class DualGraphEdge(GraphEdge):
             self.stabilizer = Stabilizer(length=stab_length, color=self.node1.color.combine(self.node2.color), z_positions=self._qubits)
 
     @property
-    def qubits(self):
+    def qubits(self) -> list[int]:
         """The qubits associated with this edge (== face in primal lattice)."""
         return self._qubits
 
     @property
-    def is_stabilizer(self):
+    def all_qubits(self) -> list[int]:
+        """All (physical) qubits of the color code where this edge belongs to."""
+        return self.node1.all_qubits
+
+    @property
+    def is_stabilizer(self) -> bool:
         """Is this edge (for a 3D color code) associated to a stabilizer?"""
         return not self.is_edge_between_boundaries
 
@@ -142,5 +144,5 @@ class DualGraphEdge(GraphEdge):
 @dataclass
 class XDualGraphEdge(DualGraphEdge):
     @property
-    def is_stabilizer(self):
+    def is_stabilizer(self) -> bool:
         return False
