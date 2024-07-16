@@ -89,12 +89,21 @@ def print_stats(graph: rustworkx.PyGraph, distance: int):
     print(f"\nn: {n}, k: {k}, d: {distance}")
 
 
-def plot_graph(graph: rustworkx.PyGraph):
+def plot_graphs(graph: rustworkx.PyGraph):
     plotter = Plotter3D(graph)
-    debug_mesh = plotter.construct_debug_mesh(graph)
-    plotter.show_debug_mesh(debug_mesh, show_labels=False, exclude_boundaries=False)
-    plotter.show_dual_mesh(show_labels=False, explode_factor=1, exclude_boundaries=False)
+
+    plotter.show_debug_mesh(plotter.construct_debug_mesh(graph), show_labels=False, exclude_boundaries=False)
+    plotter.show_dual_mesh(show_labels=False, explode_factor=0, exclude_boundaries=False)
     plotter.show_primary_mesh(explode_factor=0.4)
+
+    decoder = ConcatenatedDecoder([Color.red, Color.blue, Color.green, Color.yellow], graph)
+    restricted_graph = decoder.restricted_graph([Color.red, Color.blue])
+    mc3_graph = decoder.mc3_graph([Color.red, Color.blue], Color.green)
+    mc4_graph = decoder.mc4_graph([Color.red, Color.blue], Color.green, Color.yellow)
+
+    for g in [restricted_graph, mc3_graph, mc4_graph]:
+        debug_mesh = plotter.construct_debug_mesh(g)
+        plotter.show_debug_mesh(debug_mesh, show_labels=False, exclude_boundaries=False)
 
 
 def basic_decoder_test(graph: rustworkx.PyGraph):

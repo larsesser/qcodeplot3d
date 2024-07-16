@@ -115,18 +115,18 @@ class Operator:
 
 class Color(enum.IntEnum):
     # monochrome colors
-    red = 1
-    blue = 2
-    green = 3
-    yellow = 4
+    red = 0
+    blue = 1
+    green = 2
+    yellow = 3
 
     # mixed colors
-    rb = 11
-    rg = 12
-    ry = 13
-    bg = 14
-    by = 15
-    gy = 16
+    rb = 4
+    rg = 5
+    ry = 6
+    bg = 7
+    by = 8
+    gy = 9
 
     @property
     def is_monochrome(self) -> bool:
@@ -156,11 +156,22 @@ class Color(enum.IntEnum):
 
     @classmethod
     def color_map(cls) -> list[str]:
-        return ["red", "blue", "green", "yellow"]
+        return [
+            "red",          # red
+            "blue",         # blue
+            "green",        # green
+            "yellow",       # yellow
+            "magenta",      # red blue
+            "brown",        # red green
+            "orange",       # red yellow
+            "darkblue",     # blue green
+            "grey",         # blue yellow
+            "lightgreen"    # green yellow
+        ]
 
     @classmethod
     def color_limits(cls) -> list[int]:
-        return [cls.red, cls.yellow]
+        return [min(cls), max(cls)]
 
     def combine(self, other: "Color") -> "Color":
         if not (self.is_monochrome and other.is_monochrome):
