@@ -1,5 +1,6 @@
 import collections
 
+import rustworkx
 from rustworkx.visualization import graphviz_draw
 
 from framework.cc_3d.base import GraphEdge, GraphNode
@@ -47,77 +48,85 @@ def edge_attr_fn(edge: GraphEdge):
     return attr_dict
 
 
-graph = cubic_3d_dual_graph(4)
+def print_stats(graph: rustworkx.PyGraph, distance: int):
+    x_stabilizer: list[Stabilizer] = [node.stabilizer for node in graph.nodes() if node.is_stabilizer]
+    z_stabilizer: list[Stabilizer] = [edge.stabilizer for edge in graph.edges() if edge.is_stabilizer]
+    stabilizers: list[Stabilizer] = [*x_stabilizer, *z_stabilizer]
 
-x_stabilizer: list[Stabilizer] = [node.stabilizer for node in graph.nodes() if node.is_stabilizer]
-z_stabilizer: list[Stabilizer] = [edge.stabilizer for edge in graph.edges() if edge.is_stabilizer]
-stabilizers: list[Stabilizer] = [*x_stabilizer, *z_stabilizer]
+    independent_x = count_independent(x_stabilizer)
+    independent_z = count_independent(z_stabilizer)
+    num_independent = independent_x + independent_z
+    print(f"Stabilizers: {num_independent}/{len(stabilizers)}")
+    print(f"  x stabilizer: {independent_x}/{len(x_stabilizer)}")
+    print(f"  z stabilizer: {independent_z}/{len(z_stabilizer)}")
 
-independent_x = count_independent(x_stabilizer)
-independent_z = count_independent(z_stabilizer)
-num_independent = independent_x + independent_z
-print(f"Stabilizers: {num_independent}/{len(stabilizers)}")
-print(f"  x stabilizer: {independent_x}/{len(x_stabilizer)}")
-print(f"  z stabilizer: {independent_z}/{len(z_stabilizer)}")
+    x_stabilizer_by_color = collections.defaultdict(list)
+    for stabilizer in x_stabilizer:
+        x_stabilizer_by_color[stabilizer.color].append(stabilizer)
+    print(f"\nx stabilizers:")
+    for color, stabilizers in x_stabilizer_by_color.items():
+        print(f"  color {color.name}: {count_independent(stabilizers)}/{len(stabilizers)}")
 
-x_stabilizer_by_color = collections.defaultdict(list)
-for stabilizer in x_stabilizer:
-    x_stabilizer_by_color[stabilizer.color].append(stabilizer)
-print(f"\nx stabilizers:")
-for color, stabilizers in x_stabilizer_by_color.items():
-    print(f"  color {color.name}: {count_independent(stabilizers)}/{len(stabilizers)}")
+    z_stabilizer_by_color = collections.defaultdict(list)
+    for stabilizer in z_stabilizer:
+        z_stabilizer_by_color[stabilizer.color].append(stabilizer)
+    print(f"\nz stabilizers:")
+    for color, stabilizers in z_stabilizer_by_color.items():
+        included_qubits = set()
+        for stabilizer in stabilizers:
+            included_qubits.update(stabilizer.qubits)
+        print(
+            f"  color {color.name}: {count_independent(stabilizers)}/{len(stabilizers)}, covered qubits {len(included_qubits)}")
 
-z_stabilizer_by_color = collections.defaultdict(list)
-for stabilizer in z_stabilizer:
-    z_stabilizer_by_color[stabilizer.color].append(stabilizer)
-print(f"\nz stabilizers:")
-for color, stabilizers in z_stabilizer_by_color.items():
-    included_qubits = set()
-    for stabilizer in stabilizers:
-        included_qubits.update(stabilizer.qubits)
-    print(f"  color {color.name}: {count_independent(stabilizers)}/{len(stabilizers)}, covered qubits {len(included_qubits)}")
+    odd_stabilizers = [stabilizer for stabilizer in stabilizers if len(stabilizer.qubits) % 2 == 1]
+    odd_stabilizers_lenghts = collections.Counter([len(stabilizer.qubits) for stabilizer in odd_stabilizers])
+    print(f"\nOdd stabilizers: {len(odd_stabilizers)}")
+    if odd_stabilizers:
+        print("  " + ", ".join(f"length {length}: {count}" for length, count in odd_stabilizers_lenghts.most_common()))
 
-odd_stabilizers = [stabilizer for stabilizer in stabilizers if len(stabilizer.qubits) % 2 == 1]
-odd_stabilizers_lenghts = collections.Counter([len(stabilizer.qubits) for stabilizer in odd_stabilizers])
-print(f"\nOdd stabilizers: {len(odd_stabilizers)}")
-if odd_stabilizers:
-    print("  " + ", ".join(f"length {length}: {count}" for length, count in odd_stabilizers_lenghts.most_common()))
+    n = stabilizers[0].length
+    k = n - num_independent
+    print(f"\nn: {n}, k: {k}, d: {distance}")
 
-n = stabilizers[0].length
-k = n - num_independent
-print(f"\nn: {n}, k: {k}, expected k: 3")
 
-plotter = Plotter3D(graph)
-debug_mesh = plotter.construct_debug_mesh(graph)
-plotter.show_debug_mesh(debug_mesh, show_labels=True, exclude_boundaries=False)
-plotter.show_dual_mesh(show_labels=False, explode_factor=1, exclude_boundaries=False)
-plotter.show_primary_mesh(explode_factor=0.4)
+def plot_graph(graph: rustworkx.PyGraph):
+    plotter = Plotter3D(graph)
+    debug_mesh = plotter.construct_debug_mesh(graph)
+    plotter.show_debug_mesh(debug_mesh, show_labels=False, exclude_boundaries=False)
+    plotter.show_dual_mesh(show_labels=False, explode_factor=1, exclude_boundaries=False)
+    plotter.show_primary_mesh(explode_factor=0.4)
 
-exit()
 
-decoder = ConcatenatedDecoder([Color.red, Color.blue, Color.green, Color.yellow], graph)
-restricted_graph = decoder.restricted_graph([Color.red, Color.blue])
-mc3_graph = decoder.mc3_graph([Color.red, Color.blue], Color.green)
-mc4_graph = decoder.mc4_graph([Color.red, Color.blue], Color.green, Color.yellow)
+def basic_decoder_test(graph: rustworkx.PyGraph):
+    decoder = ConcatenatedDecoder([Color.red, Color.blue, Color.green, Color.yellow], graph)
+    restricted_graph = decoder.restricted_graph([Color.red, Color.blue])
+    mc3_graph = decoder.mc3_graph([Color.red, Color.blue], Color.green)
+    mc4_graph = decoder.mc4_graph([Color.red, Color.blue], Color.green, Color.yellow)
 
-qubits = graph.nodes()[0].all_qubits
+    qubits = graph.nodes()[0].all_qubits
+    x_stabilizer: list[Stabilizer] = [node.stabilizer for node in graph.nodes() if node.is_stabilizer]
 
-# emulate no qubit errors
-print("\nEmulate single-qubit errors")
-results = decoder.decode(Syndrome({stabilizer: SyndromeValue(False) for stabilizer in x_stabilizer}))
-if any(result != [] for result in results):
-    print(None, results)
-# emulate single-qubit errors
-for qubit in qubits:
-    true_stabilizer = [stabilizer for stabilizer in x_stabilizer if qubit in stabilizer.qubits]
-    syndrome = Syndrome({stabilizer: SyndromeValue(stabilizer in true_stabilizer) for stabilizer in x_stabilizer})
-    results = decoder.decode(syndrome)
-    if any(result != [qubit] for result in results):
-        print(qubit, results)
+    # emulate no qubit errors
+    print("\nEmulate single-qubit errors")
+    results = decoder.decode(Syndrome({stabilizer: SyndromeValue(False) for stabilizer in x_stabilizer}))
+    if any(result != [] for result in results):
+        print(None, results)
+    # emulate single-qubit errors
+    for qubit in qubits:
+        true_stabilizer = [stabilizer for stabilizer in x_stabilizer if qubit in stabilizer.qubits]
+        syndrome = Syndrome({stabilizer: SyndromeValue(stabilizer in true_stabilizer) for stabilizer in x_stabilizer})
+        results = decoder.decode(syndrome)
+        if any(result != [qubit] for result in results):
+            print(qubit, results)
 
-for g in [graph, restricted_graph, mc3_graph, mc4_graph]:
-    debug_mesh = plotter.construct_debug_mesh(g)
-    plotter.show_debug_mesh(debug_mesh, show_labels=False, exclude_boundaries=True)
+    plotter = Plotter3D(graph)
+    for g in [graph, restricted_graph, mc3_graph, mc4_graph]:
+        debug_mesh = plotter.construct_debug_mesh(g)
+        plotter.show_debug_mesh(debug_mesh, show_labels=False, exclude_boundaries=True)
+
+
+d = 4
+graph = cubic_3d_dual_graph(d)
 
 exit()
 
