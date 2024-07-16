@@ -1,7 +1,7 @@
 import enum
 import itertools
 
-import sympy
+import numpy as np
 
 SUBSCRIPT_NUMBER_MAP = {
     0: "₀",
@@ -215,16 +215,29 @@ class Stabilizer(Operator):
         self.color = color
 
 
-def get_check_matrix(generators: list[Operator]) -> sympy.Matrix:
+def get_check_matrix(generators: list[Operator], only_x: bool = False, only_z: bool = False) -> np.matrix:
     """Calculate the check matrix for the given stabilizer generators."""
     if any(len(generator) != len(generators[0]) for generator in generators):
         raise ValueError("All generators must have the same size.")
-    rows = [
-        [1 if pos in generator.x else 0 for pos in range(1, generator.length + 1)]
-        + [1 if pos in generator.z else 0 for pos in range(1, generator.length + 1)]
-        for generator in generators
-    ]
-    return sympy.Matrix(rows)
+    if only_x and only_z:
+        raise ValueError
+    if only_x:
+        rows = [
+            [1 if pos in generator.x else 0 for pos in range(1, generator.length + 1)]
+            for generator in generators if generator.x
+        ]
+    elif only_z:
+        rows = [
+            [1 if pos in generator.z else 0 for pos in range(1, generator.length + 1)]
+            for generator in generators if generator.z
+        ]
+    else:
+        rows = [
+            [1 if pos in generator.x else 0 for pos in range(1, generator.length + 1)]
+            + [1 if pos in generator.z else 0 for pos in range(1, generator.length + 1)]
+            for generator in generators
+        ]
+    return np.matrix(rows)
 
 
 def are_independent(stabilizers: list[Operator]) -> bool:
@@ -233,13 +246,7 @@ def are_independent(stabilizers: list[Operator]) -> bool:
     The set stabilizers of stabilizers are independent iff the rows of
     their check matrix are linear independent.
     """
-    check_matrix = get_check_matrix(stabilizers)
-    # perform gaussian elimination by calculating the reduced row-echelon form of the matrix
-    rref = check_matrix.rref(pivots=False)
-    assert isinstance(rref, sympy.Matrix)
-    # the rows are linear independent if there is no row with only zeros
-    # rows are sorted, so checking the last row is sufficient
-    return any(e != 0 for e in rref.row(-1))
+    return len(stabilizers) == count_independent(stabilizers)
 
 
 def count_independent(stabilizers: list[Operator]) -> int:
@@ -247,11 +254,20 @@ def count_independent(stabilizers: list[Operator]) -> int:
 
     This is the rank of their check matrix.
     """
-    check_matrix = get_check_matrix(stabilizers)
-    return check_matrix.rank()
+    check_stabilizers(stabilizers, check_independence=False)
+    # since x and z stabilizers are always independent, we count them separately to reduce overhead
+    x_matrix = get_check_matrix(stabilizers, only_x=True)
+    x_rank = 0
+    if x_matrix.any():
+        x_rank = np.linalg.matrix_rank(x_matrix)
+    z_matrix = get_check_matrix(stabilizers, only_z=True)
+    z_rank = 0
+    if z_matrix.any():
+        z_rank = np.linalg.matrix_rank(z_matrix)
+    return x_rank + z_rank
 
 
-def check_stabilizers(stabilizers: list[Operator]) -> None:
+def check_stabilizers(stabilizers: list[Operator], check_independence: bool = True) -> None:
     """Check if a set of operators form a set of stabilizers.
 
     This check is necessary and sufficient.
@@ -265,7 +281,7 @@ def check_stabilizers(stabilizers: list[Operator]) -> None:
         raise ValueError(
             f"Following stabilizers do not commute:\n{not_commuting_pairs}"
         )
-    if not are_independent(stabilizers):
+    if check_independence and not are_independent(stabilizers):
         raise ValueError("The set of stabilizers are not independent.")
 
 
