@@ -142,13 +142,19 @@ exit()
 x_dual_graph = construct_x_dual_graph(graph)
 
 decoder = ConcatenatedDecoder([Color.rb, Color.rg, Color.ry, Color.bg, Color.by, Color.gy], x_dual_graph)
-restricted_graph = decoder.restricted_graph([Color.rg, Color.by])
-print(len(restricted_graph.edges()))
-if any(len(edge.qubits) != 1 for edge in restricted_graph.edges()):
-    print("No 1:1 mapping from edges to qubits.")
 plotter = Plotter3D(x_dual_graph)
-debug_mesh = plotter.construct_debug_mesh(restricted_graph)
-plotter.show_debug_mesh(debug_mesh, show_labels=False, exclude_boundaries=False)
+
+# for pairs of mutual exclusive two-color-colors, there is a 1:1 mapping from edges to qubits
+# -> so, we can decode the syndrome by applying a MWPM approach to this graph directly
+for colors in [[Color.rb, Color.gy], [Color.rg, Color.by], [Color.ry, Color.bg]]:
+    restricted_graph = decoder.restricted_graph(colors)
+    if len(restricted_graph.edges()) != len(graph.nodes()[0].all_qubits):
+        print(f"{len(restricted_graph.edges())} edges vs {len(graph.nodes()[0].all_qubits)} qubits")
+    if any(len(edge.qubits) != 1 for edge in restricted_graph.edges()):
+        print("No 1:1 mapping from edges to qubits.")
+
+    debug_mesh = plotter.construct_debug_mesh(restricted_graph)
+    plotter.show_debug_mesh(debug_mesh, show_labels=False, exclude_boundaries=False)
 
 exit()
 
