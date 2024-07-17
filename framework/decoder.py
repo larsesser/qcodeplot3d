@@ -1,7 +1,7 @@
 import abc
 from dataclasses import dataclass
 
-from framework.layer import Syndrome
+from framework.syndrome import Syndrome
 
 
 @dataclass
