@@ -2,10 +2,12 @@ import abc
 from dataclasses import dataclass
 
 from framework.syndrome import Syndrome
+from framework.util import Kind
 
 
 @dataclass
 class Decoder(abc.ABC):
+    kind: Kind
 
     @abc.abstractmethod
     def decode(self, syndrome: Syndrome) -> list[int]:
