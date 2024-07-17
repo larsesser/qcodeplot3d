@@ -14,6 +14,7 @@ from framework.cc_3d.construction import (
 from framework.cc_3d.decoder import ConcatenatedDecoder
 from framework.cc_3d.plotter import Plotter3D
 from framework.syndrome import Syndrome, SyndromeValue
+from framework.cc_3d.simulator import deterministic_simulation
 from framework.stabilizers import (
     Color,
     Operator,
