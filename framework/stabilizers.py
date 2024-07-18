@@ -128,14 +128,22 @@ class Color(enum.IntEnum):
     by = 8
     gy = 9
 
+    @classmethod
+    def get_monochrome(cls) -> list["Color"]:
+        return [Color.red, Color.blue, Color.green, Color.yellow]
+
     @property
     def is_monochrome(self) -> bool:
         """Is this color a pure color?"""
-        return self in {Color.red, Color.blue, Color.green, Color.yellow}
+        return self in self.get_monochrome()
+
+    @classmethod
+    def get_mixed(cls) -> list["Color"]:
+        return [Color.rb, Color.rg, Color.ry, Color.bg, Color.by, Color.gy]
 
     @property
     def is_mixed(self) -> bool:
-        return self in {Color.rb, Color.rg, Color.ry, Color.bg, Color.by, Color.gy}
+        return self in self.get_mixed()
 
     @property
     def as_names(self) -> list[str]:
@@ -191,6 +199,16 @@ class Color(enum.IntEnum):
             (Color.blue, Color.yellow): Color.by,
             (Color.green, Color.yellow): Color.gy,
         }[key]
+
+    def contains(self, other: "Color") -> bool:
+        if not (self.is_mixed and other.is_monochrome):
+            raise ValueError
+        for mono in self.get_monochrome():
+            if mono == other:
+                continue
+            if mono.combine(other) == self:
+                return True
+        return False
 
 
 class Stabilizer(Operator):
