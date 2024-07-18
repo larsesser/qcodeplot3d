@@ -2,6 +2,7 @@ import abc
 import dataclasses
 from dataclasses import dataclass
 from typing import Optional
+from functools import cached_property
 
 from framework.stabilizers import Color, Stabilizer
 
@@ -48,11 +49,11 @@ class GraphEdge(GraphObject, abc.ABC):
     node1: GraphNode
     node2: GraphNode
 
-    @property
+    @cached_property
     def is_edge_between_boundaries(self) -> bool:
         return self.node1.is_boundary and self.node2.is_boundary
 
-    @property
+    @cached_property
     def node_ids(self) -> tuple[int, int]:
         """Easier access of node ids (first lower, then higher id)."""
         if self.node1.id < self.node2.id:
@@ -93,7 +94,7 @@ class DualGraphNode(GraphNode):
             ancilla = len(self.all_qubits) + self.id + 1
             self.stabilizer = Stabilizer(len(self.all_qubits), self.color, x_positions=self.qubits, ancillas=[ancilla])
 
-    @property
+    @cached_property
     def is_boundary(self) -> bool:
         return not self.is_stabilizer
 
@@ -131,17 +132,17 @@ class DualGraphEdge(GraphEdge):
             ancilla = len(self.all_qubits) + self.id + 1
             self.stabilizer = Stabilizer(length=stab_length, color=self.node1.color.combine(self.node2.color), z_positions=self._qubits, ancillas=[ancilla])
 
-    @property
+    @cached_property
     def qubits(self) -> list[int]:
         """The qubits associated with this edge (== face in primal lattice)."""
         return self._qubits
 
-    @property
+    @cached_property
     def all_qubits(self) -> list[int]:
         """All (physical) qubits of the color code where this edge belongs to."""
         return self.node1.all_qubits
 
-    @property
+    @cached_property
     def is_stabilizer(self) -> bool:
         """Is this edge (for a 3D color code) associated to a stabilizer?"""
         return not self.is_edge_between_boundaries
@@ -149,6 +150,6 @@ class DualGraphEdge(GraphEdge):
 
 @dataclass
 class XDualGraphEdge(DualGraphEdge):
-    @property
+    @cached_property
     def is_stabilizer(self) -> bool:
         return False

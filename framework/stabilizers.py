@@ -1,5 +1,6 @@
 import enum
 import itertools
+from functools import cache
 
 import numpy as np
 
@@ -93,6 +94,7 @@ class Operator:
     def __hash__(self):
         return hash((self.length, tuple(self.x), tuple(self.z)))
 
+    @cache
     def commutes(self, other: "Operator") -> bool:
         """Check whether two pauli operators commute or not."""
         if not isinstance(other, Operator):
