@@ -13,3 +13,6 @@ class Kind(enum.Enum):
         if self == Kind.z:
             return Kind.x
         raise NotImplementedError
+
+    def __str__(self):
+        return self.value

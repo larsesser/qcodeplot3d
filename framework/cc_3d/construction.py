@@ -440,8 +440,7 @@ def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
 
 def cubic_3d_d4_dual_graph(distance: int) -> rustworkx.PyGraph:
     """See https://www.nature.com/articles/ncomms12302#Sec12"""
-    # if not distance % 2 == 0:
-    #     raise ValueError("d must be an even integer")
+    raise NotImplementedError
 
     dual_graph = rustworkx.PyGraph(multigraph=False)
 
@@ -675,8 +674,8 @@ def cubic_3d_d4_dual_graph(distance: int) -> rustworkx.PyGraph:
 
 def cubic_3d_d4_2_dual_graph(distance: int) -> rustworkx.PyGraph:
     """See https://www.nature.com/articles/ncomms12302#Sec12"""
-    # if not distance % 2 == 0:
-    #     raise ValueError("d must be an even integer")
+    if not distance != 4:
+        raise NotImplementedError
 
     dual_graph = rustworkx.PyGraph(multigraph=False)
 
@@ -964,6 +963,7 @@ def cubic_3d_d4_2_dual_graph(distance: int) -> rustworkx.PyGraph:
 def cubic2_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
     """Magic-boundary lattice, biggest volume (c1) in center."""
     # TODO: Ecken anders abschneiden? Sodass sie nicht zu beiden boundaries gehören, dafür aber nicht weight-5 kanten produzieren?
+    raise NotImplementedError
     if not distance % 2 == 0:
         raise ValueError("d must be an even integer")
 
@@ -1097,6 +1097,7 @@ def cubic2_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
 
 def cubic3_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
     """Magic-boundary lattice, smallest volume (c3) in center."""
+    raise NotImplementedError
     if not distance % 2 == 0:
         raise ValueError("d must be an even integer")
 
@@ -1227,6 +1228,7 @@ def cubic3_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
 
 def cubic4_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
     """Magic-boundary lattice, medium volume (c2) in center."""
+    raise NotImplementedError
     if not distance % 2 == 0:
         raise ValueError("d must be an even integer")
 
