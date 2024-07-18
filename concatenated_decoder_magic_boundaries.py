@@ -13,7 +13,6 @@ from framework.cc_3d.construction import (
 )
 from framework.cc_3d.decoder import ConcatenatedDecoder
 from framework.cc_3d.plotter import Plotter3D
-from framework.syndrome import Syndrome, SyndromeValue
 from framework.cc_3d.simulator import deterministic_simulation
 from framework.stabilizers import (
     Color,
@@ -24,6 +23,7 @@ from framework.stabilizers import (
     check_z,
     count_independent,
 )
+from framework.syndrome import Syndrome, SyndromeValue
 
 
 def node_attr_fn(node: GraphNode):

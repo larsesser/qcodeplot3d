@@ -1,8 +1,8 @@
 import abc
 import dataclasses
 from dataclasses import dataclass
-from typing import Optional
 from functools import cached_property
+from typing import Optional
 
 from framework.stabilizers import Color, Stabilizer
 
