@@ -319,6 +319,7 @@ class Plotter3D:
         points: list[npt.NDArray[np.float64]] = []
         qubit_to_point: dict[int, npt.NDArray[np.float64]] = {}
         qubit_to_pointposition: dict[int, int] = {}
+        qubit_lables: list[str] = []
         for pointposition, (qubit, facepositions) in enumerate(qubit_to_facepositions.items()):
             tetrahedron = self.dual_mesh.extract_cells(facepositions)
             # find center of mass of the tetrahedron
@@ -329,6 +330,7 @@ class Plotter3D:
             points.append(center)
             qubit_to_point[qubit] = center
             qubit_to_pointposition[qubit] = pointposition
+            qubit_lables.append(f"{qubit}")
 
         # vertices -> volumes
         volumes = []
@@ -357,6 +359,7 @@ class Plotter3D:
             # add volume colors
             volume_colors.extend([node.color] * len(faces))
         ret = pyvista.PolyData(points, faces=convert_faces(volumes))
+        ret.point_data['qubit_labels'] = qubit_lables
         ret.cell_data['face_ids'] = volume_ids
         ret.cell_data['colors'] = volume_colors
         return ret
@@ -376,6 +379,7 @@ class Plotter3D:
         ret_color_points = []
         ret_face_ids = []
         ret_point_labels = []
+        ret_qubit_labels = []
         for data in cells.values():
             volume = mesh.extract_cells(data)
             # translate by center of mass
@@ -398,6 +402,8 @@ class Plotter3D:
                 ret_face_ids.extend(volume.cell_data['face_ids'])
             if 'point_labels' in volume.point_data:
                 ret_point_labels.extend(volume.point_data['point_labels'])
+            if 'qubit_labels' in volume.point_data:
+                ret_qubit_labels.extend(volume.point_data['qubit_labels'])
         ret = pyvista.UnstructuredGrid(ret_cells, ret_celltypes, ret_points)
         if ret_color:
             ret.cell_data['colors'] = ret_color
@@ -407,6 +413,8 @@ class Plotter3D:
             ret.cell_data['face_ids'] = ret_face_ids
         if ret_point_labels:
             ret.point_data['point_labels'] = ret_point_labels
+        if ret_qubit_labels:
+            ret.point_data['qubit_labels'] = ret_qubit_labels
         return ret
 
     def show_dual_mesh(self, show_labels: bool = False, explode_factor: float = 0.0, exclude_boundaries: bool = False) -> None:
@@ -450,7 +458,7 @@ class Plotter3D:
                        show_scalar_bar=False, cmap=Color.color_map(), clim=Color.color_limits())
         plt.show()
 
-    def show_primary_mesh(self, explode_factor: float = 0.0) -> None:
+    def show_primary_mesh(self, show_qubit_labels: bool = False, explode_factor: float = 0.0) -> None:
         # TODO implement show_labels? in which way?
         mesh = self.primary_mesh
         if explode_factor != 0.0:
@@ -459,5 +467,7 @@ class Plotter3D:
         plt.disable_shadows()
         plt.disable_ssao()
         plt.show_axes()
+        if show_qubit_labels:
+            plt.add_point_labels(mesh, "qubit_labels", point_size=30, font_size=20)
         plt.add_mesh(mesh, scalars="colors", show_scalar_bar=False, cmap=Color.color_map(), clim=Color.color_limits())
         plt.show()
