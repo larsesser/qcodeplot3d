@@ -105,6 +105,8 @@ def coloring_qubits(dual_graph: rustworkx.PyGraph, dimension: int = 3, do_colori
         for index in simplex:
             node2simplex[index].append(name)
 
+    max_id = 0
+
     # add proper DualGraphNode objects for all graph nodes
     for node in dual_graph.nodes():
         if do_coloring:
@@ -112,12 +114,14 @@ def coloring_qubits(dual_graph: rustworkx.PyGraph, dimension: int = 3, do_colori
         else:
             color = Color.green
         qubits = node2simplex[node.index]
-        dual_graph[node.index] = DualGraphNode(color, qubits, is_stabilizer=(node.index not in boundary_nodes_indices), all_qubits=all_qubits)
+        dual_graph[node.index] = DualGraphNode(max_id, color, qubits, is_stabilizer=(node.index not in boundary_nodes_indices), all_qubits=all_qubits)
+        max_id += 1
         dual_graph[node.index].index = node.index
         dual_graph[node.index].title = node.title
 
     # add proper DualGraphEdge objects for all graph edges
     for edge_index, (node_index1, node_index2, _) in dual_graph.edge_index_map().items():
-        edge = DualGraphEdge(dual_graph[node_index1], dual_graph[node_index2])
+        edge = DualGraphEdge(max_id, dual_graph[node_index1], dual_graph[node_index2])
+        max_id += 1
         edge.index = edge_index
         dual_graph.update_edge_by_index(edge_index, edge)

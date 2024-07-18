@@ -77,10 +77,11 @@ class DualGraphNode(GraphNode):
 
     A node corresponds to a stabilizer or a boundary of the primary lattice.
     """
+    id: int
     qubits: list[int]
     is_stabilizer: bool
     # all (physical) qubits of the color code where this node belongs to
-    all_qubits: list[int]
+    all_qubits: list[int] = dataclasses.field(repr=False)
     stabilizer: Optional[Stabilizer] = dataclasses.field(default=None, init=False)
 
     def __post_init__(self):
@@ -88,7 +89,9 @@ class DualGraphNode(GraphNode):
         if not self.color.is_monochrome:
             raise ValueError
         if self.is_stabilizer:
-            self.stabilizer = Stabilizer(len(self.all_qubits), self.color, x_positions=self.qubits)
+            # use id to ensure the ancilla of each stabilizer (node-like and edge-like!) is unique
+            ancilla = len(self.all_qubits) + self.id + 1
+            self.stabilizer = Stabilizer(len(self.all_qubits), self.color, x_positions=self.qubits, ancillas=[ancilla])
 
     @property
     def is_boundary(self) -> bool:
@@ -112,9 +115,10 @@ class XDualGraphNode(DualGraphNode):
 
 @dataclass
 class DualGraphEdge(GraphEdge):
+    id: int
     node1: DualGraphNode
     node2: DualGraphNode
-    stabilizer: Optional[Stabilizer] = dataclasses.field(init=False)
+    stabilizer: Optional[Stabilizer] = dataclasses.field(default=None, init=False)
 
     def __post_init__(self):
         self._qubits = sorted(set(self.node1.qubits) & set(self.node2.qubits))
@@ -123,7 +127,9 @@ class DualGraphEdge(GraphEdge):
                 stab_length = self.node1.stabilizer.length
             else:
                 stab_length = self.node2.stabilizer.length
-            self.stabilizer = Stabilizer(length=stab_length, color=self.node1.color.combine(self.node2.color), z_positions=self._qubits)
+            # use id to ensure the ancilla of each stabilizer (node-like and edge-like!) is unique
+            ancilla = len(self.all_qubits) + self.id + 1
+            self.stabilizer = Stabilizer(length=stab_length, color=self.node1.color.combine(self.node2.color), z_positions=self._qubits, ancillas=[ancilla])
 
     @property
     def qubits(self) -> list[int]:
