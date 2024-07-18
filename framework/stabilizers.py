@@ -311,7 +311,7 @@ def check_logical_operator(logical: Operator, stabilizers: list[Operator]) -> No
         raise ValueError(
             f"{logical} does not commute with the following stabilizers:\n{non_commuting_stabilizers}"
         )
-    if not are_independent(stabilizers + [logical]):
+    if count_independent(stabilizers + [logical]) != count_independent(stabilizers) + 1:
         raise ValueError(
             f"{logical} does not form an independent set with the stabilizers."
         )
@@ -327,7 +327,7 @@ def check_logical_operators(
     """
     for logical in logicals:
         check_logical_operator(logical, stabilizers)
-    if not are_independent(stabilizers + logicals):
+    if count_independent(stabilizers + logicals) != count_independent(stabilizers) + len(logicals):
         raise ValueError("The logical operators do not form an independent set.")
 
 
