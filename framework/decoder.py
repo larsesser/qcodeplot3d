@@ -1,5 +1,6 @@
 import abc
 from dataclasses import dataclass, field
+from typing import Literal, overload
 
 from framework.syndrome import Syndrome
 from framework.util import Kind
@@ -9,8 +10,16 @@ from framework.util import Kind
 class Decoder(abc.ABC):
     kind: Kind
 
+    @overload
+    def decode(self, syndrome: Syndrome, return_all_corrections: Literal[False]) -> list[int]:
+        ...
+
+    @overload
+    def decode(self, syndrome: Syndrome, return_all_corrections: Literal[True]) -> list[list[int]]:
+        ...
+
     @abc.abstractmethod
-    def decode(self, syndrome: Syndrome) -> list[int]:
+    def decode(self, syndrome: Syndrome, return_all_corrections: bool = False) -> list[int] | list[list[int]]:
         """Determine the qubits on which a correction shall be applied from a given syndrome."""
 
 
@@ -23,7 +32,7 @@ class LookupTableDecoder(Decoder):
     lookup_table: LookupTable
     missed_syndromes: int = field(default=0, init=False)
 
-    def decode(self, syndrome: Syndrome) -> list[int]:
+    def decode(self, syndrome: Syndrome, return_all_corrections: bool = False) -> list[int] | list[list[int]]:
         """Determine the qubits on which a correction shall be applied from a given syndrome.
 
         Use a (non-scalable) lookup table for decoding.

@@ -1363,10 +1363,12 @@ def cubic4_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
 
 def construct_x_dual_graph(dual_graph: rustworkx.PyGraph) -> rustworkx.PyGraph:
     """Where each edge of the dual_graph is a node in the x_dual_graph."""
+    max_id = 0
     nodes = []
     for edge in dual_graph.edges():
         color = edge.node1.color.combine(edge.node2.color)
-        node = XDualGraphNode(color, edge.qubits, edge.is_stabilizer, edge.all_qubits)
+        node = XDualGraphNode(max_id, color, edge.qubits, edge.is_stabilizer, edge.all_qubits)
+        max_id += 1
         nodes.append(node)
 
     x_dual_graph = rustworkx.PyGraph(multigraph=False)
@@ -1379,7 +1381,8 @@ def construct_x_dual_graph(dual_graph: rustworkx.PyGraph) -> rustworkx.PyGraph:
         if x_dual_graph.has_edge(node1.index, node2.index):
             continue
         elif set(node1.qubits) & set(node2.qubits):
-            x_dual_graph.add_edge(node1.index, node2.index, XDualGraphEdge(node1, node2))
+            x_dual_graph.add_edge(node1.index, node2.index, XDualGraphEdge(max_id, node1, node2))
+            max_id += 1
     for index in x_dual_graph.edge_indices():
         x_dual_graph.edge_index_map()[index][2].index = index
 

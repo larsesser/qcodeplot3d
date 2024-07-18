@@ -23,6 +23,7 @@ from framework.stabilizers import (
     count_independent,
 )
 from framework.syndrome import Syndrome, SyndromeValue
+from framework.util import Kind
 
 
 def node_attr_fn(node: GraphNode):
@@ -96,7 +97,7 @@ def plot_graphs(graph: rustworkx.PyGraph):
     plotter.show_dual_mesh(show_labels=False, explode_factor=0, exclude_boundaries=False)
     plotter.show_primary_mesh(explode_factor=0.4)
 
-    decoder = ConcatenatedDecoder([Color.red, Color.blue, Color.green, Color.yellow], graph)
+    decoder = ConcatenatedDecoder(Kind.x, [Color.red, Color.blue, Color.green, Color.yellow], graph)
     restricted_graph = decoder.restricted_graph([Color.red, Color.blue])
     mc3_graph = decoder.mc3_graph([Color.red, Color.blue], Color.green)
     mc4_graph = decoder.mc4_graph([Color.red, Color.blue], Color.green, Color.yellow)
@@ -107,7 +108,7 @@ def plot_graphs(graph: rustworkx.PyGraph):
 
 
 def basic_decoder_test(graph: rustworkx.PyGraph):
-    decoder = ConcatenatedDecoder([Color.red, Color.blue, Color.green, Color.yellow], graph)
+    decoder = ConcatenatedDecoder(Kind.x, [Color.red, Color.blue, Color.green, Color.yellow], graph)
     restricted_graph = decoder.restricted_graph([Color.red, Color.blue])
     mc3_graph = decoder.mc3_graph([Color.red, Color.blue], Color.green)
     mc4_graph = decoder.mc4_graph([Color.red, Color.blue], Color.green, Color.yellow)
@@ -117,31 +118,31 @@ def basic_decoder_test(graph: rustworkx.PyGraph):
 
     # emulate no qubit errors
     print("\nEmulate single-qubit errors")
-    results = decoder.decode(Syndrome({stabilizer: SyndromeValue(False) for stabilizer in x_stabilizer}))
+    results = decoder.decode(Syndrome({stabilizer: SyndromeValue(False) for stabilizer in x_stabilizer}), return_all_corrections=True)
     if any(result != [] for result in results):
         print(None, results)
     # emulate single-qubit errors
     for qubit in qubits:
         true_stabilizer = [stabilizer for stabilizer in x_stabilizer if qubit in stabilizer.qubits]
         syndrome = Syndrome({stabilizer: SyndromeValue(stabilizer in true_stabilizer) for stabilizer in x_stabilizer})
-        results = decoder.decode(syndrome)
+        results = decoder.decode(syndrome, return_all_corrections=True)
         if any(result != [qubit] for result in results):
             print(qubit, results)
-
-    plotter = Plotter3D(graph)
-    for g in [graph, restricted_graph, mc3_graph, mc4_graph]:
-        debug_mesh = plotter.construct_debug_mesh(g)
-        plotter.show_debug_mesh(debug_mesh, show_labels=False, exclude_boundaries=True)
 
 
 d = 4
 graph = cubic_3d_dual_graph(d)
 
+print_stats(graph, d)
+basic_decoder_test(graph)
+plot_graphs(graph)
+
 exit()
 
 x_dual_graph = construct_x_dual_graph(graph)
 
-decoder = ConcatenatedDecoder([Color.rb, Color.rg, Color.ry, Color.bg, Color.by, Color.gy], x_dual_graph)
+# to run the following code, disable the NotImplemented Check in the decoder class (by removing the code)
+decoder = ConcatenatedDecoder(Kind.x, [Color.rb, Color.rg, Color.ry, Color.bg, Color.by, Color.gy], x_dual_graph)
 plotter = Plotter3D(x_dual_graph)
 
 # for pairs of mutual exclusive two-color-colors, there is a 1:1 mapping from edges to qubits
@@ -211,7 +212,7 @@ graphviz_draw(graph, node_attr_fn, filename="2D rectangular d=3.png", method="fd
 
 exit()
 
-decoder = ConcatenatedDecoder([Color.red, Color.green, Color.yellow, Color.blue], construct_dual_graph())
+decoder = ConcatenatedDecoder(Kind.x, [Color.red, Color.green, Color.yellow, Color.blue], construct_dual_graph())
 
 graphviz_draw(decoder.dual_graph, node_attr_fn, edge_attr_fn, filename="mb_dualgraph.png", method="sfdp")
 # https://stackoverflow.com/questions/14662618/is-there-a-3d-version-of-graphviz
