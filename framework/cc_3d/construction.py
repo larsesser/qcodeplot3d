@@ -3,7 +3,7 @@ from typing import Optional
 
 import rustworkx
 
-from framework.cc_3d.base import GraphNode, XDualGraphEdge, XDualGraphNode
+from framework.base import GraphNode, XDualGraphEdge, XDualGraphNode
 from framework.cc_3d.util import coloring_qubits
 
 

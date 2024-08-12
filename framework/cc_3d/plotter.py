@@ -14,7 +14,7 @@ import rustworkx as rx
 from rustworkx.visualization import graphviz_draw
 from scipy.spatial import Delaunay
 
-from framework.cc_3d.base import DualGraphNode
+from framework.base import DualGraphNode
 from framework.cc_3d.util import compute_simplexes
 from framework.stabilizers import Color
 

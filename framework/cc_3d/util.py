@@ -5,7 +5,7 @@ import rustworkx
 from pysat.formula import CNF
 from pysat.solvers import Solver
 
-from framework.cc_3d.base import DualGraphEdge, DualGraphNode
+from framework.base import DualGraphEdge, DualGraphNode
 from framework.stabilizers import Color
 
 
