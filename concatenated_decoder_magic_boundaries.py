@@ -105,9 +105,6 @@ def plot_graphs(graph: rustworkx.PyGraph):
 
 def basic_decoder_test(graph: rustworkx.PyGraph):
     decoder = ConcatenatedDecoder(Kind.x, [Color.red, Color.blue, Color.green, Color.yellow], graph)
-    restricted_graph = decoder.restricted_graph([Color.red, Color.blue])
-    mc3_graph = decoder.mc3_graph([Color.red, Color.blue], Color.green)
-    mc4_graph = decoder.mc4_graph([Color.red, Color.blue], Color.green, Color.yellow)
 
     qubits = graph.nodes()[0].all_qubits
     x_stabilizer: list[Stabilizer] = [node.stabilizer for node in graph.nodes() if node.is_stabilizer]
@@ -202,17 +199,3 @@ check_xj(x_1, z_1, [z_2], stabilizers)
 check_xj(x_2, z_2, [z_1], stabilizers)
 
 graphviz_draw(graph, node_attr_fn, filename="2D rectangular d=3.png", method="fdp")
-
-
-exit()
-
-decoder = ConcatenatedDecoder(Kind.x, [Color.red, Color.green, Color.yellow, Color.blue], construct_dual_graph())
-
-graphviz_draw(decoder.dual_graph, node_attr_fn, edge_attr_fn, filename="mb_dualgraph.png", method="sfdp")
-# https://stackoverflow.com/questions/14662618/is-there-a-3d-version-of-graphviz
-exit()
-# graphviz_draw(decoder.dual_graph, node_attr_fn, edge_attr_fn, filename="mb_dualgraph.vrml", method="sfdp", image_type="vrml", graph_attr={"dimen": "3"})
-graphviz_draw(decoder.restricted_graph([Color.green, Color.yellow]), node_attr_fn, edge_attr_fn, filename="mb_restricted_gy.png", method="sfdp")
-graphviz_draw(decoder.restricted_graph([Color.green, Color.yellow, Color.blue]), node_attr_fn, edge_attr_fn, filename="mb_restricted_gyb.png", method="sfdp")
-graphviz_draw(decoder.mc3_graph([Color.green, Color.yellow], Color.blue), node_attr_fn, edge_attr_fn, filename="mb_monochrom_gy_b.png", method="sfdp")
-graphviz_draw(decoder.mc4_graph([Color.green, Color.yellow], Color.blue, Color.red), node_attr_fn, edge_attr_fn, filename="mb_monochrom_gy_b_r.png", method="sfdp")
