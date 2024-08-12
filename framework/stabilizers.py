@@ -212,6 +212,20 @@ class Color(enum.IntEnum):
                 return True
         return False
 
+    @property
+    def components(self) -> list["Color"]:
+        if self.is_monochrome:
+            return [self]
+        return {
+            Color.rb: [Color.red, Color.blue],
+            Color.rg: [Color.red, Color.green],
+            Color.ry: [Color.red, Color.yellow],
+            Color.bg: [Color.blue, Color.green],
+            Color.by: [Color.blue, Color.yellow],
+            Color.gy: [Color.green, Color.yellow],
+        }[self]
+
+
 
 class Stabilizer(Operator):
     """Special kind of operator which is viewed as a color code stabilizer."""

@@ -6,7 +6,7 @@ from rustworkx.visualization import graphviz_draw
 from framework.base import GraphEdge, GraphNode
 from framework.cc_2d.construction import rectangular_2d_dual_graph, square_2d_dual_graph
 from framework.cc_3d.construction import construct_x_dual_graph, cubic_3d_dual_graph
-from framework.cc_3d.decoder import ConcatenatedDecoder
+from framework.cc_3d.decoder import ConcatenatedDecoder, SubsetDecoder
 from framework.cc_3d.plotter import Plotter3D
 from framework.construction import construct_restricted_graph
 from framework.stabilizers import (
@@ -123,6 +123,26 @@ def basic_decoder_test(graph: rustworkx.PyGraph):
             print(qubit, results)
 
 
+def basic_x_decoder_test(graph: rustworkx.PyGraph):
+    decoder = SubsetDecoder(Kind.z, [Color.rb, Color.gy, Color.rg, Color.by, Color.ry, Color.bg], graph)
+
+    qubits = graph.nodes()[0].all_qubits
+    z_stabilizer: list[Stabilizer] = [node.stabilizer for node in graph.nodes() if node.is_stabilizer]
+
+    # emulate no qubit errors
+    print("\nEmulate single-qubit errors")
+    results = decoder.decode(Syndrome({stabilizer: SyndromeValue(False) for stabilizer in z_stabilizer}), return_all_corrections=True)
+    if any(result != [] for result in results):
+        print(None, results)
+    # emulate single-qubit errors
+    for qubit in qubits:
+        true_stabilizer = [stabilizer for stabilizer in z_stabilizer if qubit in stabilizer.qubits]
+        syndrome = Syndrome({stabilizer: SyndromeValue(stabilizer in true_stabilizer) for stabilizer in z_stabilizer})
+        results = decoder.decode(syndrome, return_all_corrections=True)
+        if any(result != [qubit] for result in results):
+            print(qubit, results)
+
+
 d = 4
 graph = cubic_3d_dual_graph(d)
 
@@ -147,6 +167,8 @@ for colors in [[Color.rb, Color.gy], [Color.rg, Color.by], [Color.ry, Color.bg]]
 
     debug_mesh = plotter.construct_debug_mesh(restricted_graph)
     plotter.show_debug_mesh(debug_mesh, show_labels=False, exclude_boundaries=False)
+
+basic_x_decoder_test(x_dual_graph)
 
 exit()
 
