@@ -4,7 +4,7 @@ from typing import Optional
 import rustworkx
 
 from framework.base import GraphNode, XDualGraphEdge, XDualGraphNode
-from framework.cc_3d.util import coloring_qubits
+from framework.construction import coloring_qubits
 
 
 class PreDualGraphNode(GraphNode):

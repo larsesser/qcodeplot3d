@@ -3,7 +3,7 @@ import itertools
 import rustworkx
 
 from framework.cc_3d.construction import PreDualGraphNode, add_edge
-from framework.cc_3d.util import coloring_qubits
+from framework.construction import coloring_qubits
 
 
 def rectangular_2d_dual_graph(distance: int) -> rustworkx.PyGraph:
