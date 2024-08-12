@@ -15,7 +15,7 @@ from rustworkx.visualization import graphviz_draw
 from scipy.spatial import Delaunay
 
 from framework.base import DualGraphNode
-from framework.cc_3d.util import compute_simplexes
+from framework.util import compute_simplexes
 from framework.stabilizers import Color
 
 # see https://docs.pyvista.org/version/stable/api/core/_autosummary/pyvista.polydata.n_faces#pyvista.PolyData.n_faces
