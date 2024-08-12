@@ -1,10 +1,10 @@
 import itertools
-from typing import Optional
 
 import rustworkx
 
-from framework.base import GraphNode, XDualGraphEdge, XDualGraphNode
+from framework.base import DualGraphNode, XDualGraphEdge, XDualGraphNode
 from framework.construction import PreDualGraphNode, add_edge, coloring_qubits
+from framework.stabilizers import Color, Operator
 
 
 def tetrahedron_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
@@ -1217,3 +1217,33 @@ def construct_x_dual_graph(dual_graph: rustworkx.PyGraph) -> rustworkx.PyGraph:
         x_dual_graph.edge_index_map()[index][2].index = index
 
     return x_dual_graph
+
+
+def construct_cubic_logicals(dual_graph: rustworkx.PyGraph) -> tuple[list[Operator], list[Operator]]:
+    """Construct the x and z logical operators from the dual graph of a 3D cubic color code."""
+    boundary_nodes: list[DualGraphNode] = [node for node in dual_graph.nodes() if node.is_boundary]
+    boundary_nodes_by_color: dict[Color, tuple[DualGraphNode, DualGraphNode]] = {
+        node1.color: (node1, node2) for node1, node2 in itertools.combinations(boundary_nodes, 2) if
+        node1.color == node2.color
+    }
+    if len(boundary_nodes_by_color) != 3:
+        raise ValueError
+
+    x_logicals = []
+    z_logicals = []
+    for color, (node1, node2) in boundary_nodes_by_color.items():
+        # faces of the cube
+        x_logicals.append(Operator(len(node1.all_qubits), x_positions=node1.qubits))
+
+        # edges of the cube
+        other_boundaries = []
+        for col in Color.get_monochrome():
+            if col == color:
+                continue
+            if col not in boundary_nodes_by_color:
+                continue
+            other_boundaries.append(boundary_nodes_by_color[col][0])
+        support = list(set(other_boundaries[0].qubits) & set(other_boundaries[1].qubits))
+        z_logicals.append(Operator(len(node1.all_qubits), z_positions=support))
+
+    return x_logicals, z_logicals

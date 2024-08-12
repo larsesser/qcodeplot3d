@@ -3,8 +3,8 @@ import collections
 import rustworkx
 from rustworkx.visualization import graphviz_draw
 
+from framework.base import GraphEdge, GraphNode
 from framework.cc_2d.construction import rectangular_2d_dual_graph, square_2d_dual_graph
-from framework.cc_3d.base import GraphEdge, GraphNode
 from framework.cc_3d.construction import (
     construct_x_dual_graph,
     cubic_3d_dual_graph,
