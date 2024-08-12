@@ -5,13 +5,10 @@ from rustworkx.visualization import graphviz_draw
 
 from framework.base import GraphEdge, GraphNode
 from framework.cc_2d.construction import rectangular_2d_dual_graph, square_2d_dual_graph
-from framework.cc_3d.construction import (
-    construct_x_dual_graph,
-    cubic_3d_dual_graph,
-    tetrahedron_3d_dual_graph,
-)
+from framework.cc_3d.construction import construct_x_dual_graph, cubic_3d_dual_graph
 from framework.cc_3d.decoder import ConcatenatedDecoder
 from framework.cc_3d.plotter import Plotter3D
+from framework.construction import construct_restricted_graph
 from framework.stabilizers import (
     Color,
     Operator,
@@ -140,14 +137,12 @@ exit()
 
 x_dual_graph = construct_x_dual_graph(graph)
 
-# to run the following code, disable the NotImplemented Check in the decoder class (by removing the code)
-decoder = ConcatenatedDecoder(Kind.x, [Color.rb, Color.rg, Color.ry, Color.bg, Color.by, Color.gy], x_dual_graph)
 plotter = Plotter3D(x_dual_graph)
 
 # for pairs of mutual exclusive two-color-colors, there is a 1:1 mapping from edges to qubits
 # -> so, we can decode the syndrome by applying a MWPM approach to this graph directly
 for colors in [[Color.rb, Color.gy], [Color.rg, Color.by], [Color.ry, Color.bg]]:
-    restricted_graph = decoder.restricted_graph(colors)
+    restricted_graph = construct_restricted_graph(x_dual_graph, colors)
     if len(restricted_graph.edges()) != len(graph.nodes()[0].all_qubits):
         print(f"{len(restricted_graph.edges())} edges vs {len(graph.nodes()[0].all_qubits)} qubits")
     if any(len(edge.qubits) != 1 for edge in restricted_graph.edges()):

@@ -6,7 +6,13 @@ import rustworkx
 from pysat.formula import CNF
 from pysat.solvers import Solver
 
-from framework.base import DualGraphEdge, DualGraphNode, GraphNode
+from framework.base import (
+    DualGraphEdge,
+    DualGraphNode,
+    GraphNode,
+    RestrictedGraphEdge,
+    RestrictedGraphNode,
+)
 from framework.stabilizers import Color
 from framework.util import compute_simplexes
 
@@ -112,3 +118,21 @@ def coloring_qubits(dual_graph: rustworkx.PyGraph, dimension: int = 3, do_colori
         max_id += 1
         edge.index = edge_index
         dual_graph.update_edge_by_index(edge_index, edge)
+
+
+def construct_restricted_graph(dual_graph: rustworkx.PyGraph, colors: list[Color]) -> rustworkx.PyGraph:
+    graph = rustworkx.PyGraph(multigraph=False)
+    for node in dual_graph.nodes():
+        if node.color in colors:
+            graph.add_node(RestrictedGraphNode(node))
+    for index in graph.node_indices():
+        graph[index].index = index
+    nodes_by_id = {node.id: node for node in graph.nodes()}
+    # take care to get the properties of the nodes associated to an edge right
+    for edge in dual_graph.edges():
+        if edge.node1.color in colors and edge.node2.color in colors:
+            rg_edge = RestrictedGraphEdge(nodes_by_id[edge.node1.id], nodes_by_id[edge.node2.id], edge)
+            graph.add_edge(rg_edge.node1.index, rg_edge.node2.index, rg_edge)
+    for index in graph.edge_indices():
+        graph.edge_index_map()[index][2].index = index
+    return graph

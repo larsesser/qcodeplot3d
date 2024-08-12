@@ -153,3 +153,59 @@ class XDualGraphEdge(DualGraphEdge):
     @cached_property
     def is_stabilizer(self) -> bool:
         return False
+
+
+@dataclass
+class RestrictedGraphNode(GraphNode):
+    """Representation of one node in a restricted lattice.
+
+    A small wrapper around a DualGraphNode to get the indices right.
+    """
+    dg_node: DualGraphNode
+
+    def __init__(self, dg_node: DualGraphNode) -> None:
+        self.dg_node = dg_node
+
+    @cached_property
+    def color(self):
+        return self.dg_node.color
+
+    @cached_property
+    def id(self):
+        return self.dg_node.id
+
+    @cached_property
+    def is_boundary(self):
+        return self.dg_node.is_boundary
+
+    @cached_property
+    def stabilizer(self):
+        return self.dg_node.stabilizer
+
+    @cached_property
+    def qubits(self):
+        return self.dg_node.qubits
+
+    @cached_property
+    def dg_nodes(self) -> list[DualGraphNode]:
+        return [self.dg_node]
+
+    @cached_property
+    def dg_indices(self) -> set[int]:
+        return {self.dg_node.index}
+
+
+@dataclass
+class RestrictedGraphEdge(GraphEdge):
+    node1: RestrictedGraphNode
+    node2: RestrictedGraphNode
+    dg_edge: DualGraphEdge
+
+    @cached_property
+    def id(self):
+        return self.dg_edge.id
+
+    @cached_property
+    def qubits(self):
+        """The qubits associated with this edge (== face in primal lattice)."""
+        return self.dg_edge.qubits
