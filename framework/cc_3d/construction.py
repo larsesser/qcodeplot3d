@@ -4,7 +4,7 @@ from typing import Optional
 import rustworkx
 
 from framework.base import GraphNode, XDualGraphEdge, XDualGraphNode
-from framework.construction import coloring_qubits, PreDualGraphNode, add_edge
+from framework.construction import PreDualGraphNode, add_edge, coloring_qubits
 
 
 def tetrahedron_3d_dual_graph(distance: int) -> rustworkx.PyGraph:

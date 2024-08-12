@@ -1,15 +1,14 @@
 import collections
 import itertools
+from typing import Optional
 
 import rustworkx
 from pysat.formula import CNF
 from pysat.solvers import Solver
 
-from framework.base import DualGraphEdge, DualGraphNode
+from framework.base import DualGraphEdge, DualGraphNode, GraphNode
 from framework.stabilizers import Color
 from framework.util import compute_simplexes
-from framework.base import GraphNode
-from typing import Optional
 
 
 class PreDualGraphNode(GraphNode):
