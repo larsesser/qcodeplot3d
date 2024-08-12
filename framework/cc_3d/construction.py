@@ -4,27 +4,7 @@ from typing import Optional
 import rustworkx
 
 from framework.base import GraphNode, XDualGraphEdge, XDualGraphNode
-from framework.construction import coloring_qubits
-
-
-class PreDualGraphNode(GraphNode):
-    def __init__(self, title: str, is_boundary: bool = False):
-        self._is_boundary = is_boundary
-        self.title = title
-
-    @property
-    def is_boundary(self) -> bool:
-        return self._is_boundary
-
-    def __repr__(self):
-        return self.title
-
-
-def add_edge(graph: rustworkx.PyGraph, node1: Optional[PreDualGraphNode], node2: Optional[PreDualGraphNode]) -> None:
-    """Helper function to add an edge only if both nodes are not None."""
-    if node1 is None or node2 is None:
-        return
-    graph.add_edge(node1.index, node2.index, None)
+from framework.construction import coloring_qubits, PreDualGraphNode, add_edge
 
 
 def tetrahedron_3d_dual_graph(distance: int) -> rustworkx.PyGraph:

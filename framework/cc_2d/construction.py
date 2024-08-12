@@ -2,7 +2,7 @@ import itertools
 
 import rustworkx
 
-from framework.cc_3d.construction import PreDualGraphNode, add_edge
+from framework.construction import PreDualGraphNode, add_edge
 from framework.construction import coloring_qubits
 
 

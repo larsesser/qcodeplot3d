@@ -8,6 +8,28 @@ from pysat.solvers import Solver
 from framework.base import DualGraphEdge, DualGraphNode
 from framework.stabilizers import Color
 from framework.util import compute_simplexes
+from framework.base import GraphNode
+from typing import Optional
+
+
+class PreDualGraphNode(GraphNode):
+    def __init__(self, title: str, is_boundary: bool = False):
+        self._is_boundary = is_boundary
+        self.title = title
+
+    @property
+    def is_boundary(self) -> bool:
+        return self._is_boundary
+
+    def __repr__(self):
+        return self.title
+
+
+def add_edge(graph: rustworkx.PyGraph, node1: Optional[PreDualGraphNode], node2: Optional[PreDualGraphNode]) -> None:
+    """Helper function to add an edge only if both nodes are not None."""
+    if node1 is None or node2 is None:
+        return
+    graph.add_edge(node1.index, node2.index, None)
 
 
 def _compute_coloring(graph: rustworkx.PyGraph, colors: list[Color]) -> dict[int, Color]:
