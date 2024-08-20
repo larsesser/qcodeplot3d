@@ -438,12 +438,17 @@ class Plotter3D:
     def show_debug_mesh(self, mesh: pyvista.PolyData, show_labels: bool = False, exclude_boundaries: bool = False) -> None:
         if exclude_boundaries:
             boundary_indices = {index for index, is_boundary in enumerate(mesh["is_boundary"]) if is_boundary}
-            lines = [line for line in reconvert_faces(mesh.lines) if set(line).isdisjoint(boundary_indices)]
-            labels = mesh["point_labels"]
-            colors = mesh.point_data["colors"]
+            new_indices = {old: new for old, new in zip(
+                [i for i in range(len(mesh.points)) if i not in boundary_indices],
+                range(len(mesh.points) - len(boundary_indices))
+            )}
+            points = [point for index, point in enumerate(mesh.points) if index not in boundary_indices]
+            lines = [[new_indices[index] for index in line] for line in reconvert_faces(mesh.lines) if set(line).isdisjoint(boundary_indices)]
+            labels = [label for index, label in enumerate(mesh["point_labels"]) if index not in boundary_indices]
+            colors = [color for index, color in enumerate(mesh.point_data["colors"]) if index not in boundary_indices]
             edge_colors = [color for color, line in zip(mesh.cell_data["edge_colors"], reconvert_faces(mesh.lines))
                            if set(line).isdisjoint(boundary_indices)]
-            mesh = pyvista.PolyData(mesh.points, lines=convert_faces(lines))
+            mesh = pyvista.PolyData(points, lines=convert_faces(lines))
             mesh["point_labels"] = labels
             mesh.point_data["colors"] = colors
             mesh.cell_data["edge_colors"] = edge_colors
