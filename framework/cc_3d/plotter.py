@@ -9,10 +9,12 @@ from tempfile import NamedTemporaryFile
 import numpy as np
 import numpy.typing as npt
 import pyvista
+import pyvista.plotting
 import pyvista.plotting.themes
 import rustworkx as rx
 from rustworkx.visualization import graphviz_draw
 from scipy.spatial import Delaunay
+import vtk
 
 from framework.base import DualGraphNode
 from framework.stabilizers import Color
@@ -419,24 +421,45 @@ class Plotter3D:
         return ret
 
     def show_dual_mesh(self, show_labels: bool = False, explode_factor: float = 0.0, exclude_boundaries: bool = False) -> None:
+        plotter = self.get_dual_mesh_plotter(show_labels, explode_factor, exclude_boundaries, off_screen=False)
+
+        def my_cpos_callback(*args):
+            # plotter.add_text(str(plotter.camera_position), name="cpos")
+            print(str(plotter.camera_position))
+
+        plotter.iren.add_observer(vtk.vtkCommand.EndInteractionEvent, my_cpos_callback)
+        plotter.show()
+
+    def get_dual_mesh_plotter(self, show_labels: bool = False, explode_factor: float = 0.0, exclude_boundaries: bool = False,
+                              off_screen: bool = True, point_size: int = 15) -> pyvista.plotting.Plotter:
         mesh = self.dual_mesh
         if exclude_boundaries:
             boundary_nodes = [index for index in range(mesh.n_points) if self.get_dual_node(index).is_boundary]
             mesh, _ = mesh.remove_points(boundary_nodes)
         if explode_factor != 0.0:
             mesh = self.explode(mesh, explode_factor)
-        plt = pyvista.Plotter(theme=self.pyvista_theme, lighting='none')
+        plt = pyvista.plotting.Plotter(theme=self.pyvista_theme, lighting='none', off_screen=off_screen)
         plt.disable_shadows()
         plt.disable_ssao()
-        plt.show_axes()
         if show_labels:
-            plt.add_point_labels(mesh, "point_labels", point_size=30, font_size=20)
+            plt.add_point_labels(mesh, "point_labels", point_size=point_size, font_size=20)
         plt.add_mesh(mesh, color="lightblue")
-        plt.add_points(mesh.points, scalars=mesh["colors"], render_points_as_spheres=True, point_size=16,
+        plt.add_points(mesh.points, scalars=mesh["colors"], render_points_as_spheres=True, point_size=point_size,
                        show_scalar_bar=False, cmap=Color.color_map(), clim=Color.color_limits())
-        plt.show()
+        return plt
 
     def show_debug_mesh(self, mesh: pyvista.PolyData, show_labels: bool = False, exclude_boundaries: bool = False) -> None:
+        plotter = self.get_debug_mesh_plotter(mesh, show_labels, exclude_boundaries, off_screen=False)
+
+        def my_cpos_callback(*args):
+            # plotter.add_text(str(plotter.camera_position), name="cpos")
+            print(str(plotter.camera_position))
+
+        plotter.iren.add_observer(vtk.vtkCommand.EndInteractionEvent, my_cpos_callback)
+        plotter.show()
+
+    def get_debug_mesh_plotter(self, mesh: pyvista.PolyData, show_labels: bool = False, exclude_boundaries: bool = False,
+                               off_screen: bool = True, point_size: int = 15, line_width: int = 1) -> pyvista.plotting.Plotter:
         if exclude_boundaries:
             boundary_indices = {index for index, is_boundary in enumerate(mesh["is_boundary"]) if is_boundary}
             new_indices = {old: new for old, new in zip(
@@ -453,27 +476,37 @@ class Plotter3D:
             mesh["point_labels"] = labels
             mesh.point_data["colors"] = colors
             mesh.cell_data["edge_colors"] = edge_colors
-        plt = pyvista.Plotter(theme=self.pyvista_theme, lighting='none')
+        plt = pyvista.plotting.Plotter(theme=self.pyvista_theme, lighting='none', off_screen=off_screen)
         plt.disable_shadows()
         plt.disable_ssao()
-        plt.show_axes()
         if show_labels:
-            plt.add_point_labels(mesh, "point_labels", point_size=30, font_size=20)
-        plt.add_mesh(mesh, scalars="edge_colors", show_scalar_bar=False, cmap=Color.color_map(), clim=Color.color_limits())
-        plt.add_points(mesh.points, scalars=mesh["colors"], render_points_as_spheres=True, point_size=16,
+            plt.add_point_labels(mesh, "point_labels", point_size=point_size, font_size=20)
+        plt.add_mesh(mesh, scalars="edge_colors", show_scalar_bar=False, cmap=Color.color_map(),
+                     clim=Color.color_limits(), line_width=line_width)
+        plt.add_points(mesh.points, scalars=mesh["colors"], render_points_as_spheres=True, point_size=point_size,
                        show_scalar_bar=False, cmap=Color.color_map(), clim=Color.color_limits())
-        plt.show()
+        return plt
 
     def show_primary_mesh(self, show_qubit_labels: bool = False, explode_factor: float = 0.0) -> None:
+        plotter = self.get_primary_mesh_plotter(show_qubit_labels, explode_factor, off_screen=False)
+
+        def my_cpos_callback(*args):
+            # plotter.add_text(str(plotter.camera_position), name="cpos")
+            print(str(plotter.camera_position))
+
+        plotter.iren.add_observer(vtk.vtkCommand.EndInteractionEvent, my_cpos_callback)
+        plotter.show()
+
+    def get_primary_mesh_plotter(self, show_qubit_labels: bool = False, explode_factor: float = 0.0,
+                              off_screen: bool = True, point_size: int = 15) -> pyvista.plotting.Plotter:
         # TODO implement show_labels? in which way?
         mesh = self.primary_mesh
         if explode_factor != 0.0:
             mesh = self.explode(mesh, explode_factor)
-        plt = pyvista.Plotter(theme=self.pyvista_theme, lighting='none')
+        plt = pyvista.plotting.Plotter(theme=self.pyvista_theme, lighting='none', off_screen=off_screen)
         plt.disable_shadows()
         plt.disable_ssao()
-        plt.show_axes()
         if show_qubit_labels:
-            plt.add_point_labels(mesh, "qubit_labels", point_size=30, font_size=20)
+            plt.add_point_labels(mesh, "qubit_labels", point_size=point_size, font_size=20)
         plt.add_mesh(mesh, scalars="colors", show_scalar_bar=False, cmap=Color.color_map(), clim=Color.color_limits())
-        plt.show()
+        return plt
