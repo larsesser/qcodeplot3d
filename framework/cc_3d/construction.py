@@ -1229,11 +1229,11 @@ def construct_cubic_logicals(dual_graph: rustworkx.PyGraph) -> tuple[list[Operat
     if len(boundary_nodes_by_color) != 3:
         raise ValueError
 
-    x_logicals = []
-    z_logicals = []
+    # map x operators to z operators
+    logicals: dict[Operator, Operator] = {}
     for color, (node1, node2) in boundary_nodes_by_color.items():
         # faces of the cube
-        x_logicals.append(Operator(len(node1.all_qubits), x_positions=node1.qubits))
+        x_logical = Operator(len(node1.all_qubits), x_positions=node1.qubits)
 
         # edges of the cube
         other_boundaries = []
@@ -1244,6 +1244,9 @@ def construct_cubic_logicals(dual_graph: rustworkx.PyGraph) -> tuple[list[Operat
                 continue
             other_boundaries.append(boundary_nodes_by_color[col][0])
         support = list(set(other_boundaries[0].qubits) & set(other_boundaries[1].qubits))
-        z_logicals.append(Operator(len(node1.all_qubits), z_positions=support))
+        logicals[x_logical] = Operator(len(node1.all_qubits), z_positions=support)
+
+    x_logicals = sorted(logicals.keys())
+    z_logicals = [logicals[x_logical] for x_logical in x_logicals]
 
     return x_logicals, z_logicals
