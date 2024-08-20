@@ -54,8 +54,16 @@ def _compute_coloring(graph: rustworkx.PyGraph, colors: list[Color]) -> dict[int
     for _, (node_index1, node_index2, _) in graph.edge_index_map().items():
         for i in range(len(colors)):
             cnf.append([-(i * color_offset + node_index1 + offset), -(i * color_offset + node_index2 + offset)])
-    # determine the color of the first volume, to make the solution stable
-    cnf.append([min(graph.node_indices())+offset])
+    # determine the color of two boundaries, to make the solution stable
+    boundary_nodes = [node for node in graph.nodes() if node.is_boundary]
+    if len(boundary_nodes) <= 4:
+        cnf.append([boundary_nodes[0].index+offset])
+    elif len(boundary_nodes) == 6:
+        cnf.append([boundary_nodes[0].index+offset])
+        neighboured_boundaries = [node for node in boundary_nodes if graph.has_edge(boundary_nodes[0].index, node.index)]
+        cnf.append([neighboured_boundaries[0].index+color_offset+offset])
+    else:
+        raise NotImplementedError
 
     with Solver(bootstrap_with=cnf) as solver:
         solver.solve()
