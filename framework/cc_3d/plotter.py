@@ -300,7 +300,8 @@ class Plotter3D:
             elif edge.node1.is_boundary or edge.node2.is_boundary:
                 edge_colors.append(Color.green)
             else:
-                edge_colors.append(Color.blue)
+                # dark blue
+                edge_colors.append(Color.bg)
         ret.cell_data["edge_colors"] = edge_colors
 
         # add colors to points

@@ -152,15 +152,15 @@ class Color(enum.IntEnum):
         """Return the ingredients of the color, f.e. Color.rb -> ['red', 'blue']."""
         return {
             Color.red: ["red"],
-            Color.blue: ["blue"],
+            Color.blue: ["lightblue"],
             Color.green: ["green"],
             Color.yellow: ["yellow"],
             # for better visibility
-            Color.rb: ["blue", "red"],
+            Color.rb: ["lightblue", "red"],
             Color.rg: ["red", "green"],
             Color.ry: ["red", "yellow"],
-            Color.bg: ["blue", "green"],
-            Color.by: ["blue", "yellow"],
+            Color.bg: ["lightblue", "green"],
+            Color.by: ["lightblue", "yellow"],
             Color.gy: ["green", "yellow"],
         }[self]
 
@@ -168,13 +168,13 @@ class Color(enum.IntEnum):
     def color_map(cls) -> list[str]:
         return [
             "red",          # red
-            "blue",         # blue
+            "lightblue",    # blue
             "green",        # green
             "yellow",       # yellow
             "magenta",      # red blue
             "brown",        # red green
             "orange",       # red yellow
-            "darkblue",     # blue green
+            "blue",     # blue green
             "grey",         # blue yellow
             "lightgreen"    # green yellow
         ]
