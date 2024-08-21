@@ -424,14 +424,15 @@ class Plotter3D:
             ret.point_data['qubit_labels'] = ret_qubit_labels
         return ret
 
-    def show_dual_mesh(self, show_labels: bool = False, explode_factor: float = 0.0, exclude_boundaries: bool = False) -> None:
+    def show_dual_mesh(self, show_labels: bool = False, explode_factor: float = 0.0, exclude_boundaries: bool = False, print_cpos: bool = False) -> None:
         plotter = self.get_dual_mesh_plotter(show_labels, explode_factor, exclude_boundaries, off_screen=False)
 
         def my_cpos_callback(*args):
             # plotter.add_text(str(plotter.camera_position), name="cpos")
             print(str(plotter.camera_position))
 
-        plotter.iren.add_observer(vtk.vtkCommand.EndInteractionEvent, my_cpos_callback)
+        if print_cpos:
+            plotter.iren.add_observer(vtk.vtkCommand.EndInteractionEvent, my_cpos_callback)
         plotter.show()
 
     def get_dual_mesh_plotter(self, show_labels: bool = False, explode_factor: float = 0.0, exclude_boundaries: bool = False,
@@ -452,14 +453,17 @@ class Plotter3D:
                        show_scalar_bar=False, cmap=Color.color_map(), clim=Color.color_limits())
         return plt
 
-    def show_debug_mesh(self, mesh: pyvista.PolyData, show_labels: bool = False, exclude_boundaries: bool = False) -> None:
-        plotter = self.get_debug_mesh_plotter(mesh, show_labels, exclude_boundaries, off_screen=False)
+    def show_debug_mesh(self, mesh: pyvista.PolyData, show_labels: bool = False, exclude_boundaries: bool = False,
+                        point_size: int = 15, line_width: int = 1, print_cpos: bool = False) -> None:
+        plotter = self.get_debug_mesh_plotter(mesh, show_labels, exclude_boundaries, off_screen=False,
+                                              point_size=point_size, line_width=line_width)
 
         def my_cpos_callback(*args):
             # plotter.add_text(str(plotter.camera_position), name="cpos")
             print(str(plotter.camera_position))
 
-        plotter.iren.add_observer(vtk.vtkCommand.EndInteractionEvent, my_cpos_callback)
+        if print_cpos:
+            plotter.iren.add_observer(vtk.vtkCommand.EndInteractionEvent, my_cpos_callback)
         plotter.show()
 
     def get_debug_mesh_plotter(self, mesh: pyvista.PolyData, show_labels: bool = False, exclude_boundaries: bool = False,
@@ -491,14 +495,15 @@ class Plotter3D:
                        show_scalar_bar=False, cmap=Color.color_map(), clim=Color.color_limits())
         return plt
 
-    def show_primary_mesh(self, show_qubit_labels: bool = False, explode_factor: float = 0.0) -> None:
+    def show_primary_mesh(self, show_qubit_labels: bool = False, explode_factor: float = 0.0, print_cpos: bool = False) -> None:
         plotter = self.get_primary_mesh_plotter(show_qubit_labels, explode_factor, off_screen=False)
 
         def my_cpos_callback(*args):
             # plotter.add_text(str(plotter.camera_position), name="cpos")
             print(str(plotter.camera_position))
 
-        plotter.iren.add_observer(vtk.vtkCommand.EndInteractionEvent, my_cpos_callback)
+        if print_cpos:
+            plotter.iren.add_observer(vtk.vtkCommand.EndInteractionEvent, my_cpos_callback)
         plotter.show()
 
     def get_primary_mesh_plotter(self, show_qubit_labels: bool = False, explode_factor: float = 0.0,
