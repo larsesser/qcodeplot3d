@@ -262,7 +262,7 @@ class Plotter3D:
 
         return ret
 
-    def construct_debug_mesh(self, graph: rx.PyGraph) -> pyvista.PolyData:
+    def construct_debug_mesh(self, graph: rx.PyGraph, use_edges_colors: bool = False) -> pyvista.PolyData:
         """Create a 3D mesh of the given rustworkx Graph.
 
         Nodes must be GraphNode and edges GraphEdge objects.
@@ -297,6 +297,10 @@ class Plotter3D:
         # add colors to lines
         edge_colors = []
         for edge in graph.edges():
+            if use_edges_colors:
+                # use grey as fallback
+                edge_colors.append(edge.color if edge.color is not None else Color.by)
+                continue
             if edge.is_edge_between_boundaries:
                 edge_colors.append(Color.red)
             elif edge.node1.is_boundary or edge.node2.is_boundary:

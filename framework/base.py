@@ -61,6 +61,14 @@ class GraphEdge(GraphObject, abc.ABC):
         else:
             return self.node2.id, self.node1.id
 
+    @cached_property
+    def color(self) -> Optional[Color]:
+        if self.node1.color.is_monochrome and self.node2.color.is_monochrome:
+            return self.node1.color.combine(self.node2.color)
+        elif self.node1.color.is_mixed and self.node2.color.is_mixed:
+            return self.node1.color.intersect(self.node2.color)
+        return None
+
     def __contains__(self, item):
         """Boilerplate code for pymatching."""
         return False

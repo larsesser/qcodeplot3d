@@ -1,6 +1,7 @@
 import enum
 import itertools
 from functools import cache
+from typing import Optional
 
 import numpy as np
 
@@ -201,6 +202,14 @@ class Color(enum.IntEnum):
             (Color.blue, Color.yellow): Color.by,
             (Color.green, Color.yellow): Color.gy,
         }[key]
+
+    def intersect(self, other: "Color") -> Optional["Color"]:
+        if not (self.is_mixed and other.is_mixed):
+            raise ValueError
+        for mono in self.get_monochrome():
+            if self.contains(mono) and other.contains(mono):
+                return mono
+        return None
 
     def contains(self, other: "Color") -> bool:
         if not (self.is_mixed and other.is_monochrome):
