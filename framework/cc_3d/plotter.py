@@ -158,7 +158,7 @@ class Plotter3D:
         return self.dual_graph[self._dualmesh_to_dualgraph[mesh_index]]
 
     @staticmethod
-    def _get_3d_coordinates(graph: rx.PyGraph) -> dict[int, npt.NDArray[np.float64]]:
+    def get_3d_coordinates(graph: rx.PyGraph) -> dict[int, npt.NDArray[np.float64]]:
         """Calculate 3D coordinates of nodes by layouting the rustworkx graph.
 
         Take special care to place boundary nodes at a meaningful position.
@@ -216,7 +216,7 @@ class Plotter3D:
 
     def _construct_dual_mesh(self) -> pyvista.PolyData:
         # calculate positions of points
-        node2coordinates = self._get_3d_coordinates(self.dual_graph)
+        node2coordinates = self.get_3d_coordinates(self.dual_graph)
         points = np.asarray([node2coordinates[index] for index in self.dual_graph.node_indices()])
 
         # generate pyvista edges from rustworkx edges
@@ -262,13 +262,14 @@ class Plotter3D:
 
         return ret
 
-    def construct_debug_mesh(self, graph: rx.PyGraph, use_edges_colors: bool = False) -> pyvista.PolyData:
+    def construct_debug_mesh(self, graph: rx.PyGraph, coordinates: dict[int, npt.NDArray[np.float64]] = None,
+                             use_edges_colors: bool = False) -> pyvista.PolyData:
         """Create a 3D mesh of the given rustworkx Graph.
 
         Nodes must be GraphNode and edges GraphEdge objects.
         """
-        # calculate positions of points
-        node2coordinates = self._get_3d_coordinates(graph)
+        # calculate positions of points (or use given coordinates)
+        node2coordinates = coordinates or self.get_3d_coordinates(graph)
         points = np.asarray([node2coordinates[index] for index in graph.node_indices()])
 
         # generate pyvista edges from rustworkx edges
