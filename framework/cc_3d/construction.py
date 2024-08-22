@@ -1192,7 +1192,10 @@ def cubic4_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
 
 
 def construct_x_dual_graph(dual_graph: rustworkx.PyGraph) -> rustworkx.PyGraph:
-    """Where each edge of the dual_graph is a node in the x_dual_graph."""
+    """Where each edge of the dual_graph is a node in the x_dual_graph.
+
+    An edge is added between two nodes (= faces of the primary graph) if they share at least one qubit.
+    """
     max_id = 0
     nodes = []
     for edge in dual_graph.edges():
@@ -1209,6 +1212,8 @@ def construct_x_dual_graph(dual_graph: rustworkx.PyGraph) -> rustworkx.PyGraph:
     # insert edges between the nodes
     for node1, node2 in itertools.combinations(x_dual_graph.nodes(), 2):
         if x_dual_graph.has_edge(node1.index, node2.index):
+            continue
+        elif node1.is_boundary and node2.is_boundary:
             continue
         elif set(node1.qubits) & set(node2.qubits):
             x_dual_graph.add_edge(node1.index, node2.index, XDualGraphEdge(max_id, node1, node2))
