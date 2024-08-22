@@ -170,12 +170,12 @@ class Color(enum.IntEnum):
         return [
             "red",          # red
             "lightblue",    # blue
-            "green",        # green
-            "yellow",       # yellow
+            "darkgreen",    # green
+            "gold",         # yellow
             "magenta",      # red blue
             "brown",        # red green
             "orange",       # red yellow
-            "blue",     # blue green
+            "blue",         # blue green
             "grey",         # blue yellow
             "lightgreen"    # green yellow
         ]
