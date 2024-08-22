@@ -327,13 +327,28 @@ class Plotter3D:
         qubit_to_point: dict[int, npt.NDArray[np.float64]] = {}
         qubit_to_pointposition: dict[int, int] = {}
         qubit_lables: list[str] = []
+        dual_mesh_faces = reconvert_faces(self.dual_mesh.faces)
+        # determine center of dual mesh, to translate corner qubits in relation to this
+        dual_mesh_center = np.asarray([0.0, 0.0, 0.0])
+        for point in self.dual_mesh.points:
+            dual_mesh_center += point
+        dual_mesh_center /= len(self.dual_mesh.points)
         for pointposition, (qubit, facepositions) in enumerate(qubit_to_facepositions.items()):
+            dg_nodes = [self.get_dual_node(point_index) for point_index in sorted(set().union(
+                *[dual_mesh_faces[face_index] for face_index in facepositions]))]
             tetrahedron = self.dual_mesh.extract_cells(facepositions)
             # find center of mass of the tetrahedron
             center = np.asarray([0.0, 0.0, 0.0])
             for point in tetrahedron.points:
                 center += point
             center = center / len(tetrahedron.points)
+            # exactly two nodes are boundary nodes
+            if sum(node.is_boundary for node in dg_nodes) == 2:
+                # move the point a bit more outward (away from the center)
+                center += 0.1 * (center - dual_mesh_center)
+            # exactly three nodes are boundary nodes
+            elif sum(node.is_boundary for node in dg_nodes) == 3:
+                center += 0.3 * (center - dual_mesh_center)
             points.append(center)
             qubit_to_point[qubit] = center
             qubit_to_pointposition[qubit] = pointposition
