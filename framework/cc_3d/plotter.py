@@ -140,7 +140,7 @@ class Plotter3D:
     @staticmethod
     def get_plotting_theme() -> pyvista.plotting.themes.DocumentTheme:
         theme = pyvista.plotting.themes.DocumentTheme()
-        # theme.cmap = Color.color_map()
+        theme.cmap = Color.color_map()
         theme.show_vertices = True
         theme.show_edges = True
         theme.lighting = 'none'
@@ -466,7 +466,7 @@ class Plotter3D:
             plt.add_point_labels(mesh, "point_labels", point_size=point_size, font_size=20)
         plt.add_mesh(mesh, color="lightblue")
         plt.add_points(mesh.points, scalars=mesh["colors"], render_points_as_spheres=True, point_size=point_size,
-                       show_scalar_bar=False, cmap=Color.color_map(), clim=Color.color_limits())
+                       show_scalar_bar=False, clim=Color.color_limits())
         return plt
 
     def show_debug_mesh(self, mesh: pyvista.PolyData, show_labels: bool = False, exclude_boundaries: bool = False,
@@ -508,7 +508,7 @@ class Plotter3D:
         plt.add_mesh(mesh, scalars="edge_colors", show_scalar_bar=False, cmap=Color.color_map(),
                      clim=Color.color_limits(), line_width=line_width)
         plt.add_points(mesh.points, scalars=mesh["colors"], render_points_as_spheres=True, point_size=point_size,
-                       show_scalar_bar=False, cmap=Color.color_map(), clim=Color.color_limits())
+                       show_scalar_bar=False, clim=Color.color_limits())
         return plt
 
     def show_primary_mesh(self, show_qubit_labels: bool = False, explode_factor: float = 0.0, print_cpos: bool = False) -> None:
@@ -533,5 +533,5 @@ class Plotter3D:
         plt.disable_ssao()
         if show_qubit_labels:
             plt.add_point_labels(mesh, "qubit_labels", point_size=point_size, font_size=20)
-        plt.add_mesh(mesh, scalars="colors", show_scalar_bar=False, cmap=Color.color_map(), clim=Color.color_limits())
+        plt.add_mesh(mesh, scalars="colors", show_scalar_bar=False, clim=Color.color_limits())
         return plt

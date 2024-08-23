@@ -2,6 +2,7 @@ import enum
 import itertools
 from functools import cache
 from typing import Optional
+from matplotlib.colors import ListedColormap, Colormap, to_rgba
 
 import numpy as np
 
@@ -132,6 +133,10 @@ class Color(enum.IntEnum):
     gy = 9
 
     @classmethod
+    def get_highest_value(cls) -> int:
+        return max(cls).value
+
+    @classmethod
     def get_monochrome(cls) -> list["Color"]:
         return [Color.red, Color.blue, Color.green, Color.yellow]
 
@@ -148,25 +153,8 @@ class Color(enum.IntEnum):
     def is_mixed(self) -> bool:
         return self in self.get_mixed()
 
-    @property
-    def as_names(self) -> list[str]:
-        """Return the ingredients of the color, f.e. Color.rb -> ['red', 'blue']."""
-        return {
-            Color.red: ["red"],
-            Color.blue: ["lightblue"],
-            Color.green: ["green"],
-            Color.yellow: ["yellow"],
-            # for better visibility
-            Color.rb: ["lightblue", "red"],
-            Color.rg: ["red", "green"],
-            Color.ry: ["red", "yellow"],
-            Color.bg: ["lightblue", "green"],
-            Color.by: ["lightblue", "yellow"],
-            Color.gy: ["green", "yellow"],
-        }[self]
-
     @classmethod
-    def color_map(cls) -> list[str]:
+    def get_color_names(cls) -> list[str]:
         return [
             "red",          # red
             "lightblue",    # blue
@@ -177,12 +165,37 @@ class Color(enum.IntEnum):
             "orange",       # red yellow
             "blue",         # blue green
             "grey",         # blue yellow
-            "lightgreen"    # green yellow
+            "lightgreen",   # green yellow
         ]
 
     @classmethod
+    def color_map(cls) -> Colormap:
+        """Regular color map for normal plotting."""
+        return ListedColormap(cls.get_color_names() * 2)
+
+    @property
+    def highlight(self) -> int:
+        """Return an int corresponding to the highlighted version of this color, when using the highlighted_color_map.
+
+        When using the regular color_map, this results in the same color.
+        """
+        return self.value + self.get_highest_value() + 1
+
+    @classmethod
+    def highlighted_color_map(cls) -> Colormap:
+        """Color map providing a reduced highlighted color by default and allows highlight certain colors.
+
+        This is f.e. useful to print syndromes.
+        """
+        highlighted_colors = np.asarray([to_rgba(color) for color in cls.get_color_names()])
+        dampened_colors = highlighted_colors.copy()
+        dampened_colors[:, 0:3] *= 0.5
+        return ListedColormap(np.concatenate([dampened_colors, highlighted_colors]))
+
+    @classmethod
     def color_limits(cls) -> list[int]:
-        return [min(cls), max(cls)]
+        """Minimal and maximal numerical value representing a color of this class."""
+        return [min(cls), max(cls).highlight]
 
     def combine(self, other: "Color") -> "Color":
         if not (self.is_monochrome and other.is_monochrome):
