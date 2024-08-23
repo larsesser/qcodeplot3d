@@ -130,7 +130,6 @@ class DualGraphEdge(GraphEdge):
     stabilizer: Optional[Stabilizer] = dataclasses.field(default=None, init=False)
 
     def __post_init__(self):
-        self._qubits = sorted(set(self.node1.qubits) & set(self.node2.qubits))
         if self.is_stabilizer:
             if self.node1.is_stabilizer:
                 stab_length = self.node1.stabilizer.length
@@ -138,12 +137,12 @@ class DualGraphEdge(GraphEdge):
                 stab_length = self.node2.stabilizer.length
             # use id to ensure the ancilla of each stabilizer (node-like and edge-like!) is unique
             ancilla = len(self.all_qubits) + self.id + 1
-            self.stabilizer = Stabilizer(length=stab_length, color=self.node1.color.combine(self.node2.color), z_positions=self._qubits, ancillas=[ancilla])
+            self.stabilizer = Stabilizer(length=stab_length, color=self.node1.color.combine(self.node2.color), z_positions=self.qubits, ancillas=[ancilla])
 
     @cached_property
     def qubits(self) -> list[int]:
         """The qubits associated with this edge (== face in primal lattice)."""
-        return self._qubits
+        return sorted(set(self.node1.qubits) & set(self.node2.qubits))
 
     @cached_property
     def all_qubits(self) -> list[int]:
