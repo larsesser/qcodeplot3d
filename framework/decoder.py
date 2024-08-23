@@ -11,7 +11,7 @@ class Decoder(abc.ABC):
     kind: Kind
 
     @overload
-    def decode(self, syndrome: Syndrome, return_all_corrections: Literal[False]) -> list[int]:
+    def decode(self, syndrome: Syndrome, return_all_corrections: Literal[False] = False) -> list[int]:
         ...
 
     @overload
