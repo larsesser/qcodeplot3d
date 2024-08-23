@@ -16,7 +16,7 @@ from rustworkx.visualization import graphviz_draw
 from scipy.spatial import Delaunay
 import vtk
 
-from framework.base import DualGraphNode
+from framework.base import DualGraphNode, GraphNode
 from framework.stabilizers import Color
 from framework.util import compute_simplexes
 
@@ -263,10 +263,15 @@ class Plotter3D:
         return ret
 
     def construct_debug_mesh(self, graph: rx.PyGraph, coordinates: dict[int, npt.NDArray[np.float64]] = None,
-                             use_edges_colors: bool = False) -> pyvista.PolyData:
+                             use_edges_colors: bool = False, highlighted_nodes: list[GraphNode] = None) -> pyvista.PolyData:
         """Create a 3D mesh of the given rustworkx Graph.
 
         Nodes must be GraphNode and edges GraphEdge objects.
+
+        :param coordinates: Mapping of node indices of graph to 3D coordinates. Use them instead of calculating them.
+        :param use_edges_colors: If true, use the color of the GraphEdge object instead of default colors.
+        :param highlighted_nodes: Change color of given nodes to highlighted color. Take care to adjust the cmap of
+            pyvista_theme to 'Color.highlighted_color_map' (otherwise there will be no visible effect).
         """
         # calculate positions of points (or use given coordinates)
         node2coordinates = coordinates or self.get_3d_coordinates(graph)
@@ -312,12 +317,12 @@ class Plotter3D:
         ret.cell_data["edge_colors"] = edge_colors
 
         # add colors to points
-        colors = [node.color for node in graph.nodes()]
+        colors = [node.color.highlight if node in highlighted_nodes else node.color for node in graph.nodes()]
         ret.point_data["colors"] = colors
 
         return ret
 
-    def _construct_primary_mesh(self):
+    def _construct_primary_mesh(self, highlighted_volumes: list[DualGraphNode] = None):
         # group dual lattice cells (of the tetrahedron) by qubit
         qubit_to_facepositions: dict[int, list[int]] = defaultdict(list)
         for position, qubit in enumerate(self.dual_mesh.cell_data['qubits']):
@@ -380,7 +385,7 @@ class Plotter3D:
             # add volume ids
             volume_ids.extend([self.next_id] * len(faces))
             # add volume colors
-            volume_colors.extend([node.color] * len(faces))
+            volume_colors.extend([node.color.highlight if node in highlighted_volumes else node.color] * len(faces))
         ret = pyvista.PolyData(points, faces=convert_faces(volumes))
         ret.point_data['qubit_labels'] = qubit_lables
         ret.cell_data['face_ids'] = volume_ids
@@ -511,8 +516,9 @@ class Plotter3D:
                        show_scalar_bar=False, clim=Color.color_limits())
         return plt
 
-    def show_primary_mesh(self, show_qubit_labels: bool = False, explode_factor: float = 0.0, print_cpos: bool = False) -> None:
-        plotter = self.get_primary_mesh_plotter(show_qubit_labels, explode_factor, off_screen=False)
+    def show_primary_mesh(self, show_qubit_labels: bool = False, explode_factor: float = 0.0, print_cpos: bool = False,
+                          highlighted_volumes: list[DualGraphNode] = None) -> None:
+        plotter = self.get_primary_mesh_plotter(show_qubit_labels, explode_factor, off_screen=False, highlighted_volumes=highlighted_volumes)
 
         def my_cpos_callback(*args):
             # plotter.add_text(str(plotter.camera_position), name="cpos")
@@ -523,9 +529,16 @@ class Plotter3D:
         plotter.show()
 
     def get_primary_mesh_plotter(self, show_qubit_labels: bool = False, explode_factor: float = 0.0,
-                              off_screen: bool = True, point_size: int = 15) -> pyvista.plotting.Plotter:
-        # TODO implement show_labels? in which way?
-        mesh = self.primary_mesh
+                                 off_screen: bool = True, point_size: int = 15, highlighted_volumes: list[DualGraphNode] = None) -> pyvista.plotting.Plotter:
+        """Return the plotter preloaded with the primary mesh.
+
+        :param highlighted_volumes: Change color of given volumes to highlighted color. Take care to adjust the cmap of
+            pyvista_theme to 'Color.highlighted_color_map' (otherwise there will be no visible effect).
+        """
+        if highlighted_volumes:
+            mesh = self._construct_primary_mesh(highlighted_volumes)
+        else:
+            mesh = self.primary_mesh
         if explode_factor != 0.0:
             mesh = self.explode(mesh, explode_factor)
         plt = pyvista.plotting.Plotter(theme=self.pyvista_theme, lighting='none', off_screen=off_screen)
