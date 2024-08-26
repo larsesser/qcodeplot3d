@@ -97,12 +97,15 @@ def project_to_plane(points: list[list[float]]) -> list[list[float]]:
     normal = svd[0][:, -1]
 
     # calculate the new base vectors of the 2D plane
+    ex = None
     for a, b in itertools.combinations(points, 2):
         # choose points which do not share any coordinates
         if any(coordinate == 0.0 for coordinate in a-b):
             continue
         ex = (a-b) / np.abs(a-b)
         break
+    if ex is None:
+        raise RuntimeError(points)
     ey = np.cross(normal, ex) / np.abs(np.cross(normal, ex))
 
     # project the points on the plane
@@ -273,6 +276,7 @@ class Plotter3D:
         :param highlighted_nodes: Change color of given nodes to highlighted color. Take care to adjust the cmap of
             pyvista_theme to 'Color.highlighted_color_map' (otherwise there will be no visible effect).
         """
+        highlighted_nodes = highlighted_nodes or []
         # calculate positions of points (or use given coordinates)
         node2coordinates = coordinates or self.get_3d_coordinates(graph)
         points = np.asarray([node2coordinates[index] for index in graph.node_indices()])
@@ -322,7 +326,13 @@ class Plotter3D:
 
         return ret
 
-    def _construct_primary_mesh(self, highlighted_volumes: list[DualGraphNode] = None):
+    def _construct_primary_mesh(self, highlighted_volumes: list[DualGraphNode] = None,
+                                qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None):
+        """Construct primary mesh from dual_mesh.
+
+        :param qubit_coordinates: Use them instead of calculating the coordinates from the dual_mesh.
+        """
+        highlighted_volumes = highlighted_volumes or []
         # group dual lattice cells (of the tetrahedron) by qubit
         qubit_to_facepositions: dict[int, list[int]] = defaultdict(list)
         for position, qubit in enumerate(self.dual_mesh.cell_data['qubits']):
@@ -355,8 +365,13 @@ class Plotter3D:
             # exactly three nodes are boundary nodes
             elif sum(node.is_boundary for node in dg_nodes) == 3:
                 center += 0.3 * (center - dual_mesh_center)
-            points.append(center)
-            qubit_to_point[qubit] = center
+            # use given coordinates if provided
+            if qubit_coordinates:
+                points.append(qubit_coordinates[qubit])
+                qubit_to_point[qubit] = qubit_coordinates[qubit]
+            else:
+                points.append(center)
+                qubit_to_point[qubit] = center
             qubit_to_pointposition[qubit] = pointposition
             qubits.append(qubit)
 
@@ -517,10 +532,11 @@ class Plotter3D:
         return plt
 
     def show_primary_mesh(self, show_qubit_labels: bool = False, explode_factor: float = 0.0, print_cpos: bool = False,
-                          highlighted_volumes: list[DualGraphNode] = None, highlighted_qubits: list[int] = None) -> None:
+                          highlighted_volumes: list[DualGraphNode] = None, highlighted_qubits: list[int] = None,
+                          qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None) -> None:
         plotter = self.get_primary_mesh_plotter(
             show_qubit_labels, explode_factor, off_screen=False, highlighted_volumes=highlighted_volumes,
-            highlighted_qubits=highlighted_qubits)
+            highlighted_qubits=highlighted_qubits, qubit_coordinates=qubit_coordinates)
 
         def my_cpos_callback(*args):
             # plotter.add_text(str(plotter.camera_position), name="cpos")
@@ -532,14 +548,15 @@ class Plotter3D:
 
     def get_primary_mesh_plotter(self, show_qubit_labels: bool = False, explode_factor: float = 0.0,
                                  off_screen: bool = True, point_size: int = 15, highlighted_volumes: list[DualGraphNode] = None,
-                                 highlighted_qubits: list[int] = None) -> pyvista.plotting.Plotter:
+                                 highlighted_qubits: list[int] = None, qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None
+                                 ) -> pyvista.plotting.Plotter:
         """Return the plotter preloaded with the primary mesh.
 
         :param highlighted_volumes: Change color of given volumes to highlighted color. Take care to adjust the cmap of
             pyvista_theme to 'Color.highlighted_color_map' (otherwise there will be no visible effect).
         """
-        if highlighted_volumes:
-            mesh = self._construct_primary_mesh(highlighted_volumes)
+        if highlighted_volumes or qubit_coordinates:
+            mesh = self._construct_primary_mesh(highlighted_volumes, qubit_coordinates)
         else:
             mesh = self.primary_mesh
         if explode_factor != 0.0:
@@ -548,9 +565,9 @@ class Plotter3D:
         plt.disable_shadows()
         plt.disable_ssao()
         if highlighted_qubits:
-            qubit_positions = [pos for pos, qubit in enumerate(mesh.point_data['qubits']) if qubit in highlighted_qubits]
-            qubit_coordinates = np.asarray([coordinate for pos, coordinate in enumerate(mesh.points) if pos in qubit_positions])
-            plt.add_points(qubit_coordinates, point_size=point_size, color="magenta")
+            positions = [pos for pos, qubit in enumerate(mesh.point_data['qubits']) if qubit in highlighted_qubits]
+            coordinates = np.asarray([coordinate for pos, coordinate in enumerate(mesh.points) if pos in positions])
+            plt.add_points(coordinates, point_size=point_size, color="magenta")
         if show_qubit_labels:
             plt.add_point_labels(mesh, "qubits", point_size=point_size, font_size=20)
         plt.add_mesh(mesh, scalars="colors", show_scalar_bar=False, clim=Color.color_limits())
