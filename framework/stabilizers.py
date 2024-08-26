@@ -154,24 +154,26 @@ class Color(enum.IntEnum):
         return self in self.get_mixed()
 
     @classmethod
-    def get_color_names(cls) -> list[str]:
+    def get_color_colors(cls) -> list[tuple[float, float, float, float]]:
+        """RGBA value for each color."""
         return [
-            "red",          # red
-            "lightblue",    # blue
-            "darkgreen",    # green
-            "gold",         # yellow
-            "magenta",      # red blue
-            "brown",        # red green
-            "orange",       # red yellow
-            "blue",         # blue green
-            "grey",         # blue yellow
-            "lightgreen",   # green yellow
+            to_rgba("#e41a1c"),  # red
+            to_rgba("#5f98c6"),  # blue
+            to_rgba("#4daf4a"),  # green
+            to_rgba("#ffde2e"),  # yellow
+            # TODO maybe adjust them to support better distinguishable dampened colors
+            to_rgba("#e7298a"),  # red blue
+            to_rgba("#c55602"),  # red green
+            to_rgba("#e6ab02"),  # red yellow
+            to_rgba("#1b9e77"),  # blue green
+            to_rgba("grey"),     # blue yellow
+            to_rgba("#7570b3"),  # green yellow
         ]
 
     @classmethod
     def color_map(cls) -> Colormap:
         """Regular color map for normal plotting."""
-        return ListedColormap(cls.get_color_names() * 2)
+        return ListedColormap(cls.get_color_colors() * 2)
 
     @property
     def highlight(self) -> int:
@@ -187,9 +189,9 @@ class Color(enum.IntEnum):
 
         This is f.e. useful to print syndromes.
         """
-        highlighted_colors = np.asarray([to_rgba(color) for color in cls.get_color_names()])
+        highlighted_colors = np.asarray(cls.get_color_colors())
         dampened_colors = highlighted_colors.copy()
-        dampened_colors[:, 0:3] *= 0.5
+        dampened_colors[:, 0:3] *= 0.6
         return ListedColormap(np.concatenate([dampened_colors, highlighted_colors]))
 
     @classmethod
