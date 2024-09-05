@@ -5,6 +5,7 @@ import pathlib
 import re
 from collections import defaultdict
 from tempfile import NamedTemporaryFile
+from typing import ClassVar
 
 import numpy as np
 import numpy.typing as npt
@@ -124,6 +125,7 @@ class Plotter3D:
     pyvista_theme: pyvista.plotting.themes.DocumentTheme = dataclasses.field(default=None, init=False)
     highes_id: int = dataclasses.field(default=0, init=False)
     _dualmesh_to_dualgraph: dict[int, int] = dataclasses.field(default=None, init=False)
+    dimension: ClassVar[int] = 3
 
     def __post_init__(self):
         self.pyvista_theme = self.get_plotting_theme()
@@ -161,7 +163,7 @@ class Plotter3D:
         return self.dual_graph[self._dualmesh_to_dualgraph[mesh_index]]
 
     @staticmethod
-    def get_3d_coordinates(graph: rx.PyGraph) -> dict[int, npt.NDArray[np.float64]]:
+    def get_3d_coordinates(graph: rx.PyGraph, dimension: int = 3) -> dict[int, npt.NDArray[np.float64]]:
         """Calculate 3D coordinates of nodes by layouting the rustworkx graph.
 
         Take special care to place boundary nodes at a meaningful position.
@@ -175,7 +177,7 @@ class Plotter3D:
 
         with NamedTemporaryFile("w+t", suffix=".wrl") as f:
             graphviz_draw(graph_without_boundaries, lambda node: {"shape": "point"}, filename=f.name, method="neato",
-                          image_type="vrml", graph_attr={"dimen": "3"})
+                          image_type="vrml", graph_attr={"dimen": f"{dimension}"})
             data = f.readlines()
 
         # position of non-boundary nodes
@@ -219,16 +221,21 @@ class Plotter3D:
 
     def _construct_dual_mesh(self) -> pyvista.PolyData:
         # calculate positions of points
-        node2coordinates = self.get_3d_coordinates(self.dual_graph)
+        node2coordinates = self.get_3d_coordinates(self.dual_graph, dimension=self.dimension)
         points = np.asarray([node2coordinates[index] for index in self.dual_graph.node_indices()])
 
         # generate pyvista edges from rustworkx edges
         rustworkx2pyvista = {rustworkx_index: pyvista_index for pyvista_index, rustworkx_index in enumerate(self.dual_graph.node_indices())}
         self._dualmesh_to_dualgraph = {value: key for key, value in rustworkx2pyvista.items()}
         # TODO ensure all faces of dual graph are triangles?
-        simplexes = compute_simplexes(self.dual_graph, dimension=3, exclude_boundary_simplexes=True)
-        # each simplex (tetrahedron) has four faces (triangles)
-        faces = [[rustworkx2pyvista[index] for index in combination] for simplex in simplexes for combination in itertools.combinations(simplex, 3)]
+        simplexes = compute_simplexes(self.dual_graph, dimension=self.dimension, exclude_boundary_simplexes=True)
+        if self.dimension == 2:
+            faces = [[rustworkx2pyvista[index] for index in simplex] for simplex in simplexes]
+        elif self.dimension == 3:
+            # each simplex (tetrahedron) has four faces (triangles)
+            faces = [[rustworkx2pyvista[index] for index in combination] for simplex in simplexes for combination in itertools.combinations(simplex, 3)]
+        else:
+            raise NotImplementedError
 
         ret = pyvista.PolyData(points, faces=convert_faces(faces))
 
@@ -245,7 +252,7 @@ class Plotter3D:
 
         # add tetrahedron ids
         # TODO qubit als tetrahedron id nutzen?
-        tetrahedron_ids = itertools.chain.from_iterable([[self.next_id]*4 for _ in simplexes])
+        tetrahedron_ids = itertools.chain.from_iterable([[self.next_id]* (4 if self.dimension == 3 else 1) for _ in simplexes])
         ret.cell_data["face_ids"] = list(tetrahedron_ids)
 
         # add the qubit to each face of its tetrahedron
@@ -256,7 +263,7 @@ class Plotter3D:
                 qubits &= set(self.dual_graph.nodes()[index].qubits)
             if len(qubits) != 1:
                 raise RuntimeError
-            labels.extend([qubits.pop()] * len(simplex))
+            labels.extend([qubits.pop()] * (4 if self.dimension == 3 else 1))
         ret.cell_data["qubits"] = labels
 
         # add color
@@ -278,7 +285,7 @@ class Plotter3D:
         """
         highlighted_nodes = highlighted_nodes or []
         # calculate positions of points (or use given coordinates)
-        node2coordinates = coordinates or self.get_3d_coordinates(graph)
+        node2coordinates = coordinates or self.get_3d_coordinates(graph, dimension=self.dimension)
         points = np.asarray([node2coordinates[index] for index in graph.node_indices()])
 
         # generate pyvista edges from rustworkx edges
@@ -572,3 +579,81 @@ class Plotter3D:
             plt.add_point_labels(mesh, "qubits", point_size=point_size, font_size=20)
         plt.add_mesh(mesh, scalars="colors", show_scalar_bar=False, clim=Color.color_limits())
         return plt
+
+
+@dataclasses.dataclass
+class Plotter2D(Plotter3D):
+    dimension: ClassVar[int] = 2
+
+    def _construct_primary_mesh(self, highlighted_volumes: list[DualGraphNode] = None,
+                                qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None):
+        """Construct primary mesh from dual_mesh.
+
+        :param qubit_coordinates: Use them instead of calculating the coordinates from the dual_mesh.
+        """
+        highlighted_faces = highlighted_volumes or []
+        # group dual lattice cells (of the triangle) by qubit
+        qubit_to_facepositions: dict[int, list[int]] = defaultdict(list)
+        for position, qubit in enumerate(self.dual_mesh.cell_data['qubits']):
+            qubit_to_facepositions[qubit].append(position)
+
+        # volumes -> vertices
+        points: list[npt.NDArray[np.float64]] = []
+        qubit_to_point: dict[int, npt.NDArray[np.float64]] = {}
+        qubit_to_pointposition: dict[int, int] = {}
+        qubits: list[int] = []
+        dual_mesh_faces = reconvert_faces(self.dual_mesh.faces)
+        # determine center of dual mesh, to translate corner qubits in relation to this
+        dual_mesh_center = np.asarray([0.0, 0.0, 0.0])
+        for point in self.dual_mesh.points:
+            dual_mesh_center += point
+        dual_mesh_center /= len(self.dual_mesh.points)
+        for pointposition, (qubit, facepositions) in enumerate(qubit_to_facepositions.items()):
+            dg_nodes = [self.get_dual_node(point_index) for point_index in sorted(set().union(
+                *[dual_mesh_faces[face_index] for face_index in facepositions]))]
+            triangle = self.dual_mesh.extract_cells(facepositions)
+            # find center of mass of the tetrahedron
+            center = np.asarray([0.0, 0.0, 0.0])
+            for point in triangle.points:
+                center += point
+            center = center / len(triangle.points)
+            # exactly two nodes are boundary nodes
+            if sum(node.is_boundary for node in dg_nodes) == 2:
+                # move the point a bit more outward (away from the center)
+                center += 0.1 * (center - dual_mesh_center)
+            # exactly three nodes are boundary nodes
+            elif sum(node.is_boundary for node in dg_nodes) == 3:
+                center += 0.3 * (center - dual_mesh_center)
+            # use given coordinates if provided
+            if qubit_coordinates:
+                points.append(qubit_coordinates[qubit])
+                qubit_to_point[qubit] = qubit_coordinates[qubit]
+            else:
+                points.append(center)
+                qubit_to_point[qubit] = center
+            qubit_to_pointposition[qubit] = pointposition
+            qubits.append(qubit)
+
+        # vertices -> faces
+        faces = []
+        face_ids = []
+        face_colors = []
+        for node in self.dual_graph.nodes():
+            # do not add a triangle for boundaries
+            if node.is_boundary:
+                continue
+            # 2 dimensional coordinates are enough, z coordinate is always 0
+            face_points = [(qubit_to_point[qubit][0], qubit_to_point[qubit][1]) for qubit in node.qubits]
+            triangulation = Delaunay(face_points, qhull_options="QJ")
+            # extract faces of the triangulation, take care to use the qubits
+            tmp_point_map = {k: v for k, v in zip(range(triangulation.npoints), node.qubits)}
+            simplexes = [[tmp_point_map[point] for point in face] for face in triangulation.simplices]
+            face = [qubit_to_pointposition[qubit] for qubit in triangles_to_face(simplexes)]
+            faces.append(face)
+            face_ids.append(self.next_id)
+            face_colors.append(node.color.highlight if node in highlighted_faces else node.color)
+        ret = pyvista.PolyData(points, faces=convert_faces(faces))
+        ret.point_data['qubits'] = qubits
+        ret.cell_data['face_ids'] = face_ids
+        ret.cell_data['colors'] = face_colors
+        return ret
