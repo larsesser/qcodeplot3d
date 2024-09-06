@@ -219,7 +219,8 @@ class Plotter3D:
             ret[boundary_index] = pos
         return ret
 
-    def _construct_dual_mesh(self) -> pyvista.PolyData:
+    def _construct_dual_mesh(self, highlighted_nodes: list[GraphNode] = None) -> pyvista.PolyData:
+        highlighted_nodes = highlighted_nodes or []
         # calculate positions of points
         node2coordinates = self.get_3d_coordinates(self.dual_graph, dimension=self.dimension)
         points = np.asarray([node2coordinates[index] for index in self.dual_graph.node_indices()])
@@ -267,7 +268,7 @@ class Plotter3D:
         ret.cell_data["qubits"] = labels
 
         # add color
-        colors = [node.color for node in self.dual_graph.nodes()]
+        colors = [node.color.highlight if node in highlighted_nodes else node.color for node in self.dual_graph.nodes()]
         ret["colors"] = colors
 
         return ret
@@ -510,7 +511,7 @@ class Plotter3D:
         plotter.show()
 
     def get_debug_mesh_plotter(self, mesh: pyvista.PolyData, show_labels: bool = False, exclude_boundaries: bool = False,
-                               off_screen: bool = True, point_size: int = 15, line_width: int = 1) -> pyvista.plotting.Plotter:
+                               off_screen: bool = True, point_size: int = 15, line_width: int = 1, edge_color: str = None) -> pyvista.plotting.Plotter:
         if exclude_boundaries:
             boundary_indices = {index for index, is_boundary in enumerate(mesh["is_boundary"]) if is_boundary}
             new_indices = {old: new for old, new in zip(
@@ -532,8 +533,11 @@ class Plotter3D:
         plt.disable_ssao()
         if show_labels:
             plt.add_point_labels(mesh, "point_labels", point_size=point_size, font_size=20)
-        plt.add_mesh(mesh, scalars="edge_colors", show_scalar_bar=False, cmap=Color.color_map(),
-                     clim=Color.color_limits(), line_width=line_width)
+        if edge_color:
+            plt.add_mesh(mesh, show_scalar_bar=False, color=edge_color, line_width=line_width)
+        else:
+            plt.add_mesh(mesh, scalars="edge_colors", show_scalar_bar=False, cmap=Color.color_map(),
+                         clim=Color.color_limits(), line_width=line_width)
         plt.add_points(mesh.points, scalars=mesh["colors"], render_points_as_spheres=True, point_size=point_size,
                        show_scalar_bar=False, clim=Color.color_limits())
         return plt
@@ -578,6 +582,46 @@ class Plotter3D:
         if show_qubit_labels:
             plt.add_point_labels(mesh, "qubits", point_size=point_size, font_size=20)
         plt.add_mesh(mesh, scalars="colors", show_scalar_bar=False, clim=Color.color_limits())
+        return plt
+
+    def show_both_meshes(self, show_qubit_labels: bool = False, explode_factor: float = 0.0, print_cpos: bool = False) -> None:
+        plotter = self.get_both_meshes_plotter(show_qubit_labels, explode_factor, off_screen=False)
+
+        def my_cpos_callback(*args):
+            # plotter.add_text(str(plotter.camera_position), name="cpos")
+            print(str(plotter.camera_position))
+
+        if print_cpos:
+            plotter.iren.add_observer(vtk.vtkCommand.EndInteractionEvent, my_cpos_callback)
+        plotter.show()
+
+    def get_both_meshes_plotter(self, show_qubit_labels: bool = False, explode_factor: float = 0.0,
+                               off_screen: bool = True, point_size: int = 15, line_width: int = 1) -> pyvista.plotting.Plotter:
+        """Return the plotter preloaded with the dual and primary mesh.
+
+        :param highlighted_volumes: Change color of given volumes to highlighted color. Take care to adjust the cmap of
+            pyvista_theme to 'Color.highlighted_color_map' (otherwise there will be no visible effect).
+        """
+        dual_mesh = self._construct_dual_mesh(highlighted_nodes=self.dual_graph.nodes())
+        debug_dual_mesh = self.construct_debug_mesh(self.dual_graph, highlighted_nodes=self.dual_graph.nodes())
+        primary_mesh = self.primary_mesh
+        if explode_factor != 0.0:
+            dual_mesh = self.explode(dual_mesh, explode_factor)
+            debug_dual_mesh = self.explode(debug_dual_mesh, explode_factor)
+            primary_mesh = self.explode(primary_mesh, explode_factor)
+        plt = pyvista.plotting.Plotter(theme=self.pyvista_theme, lighting='none', off_screen=off_screen)
+        plt.disable_shadows()
+        plt.disable_ssao()
+        # highlight all qubits
+        positions = [pos for pos, qubit in enumerate(primary_mesh.point_data['qubits']) if qubit in self.dual_graph.nodes()[0].all_qubits]
+        coordinates = np.asarray([coordinate for pos, coordinate in enumerate(primary_mesh.points) if pos in positions])
+        plt.add_points(coordinates, point_size=point_size, color="magenta")
+        if show_qubit_labels:
+            plt.add_point_labels(primary_mesh, "qubits", point_size=point_size, font_size=20)
+        plt.add_mesh(primary_mesh, scalars="colors", show_scalar_bar=False, clim=Color.color_limits())
+        plt.add_mesh(debug_dual_mesh, color="lightgrey", line_width=line_width)
+        plt.add_points(dual_mesh.points, scalars=debug_dual_mesh["colors"], render_points_as_spheres=False,
+                       point_size=point_size, show_scalar_bar=False, clim=Color.color_limits())
         return plt
 
 
