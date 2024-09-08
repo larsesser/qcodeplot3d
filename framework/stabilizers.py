@@ -191,6 +191,17 @@ class Color(enum.IntEnum):
         """
         highlighted_colors = np.asarray(cls.get_color_colors())
         dampened_colors = highlighted_colors.copy()
+        dampened_colors[:, 0:3] *= 0.45
+        return ListedColormap(np.concatenate([dampened_colors, highlighted_colors]))
+
+    @classmethod
+    def highlighted_color_map_3d(cls) -> Colormap:
+        """Color map providing a reduced highlighted color by default and allows highlight certain colors.
+
+        Slightly different highlight color map, since we do not use light sources for primary 3D lattices.
+        """
+        highlighted_colors = np.asarray(cls.get_color_colors())
+        dampened_colors = highlighted_colors.copy()
         dampened_colors[:, 0:3] *= 0.6
         return ListedColormap(np.concatenate([dampened_colors, highlighted_colors]))
 

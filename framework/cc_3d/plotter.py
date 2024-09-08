@@ -17,7 +17,7 @@ from rustworkx.visualization import graphviz_draw
 from scipy.spatial import Delaunay
 import vtk
 
-from framework.base import DualGraphNode, GraphNode
+from framework.base import DualGraphNode, GraphNode, GraphEdge
 from framework.stabilizers import Color
 from framework.util import compute_simplexes
 
@@ -145,10 +145,10 @@ class Plotter3D:
     @staticmethod
     def get_plotting_theme() -> pyvista.plotting.themes.DocumentTheme:
         theme = pyvista.plotting.themes.DocumentTheme()
-        theme.cmap = Color.color_map()
-        theme.show_vertices = True
+        theme.cmap = Color.highlighted_color_map()
+        theme.show_vertices = False
         theme.show_edges = True
-        theme.lighting = 'none'
+        theme.lighting = 'light kit'
         theme.render_points_as_spheres = True
         theme.render_lines_as_tubes = True
         return theme
@@ -274,7 +274,8 @@ class Plotter3D:
         return ret
 
     def construct_debug_mesh(self, graph: rx.PyGraph, coordinates: dict[int, npt.NDArray[np.float64]] = None,
-                             use_edges_colors: bool = False, highlighted_nodes: list[GraphNode] = None,
+                             use_edges_colors: bool = False, edge_color: Color = None,
+                             highlighted_nodes: list[GraphNode] = None, highlighted_edges: list[GraphEdge] = None,
                              include_edges_between_boundaries: bool = True) -> pyvista.PolyData:
         """Create a 3D mesh of the given rustworkx Graph.
 
@@ -286,6 +287,7 @@ class Plotter3D:
             pyvista_theme to 'Color.highlighted_color_map' (otherwise there will be no visible effect).
         """
         highlighted_nodes = highlighted_nodes or []
+        highlighted_edges = highlighted_edges or []
         # calculate positions of points (or use given coordinates)
         node2coordinates = coordinates or self.get_3d_coordinates(graph, dimension=self.dimension)
         points = np.asarray([node2coordinates[index] for index in graph.node_indices()])
@@ -299,6 +301,9 @@ class Plotter3D:
         # remember which nodes are boundary nodes
         boundaries = [node.is_boundary for node in graph.nodes()]
         ret["is_boundary"] = boundaries
+
+        # remember the edge idex
+        ret.cell_data["edge_index"] = [edge.index for edge in graph.edges() if include_edges_between_boundaries or not edge.is_edge_between_boundaries]
 
         # add point labels
         point_labels = []
@@ -316,19 +321,23 @@ class Plotter3D:
         # add colors to lines
         edge_colors = []
         for edge in graph.edges():
-            if use_edges_colors:
+            if edge_color:
+                color = edge_color
+            elif use_edges_colors:
                 # use grey as fallback
-                edge_colors.append(edge.color if edge.color is not None else Color.by)
-                continue
-            if edge.is_edge_between_boundaries:
-                if not include_edges_between_boundaries:
-                    continue
-                edge_colors.append(Color.red)
+                color = edge.color if edge.color is not None else Color.by
+            elif edge.is_edge_between_boundaries:
+                color = Color.red
             elif edge.node1.is_boundary or edge.node2.is_boundary:
-                edge_colors.append(Color.green)
+                color = Color.green
             else:
                 # grey
-                edge_colors.append(Color.by)
+                color = Color.by
+            if edge in highlighted_edges:
+                color = color.highlight
+            if edge.is_edge_between_boundaries and not include_edges_between_boundaries:
+                continue
+            edge_colors.append(color)
         ret.cell_data["edge_colors"] = edge_colors
 
         # add colors to points
@@ -434,6 +443,7 @@ class Plotter3D:
         ret_face_ids = []
         ret_point_labels = []
         ret_qubits = []
+        ret_edge_index = []
         for data in cells.values():
             volume = mesh.extract_cells(data)
             # translate by center of mass
@@ -458,6 +468,8 @@ class Plotter3D:
                 ret_point_labels.extend(volume.point_data['point_labels'])
             if 'qubits' in volume.point_data:
                 ret_qubits.extend(volume.point_data['qubits'])
+            if 'edge_index' in volume.cell_data:
+                ret_edge_index.extend(volume.cell_data['edge_index'])
         ret = pyvista.UnstructuredGrid(ret_cells, ret_celltypes, ret_points)
         if ret_color:
             ret.cell_data['colors'] = ret_color
@@ -469,6 +481,8 @@ class Plotter3D:
             ret.point_data['point_labels'] = ret_point_labels
         if ret_qubits:
             ret.point_data['qubits'] = ret_qubits
+        if ret_edge_index:
+            ret.cell_data['edge_index'] = ret_edge_index
         return ret
 
     def show_dual_mesh(self, show_labels: bool = False, explode_factor: float = 0.0, exclude_boundaries: bool = False, print_cpos: bool = False) -> None:
@@ -490,14 +504,15 @@ class Plotter3D:
             mesh, _ = mesh.remove_points(boundary_nodes)
         if explode_factor != 0.0:
             mesh = self.explode(mesh, explode_factor)
-        plt = pyvista.plotting.Plotter(theme=self.pyvista_theme, lighting='none', off_screen=off_screen)
-        plt.disable_shadows()
-        plt.disable_ssao()
+        plt = pyvista.plotting.Plotter(theme=self.pyvista_theme, off_screen=off_screen)
         if show_labels:
             plt.add_point_labels(mesh, "point_labels", point_size=point_size, font_size=20)
-        plt.add_mesh(mesh, color="lightblue")
-        plt.add_points(mesh.points, scalars=mesh["colors"], render_points_as_spheres=True, point_size=point_size,
-                       show_scalar_bar=False, clim=Color.color_limits())
+        plt.add_mesh(mesh, color="lightblue", smooth_shading=True)
+        plt.add_points(mesh.points, scalars=mesh["colors"], point_size=point_size, show_scalar_bar=False,
+                       clim=Color.color_limits())
+        light = pyvista.Light(light_type='headlight')
+        light.intensity = 0.8
+        plt.add_light(light)
         return plt
 
     def show_debug_mesh(self, mesh: pyvista.PolyData, show_labels: bool = False, exclude_boundaries: bool = False,
@@ -514,7 +529,7 @@ class Plotter3D:
         plotter.show()
 
     def get_debug_mesh_plotter(self, mesh: pyvista.PolyData, show_labels: bool = False, exclude_boundaries: bool = False,
-                               off_screen: bool = True, point_size: int = 15, line_width: int = 1, edge_color: str = None) -> pyvista.plotting.Plotter:
+                               off_screen: bool = True, point_size: int = 120, line_width: int = 4, edge_color: str = None) -> pyvista.plotting.Plotter:
         if exclude_boundaries:
             boundary_indices = {index for index, is_boundary in enumerate(mesh["is_boundary"]) if is_boundary}
             new_indices = {old: new for old, new in zip(
@@ -527,22 +542,26 @@ class Plotter3D:
             colors = [color for index, color in enumerate(mesh.point_data["colors"]) if index not in boundary_indices]
             edge_colors = [color for color, line in zip(mesh.cell_data["edge_colors"], reconvert_faces(mesh.lines))
                            if set(line).isdisjoint(boundary_indices)]
+            edge_index = [index for index, line in zip(mesh.cell_data["edge_index"], reconvert_faces(mesh.lines))
+                          if set(line).isdisjoint(boundary_indices)]
             mesh = pyvista.PolyData(points, lines=convert_faces(lines))
             mesh["point_labels"] = labels
             mesh.point_data["colors"] = colors
             mesh.cell_data["edge_colors"] = edge_colors
-        plt = pyvista.plotting.Plotter(theme=self.pyvista_theme, lighting='none', off_screen=off_screen)
-        plt.disable_shadows()
-        plt.disable_ssao()
+            mesh.cell_data["edge_index"] = edge_index
+        plt = pyvista.plotting.Plotter(theme=self.pyvista_theme, off_screen=off_screen)
         if show_labels:
             plt.add_point_labels(mesh, "point_labels", point_size=point_size, font_size=20)
         if edge_color:
-            plt.add_mesh(mesh, show_scalar_bar=False, color=edge_color, line_width=line_width)
+            plt.add_mesh(mesh, show_scalar_bar=False, color=edge_color, line_width=line_width, smooth_shading=True)
         else:
             plt.add_mesh(mesh, scalars="edge_colors", show_scalar_bar=False, cmap=Color.color_map(),
-                         clim=Color.color_limits(), line_width=line_width)
-        plt.add_points(mesh.points, scalars=mesh["colors"], render_points_as_spheres=True, point_size=point_size,
-                       show_scalar_bar=False, clim=Color.color_limits())
+                         clim=Color.color_limits(), line_width=line_width, smooth_shading=True)
+        plt.add_points(mesh.points, scalars=mesh["colors"], point_size=point_size, show_scalar_bar=False,
+                       clim=Color.color_limits())
+        light = pyvista.Light(light_type='headlight')
+        light.intensity = 0.8
+        plt.add_light(light)
         return plt
 
     def show_primary_mesh(self, show_qubit_labels: bool = False, explode_factor: float = 0.0, print_cpos: bool = False,
@@ -550,7 +569,7 @@ class Plotter3D:
                           qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None) -> None:
         plotter = self.get_primary_mesh_plotter(
             show_qubit_labels, explode_factor, off_screen=False, highlighted_volumes=highlighted_volumes,
-            highlighted_qubits=highlighted_qubits, qubit_coordinates=qubit_coordinates)
+            highlighted_qubits=highlighted_qubits, qubit_coordinates=qubit_coordinates, point_size=15)
 
         def my_cpos_callback(*args):
             # plotter.add_text(str(plotter.camera_position), name="cpos")
@@ -561,7 +580,7 @@ class Plotter3D:
         plotter.show()
 
     def get_primary_mesh_plotter(self, show_qubit_labels: bool = False, explode_factor: float = 0.0,
-                                 off_screen: bool = True, point_size: int = 15, highlighted_volumes: list[DualGraphNode] = None,
+                                 off_screen: bool = True, point_size: int = 70, highlighted_volumes: list[DualGraphNode] = None,
                                  highlighted_qubits: list[int] = None, qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None
                                  ) -> pyvista.plotting.Plotter:
         """Return the plotter preloaded with the primary mesh.
@@ -569,26 +588,43 @@ class Plotter3D:
         :param highlighted_volumes: Change color of given volumes to highlighted color. Take care to adjust the cmap of
             pyvista_theme to 'Color.highlighted_color_map' (otherwise there will be no visible effect).
         """
+        highlighted_qubits = highlighted_qubits or []
         if highlighted_volumes or qubit_coordinates:
             mesh = self._construct_primary_mesh(highlighted_volumes, qubit_coordinates)
         else:
             mesh = self.primary_mesh
         if explode_factor != 0.0:
             mesh = self.explode(mesh, explode_factor)
-        plt = pyvista.plotting.Plotter(theme=self.pyvista_theme, lighting='none', off_screen=off_screen)
-        plt.disable_shadows()
-        plt.disable_ssao()
-        if highlighted_qubits:
-            positions = [pos for pos, qubit in enumerate(mesh.point_data['qubits']) if qubit in highlighted_qubits]
+        if self.dimension == 3:
+            theme = self.get_plotting_theme()
+            theme.cmap = Color.highlighted_color_map_3d()
+        else:
+            theme = self.pyvista_theme
+        plt = pyvista.plotting.Plotter(theme=theme, off_screen=off_screen)
+        normal_qubits = set(mesh.point_data['qubits']) - set(highlighted_qubits)
+        for qubits, color in [(normal_qubits, "indigo"), (highlighted_qubits, "violet")]:
+            if not qubits:
+                continue
+            positions = [pos for pos, qubit in enumerate(mesh.point_data['qubits']) if qubit in qubits]
             coordinates = np.asarray([coordinate for pos, coordinate in enumerate(mesh.points) if pos in positions])
-            plt.add_points(coordinates, point_size=point_size, color="magenta")
+            plt.add_points(coordinates, point_size=point_size, color=color)
         if show_qubit_labels:
             plt.add_point_labels(mesh, "qubits", point_size=point_size, font_size=20)
-        plt.add_mesh(mesh, scalars="colors", show_scalar_bar=False, clim=Color.color_limits())
+        plt.add_mesh(mesh, scalars="colors", show_scalar_bar=False, clim=Color.color_limits(), smooth_shading=True)
+        light = pyvista.Light(light_type='headlight')
+        light.intensity = 0.8
+        plt.add_light(light)
+        if self.dimension == 3:
+            plt.remove_all_lights()
         return plt
 
-    def show_both_meshes(self, show_qubit_labels: bool = False, explode_factor: float = 0.0, print_cpos: bool = False) -> None:
-        plotter = self.get_both_meshes_plotter(show_qubit_labels, explode_factor, off_screen=False)
+    def show_debug_primary_meshes(self, mesh: pyvista.PolyData, highlighted_qubits: list[int] = None,
+                                  highlighted_edges: list[GraphEdge] = None,
+                                  show_qubit_labels: bool = False, explode_factor: float = 0.0,
+                                  print_cpos: bool = False) -> None:
+        plotter = self.get_debug_primary_meshes_plotter(
+            mesh, highlighted_qubits, highlighted_edges, show_qubit_labels, explode_factor,
+            off_screen=False, line_width=1, qubit_point_size=20, node_point_size=20)
 
         def my_cpos_callback(*args):
             # plotter.add_text(str(plotter.camera_position), name="cpos")
@@ -598,34 +634,49 @@ class Plotter3D:
             plotter.iren.add_observer(vtk.vtkCommand.EndInteractionEvent, my_cpos_callback)
         plotter.show()
 
-    def get_both_meshes_plotter(self, show_qubit_labels: bool = False, explode_factor: float = 0.0,
-                               off_screen: bool = True, point_size: int = 15, line_width: int = 1) -> pyvista.plotting.Plotter:
-        """Return the plotter preloaded with the dual and primary mesh.
+    def get_debug_primary_meshes_plotter(self, mesh: pyvista.PolyData, highlighted_qubits: list[int] = None,
+                                         highlighted_edges: list[GraphEdge] = None,
+                                         show_qubit_labels: bool = False, explode_factor: float = 0.0,
+                                         off_screen: bool = True, line_width: int = 4,
+                                         qubit_point_size: int = 70, node_point_size: int = 120) -> pyvista.plotting.Plotter:
+        """Return the plotter preloaded with the debug and primary mesh.
 
-        :param highlighted_volumes: Change color of given volumes to highlighted color. Take care to adjust the cmap of
-            pyvista_theme to 'Color.highlighted_color_map' (otherwise there will be no visible effect).
+        :param highlighted_edges: Edges of the debug graph to highlight.
         """
-        dual_mesh = self._construct_dual_mesh(highlighted_nodes=self.dual_graph.nodes())
-        debug_dual_mesh = self.construct_debug_mesh(self.dual_graph, highlighted_nodes=self.dual_graph.nodes(),
-                                                    include_edges_between_boundaries=False)
+        highlighted_qubits = highlighted_qubits or []
+        highlighted_edges = highlighted_edges or []
         primary_mesh = self.primary_mesh
         if explode_factor != 0.0:
-            dual_mesh = self.explode(dual_mesh, explode_factor)
-            debug_dual_mesh = self.explode(debug_dual_mesh, explode_factor)
+            mesh = self.explode(mesh, explode_factor)
             primary_mesh = self.explode(primary_mesh, explode_factor)
-        plt = pyvista.plotting.Plotter(theme=self.pyvista_theme, lighting='none', off_screen=off_screen)
-        plt.disable_shadows()
-        plt.disable_ssao()
-        # highlight all qubits
-        positions = [pos for pos, qubit in enumerate(primary_mesh.point_data['qubits']) if qubit in self.dual_graph.nodes()[0].all_qubits]
-        coordinates = np.asarray([coordinate for pos, coordinate in enumerate(primary_mesh.points) if pos in positions])
-        plt.add_points(coordinates, point_size=point_size, color="magenta")
+        plt = pyvista.plotting.Plotter(theme=self.pyvista_theme, off_screen=off_screen)
+        normal_qubits = set(primary_mesh.point_data['qubits']) - set(highlighted_qubits)
+        for qubits, color in [(normal_qubits, "indigo"), (highlighted_qubits, "violet")]:
+            if not qubits:
+                continue
+            positions = [pos for pos, qubit in enumerate(primary_mesh.point_data['qubits']) if qubit in qubits]
+            coordinates = np.asarray([coordinate for pos, coordinate in enumerate(primary_mesh.points) if pos in positions])
+            plt.add_points(coordinates, point_size=qubit_point_size, color=color)
         if show_qubit_labels:
-            plt.add_point_labels(primary_mesh, "qubits", point_size=point_size, font_size=20)
-        plt.add_mesh(primary_mesh, scalars="colors", show_scalar_bar=False, clim=Color.color_limits())
-        plt.add_mesh(debug_dual_mesh, color="lightgrey", line_width=line_width)
-        plt.add_points(dual_mesh.points, scalars=debug_dual_mesh["colors"], render_points_as_spheres=False,
-                       point_size=point_size, show_scalar_bar=False, clim=Color.color_limits())
+            plt.add_point_labels(primary_mesh, "qubits", point_size=qubit_point_size, font_size=20)
+        plt.add_mesh(primary_mesh, scalars="colors", show_scalar_bar=False, clim=Color.color_limits(), smooth_shading=True)
+        plt.add_points(mesh.points, scalars=mesh["colors"], point_size=node_point_size, show_scalar_bar=False,
+                       clim=Color.color_limits())
+        if highlighted_edges:
+            highlighted_edge_indices = [edge.index for edge in highlighted_edges]
+            all_edges = reconvert_faces(mesh.lines)
+            normal_edge_pos = [pos for pos, index in enumerate(mesh.cell_data['edge_index']) if index not in highlighted_edge_indices]
+            if normal_edge_pos:
+                normal_edge = pyvista.PolyData(mesh.points, lines=convert_faces([edge for pos, edge in enumerate(all_edges) if pos in normal_edge_pos]))
+                plt.add_mesh(normal_edge, show_scalar_bar=False, line_width=line_width, smooth_shading=True, color="silver")
+            highlighted_edge_pos = [pos for pos, index in enumerate(mesh.cell_data['edge_index']) if index in highlighted_edge_indices]
+            highlighted_edge = pyvista.PolyData(mesh.points, lines=convert_faces([edge for pos, edge in enumerate(all_edges) if pos in highlighted_edge_pos]))
+            plt.add_mesh(highlighted_edge, show_scalar_bar=False, line_width=line_width, smooth_shading=True, color="orange")
+        else:
+            plt.add_mesh(mesh, show_scalar_bar=False, line_width=line_width, smooth_shading=True, color="silver")
+        light = pyvista.Light(light_type='headlight')
+        light.intensity = 0.8
+        plt.add_light(light)
         return plt
 
 
