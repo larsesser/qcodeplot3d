@@ -274,7 +274,8 @@ class Plotter3D:
         return ret
 
     def construct_debug_mesh(self, graph: rx.PyGraph, coordinates: dict[int, npt.NDArray[np.float64]] = None,
-                             use_edges_colors: bool = False, highlighted_nodes: list[GraphNode] = None) -> pyvista.PolyData:
+                             use_edges_colors: bool = False, highlighted_nodes: list[GraphNode] = None,
+                             include_edges_between_boundaries: bool = True) -> pyvista.PolyData:
         """Create a 3D mesh of the given rustworkx Graph.
 
         Nodes must be GraphNode and edges GraphEdge objects.
@@ -291,8 +292,8 @@ class Plotter3D:
 
         # generate pyvista edges from rustworkx edges
         rustworkx2pyvista = {rustworkx_index: pyvista_index for pyvista_index, rustworkx_index in enumerate(graph.node_indices())}
-        lines = [[rustworkx2pyvista[node1], rustworkx2pyvista[node2]] for node1, node2, _ in graph.edge_index_map().values()]
-
+        lines = [[rustworkx2pyvista[edge.node1.index], rustworkx2pyvista[edge.node2.index]] for edge in graph.edges()
+                 if include_edges_between_boundaries or not edge.is_edge_between_boundaries]
         ret = pyvista.PolyData(points, lines=convert_faces(lines))
 
         # remember which nodes are boundary nodes
@@ -320,6 +321,8 @@ class Plotter3D:
                 edge_colors.append(edge.color if edge.color is not None else Color.by)
                 continue
             if edge.is_edge_between_boundaries:
+                if not include_edges_between_boundaries:
+                    continue
                 edge_colors.append(Color.red)
             elif edge.node1.is_boundary or edge.node2.is_boundary:
                 edge_colors.append(Color.green)
@@ -603,7 +606,8 @@ class Plotter3D:
             pyvista_theme to 'Color.highlighted_color_map' (otherwise there will be no visible effect).
         """
         dual_mesh = self._construct_dual_mesh(highlighted_nodes=self.dual_graph.nodes())
-        debug_dual_mesh = self.construct_debug_mesh(self.dual_graph, highlighted_nodes=self.dual_graph.nodes())
+        debug_dual_mesh = self.construct_debug_mesh(self.dual_graph, highlighted_nodes=self.dual_graph.nodes(),
+                                                    include_edges_between_boundaries=False)
         primary_mesh = self.primary_mesh
         if explode_factor != 0.0:
             dual_mesh = self.explode(dual_mesh, explode_factor)
