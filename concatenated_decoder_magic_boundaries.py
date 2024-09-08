@@ -45,9 +45,14 @@ def edge_attr_fn(edge: GraphEdge):
     return attr_dict
 
 
-def print_stats(graph: rustworkx.PyGraph, distance: int):
+def print_stats(graph: rustworkx.PyGraph, distance: int, dimension: int = 3):
     x_stabilizer: list[Stabilizer] = [node.stabilizer for node in graph.nodes() if node.is_stabilizer]
-    z_stabilizer: list[Stabilizer] = [edge.stabilizer for edge in graph.edges() if edge.is_stabilizer]
+    if dimension == 2:
+        z_stabilizer: list[Stabilizer] = [node.stabilizer for node in graph.nodes() if node.is_stabilizer]
+    elif dimension == 3:
+        z_stabilizer: list[Stabilizer] = [edge.stabilizer for edge in graph.edges() if edge.is_stabilizer]
+    else:
+        raise NotImplementedError
     stabilizers: list[Stabilizer] = [*x_stabilizer, *z_stabilizer]
 
     independent_x = count_independent(x_stabilizer)
@@ -144,9 +149,12 @@ def basic_x_decoder_test(graph: rustworkx.PyGraph):
 
 
 d = 4
-graph = cubic_3d_dual_graph(d)
+graph = square_2d_dual_graph(d)
 
-print_stats(graph, d)
+print_stats(graph, d, dimension=2)
+
+exit()
+
 basic_decoder_test(graph)
 plot_graphs(graph)
 
