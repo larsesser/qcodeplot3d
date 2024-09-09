@@ -5,7 +5,7 @@ import pathlib
 import re
 from collections import defaultdict
 from tempfile import NamedTemporaryFile
-from typing import ClassVar
+from typing import ClassVar, Optional
 
 import numpy as np
 import numpy.typing as npt
@@ -124,6 +124,7 @@ class Plotter3D:
     storage_dir: pathlib.Path = dataclasses.field(default=pathlib.Path(__file__).parent.parent.absolute())
     pyvista_theme: pyvista.plotting.themes.DocumentTheme = dataclasses.field(default=None, init=False)
     highes_id: int = dataclasses.field(default=0, init=False)
+    _dualgraph_to_dualmesh: dict[int, int] = dataclasses.field(default=None, init=False)
     _dualmesh_to_dualgraph: dict[int, int] = dataclasses.field(default=None, init=False)
     dimension: ClassVar[int] = 3
 
@@ -162,8 +163,10 @@ class Plotter3D:
     def get_dual_node(self, mesh_index: int) -> DualGraphNode:
         return self.dual_graph[self._dualmesh_to_dualgraph[mesh_index]]
 
-    @staticmethod
-    def get_3d_coordinates(graph: rx.PyGraph, dimension: int = 3) -> dict[int, npt.NDArray[np.float64]]:
+    def get_dual_mesh_index(self, graph_index: int) -> int:
+        return self._dualgraph_to_dualmesh[graph_index]
+
+    def get_3d_coordinates(self, graph: rx.PyGraph) -> dict[int, npt.NDArray[np.float64]]:
         """Calculate 3D coordinates of nodes by layouting the rustworkx graph.
 
         Take special care to place boundary nodes at a meaningful position.
@@ -177,7 +180,7 @@ class Plotter3D:
 
         with NamedTemporaryFile("w+t", suffix=".wrl") as f:
             graphviz_draw(graph_without_boundaries, lambda node: {"shape": "point"}, filename=f.name, method="neato",
-                          image_type="vrml", graph_attr={"dimen": f"{dimension}"})
+                          image_type="vrml", graph_attr={"dimen": f"{self.dimension}"})
             data = f.readlines()
 
         # position of non-boundary nodes
@@ -222,11 +225,12 @@ class Plotter3D:
     def _construct_dual_mesh(self, highlighted_nodes: list[GraphNode] = None) -> pyvista.PolyData:
         highlighted_nodes = highlighted_nodes or []
         # calculate positions of points
-        node2coordinates = self.get_3d_coordinates(self.dual_graph, dimension=self.dimension)
+        node2coordinates = self.get_3d_coordinates(self.dual_graph)
         points = np.asarray([node2coordinates[index] for index in self.dual_graph.node_indices()])
 
         # generate pyvista edges from rustworkx edges
         rustworkx2pyvista = {rustworkx_index: pyvista_index for pyvista_index, rustworkx_index in enumerate(self.dual_graph.node_indices())}
+        self._dualgraph_to_dualmesh = rustworkx2pyvista
         self._dualmesh_to_dualgraph = {value: key for key, value in rustworkx2pyvista.items()}
         # TODO ensure all faces of dual graph are triangles?
         simplexes = compute_simplexes(self.dual_graph, dimension=self.dimension, exclude_boundary_simplexes=True)
@@ -289,7 +293,7 @@ class Plotter3D:
         highlighted_nodes = highlighted_nodes or []
         highlighted_edges = highlighted_edges or []
         # calculate positions of points (or use given coordinates)
-        node2coordinates = coordinates or self.get_3d_coordinates(graph, dimension=self.dimension)
+        node2coordinates = coordinates or self.get_3d_coordinates(graph)
         points = np.asarray([node2coordinates[index] for index in graph.node_indices()])
 
         # generate pyvista edges from rustworkx edges
@@ -683,6 +687,14 @@ class Plotter3D:
 @dataclasses.dataclass
 class Plotter2D(Plotter3D):
     dimension: ClassVar[int] = 2
+    distance: int = 4
+
+    @staticmethod
+    def _primary_distance_to_boundarynodeoffset(distance: int) -> Optional[float]:
+        return {
+            4: 0.3,
+            6: 0.35,
+        }.get(distance)
 
     def _construct_primary_mesh(self, highlighted_volumes: list[DualGraphNode] = None,
                                 qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None):
@@ -716,12 +728,29 @@ class Plotter2D(Plotter3D):
             for point in triangle.points:
                 center += point
             center = center / len(triangle.points)
+            # the following placing adjustment are intended and tested for square color codes only
+            # exactly one node is a boundary nodes
+            if sum(node.is_boundary for node in dg_nodes) == 1 and (offset := self._primary_distance_to_boundarynodeoffset(self.distance)):
+                # is this qubit the neighbour of a corner qubit?
+                for corner_node in dg_nodes:
+                    if corner_node.is_boundary:
+                        continue
+                    boundary_graph_indices = [index for index in self.dual_graph.neighbors(corner_node.index)
+                                              if self.dual_graph.nodes()[index].is_boundary]
+                    if len(boundary_graph_indices) != 2:
+                        continue
+                    # yes, so construct the position of the corner qubit ...
+                    boundary_graph_indices.append(corner_node.index)
+                    corner_points = [self.dual_mesh.points[self.get_dual_mesh_index(index)] for index in boundary_graph_indices]
+                    corner_center = np.asarray([0.0, 0.0, 0.0])
+                    for point in corner_points:
+                        corner_center += point
+                    corner_center = corner_center / len(corner_points)
+                    corner_center += 0.3 * (corner_center - dual_mesh_center)
+                    # ... and move this qubit closer to the corner qubit
+                    center -= offset * (center - corner_center)
             # exactly two nodes are boundary nodes
             if sum(node.is_boundary for node in dg_nodes) == 2:
-                # move the point a bit more outward (away from the center)
-                center += 0.1 * (center - dual_mesh_center)
-            # exactly three nodes are boundary nodes
-            elif sum(node.is_boundary for node in dg_nodes) == 3:
                 center += 0.3 * (center - dual_mesh_center)
             # use given coordinates if provided
             if qubit_coordinates:
