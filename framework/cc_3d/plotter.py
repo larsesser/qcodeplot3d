@@ -675,7 +675,7 @@ class Plotter3D:
                 plt.add_mesh(normal_edge, show_scalar_bar=False, line_width=line_width, smooth_shading=True, color="silver")
             highlighted_edge_pos = [pos for pos, index in enumerate(mesh.cell_data['edge_index']) if index in highlighted_edge_indices]
             highlighted_edge = pyvista.PolyData(mesh.points, lines=convert_faces([edge for pos, edge in enumerate(all_edges) if pos in highlighted_edge_pos]))
-            plt.add_mesh(highlighted_edge, show_scalar_bar=False, line_width=line_width, smooth_shading=True, color="orange")
+            plt.add_mesh(highlighted_edge, show_scalar_bar=False, line_width=line_width*5, smooth_shading=True, color="orange")
         else:
             plt.add_mesh(mesh, show_scalar_bar=False, line_width=line_width, smooth_shading=True, color="silver")
         light = pyvista.Light(light_type='headlight')
