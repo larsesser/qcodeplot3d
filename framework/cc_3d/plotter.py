@@ -177,6 +177,10 @@ class Plotter3D:
         graph_without_boundaries = graph.copy()
         boundary_node_indices = [node.index for node in graph_without_boundaries.nodes() if node.is_boundary]
         graph_without_boundaries.remove_nodes_from(boundary_node_indices)
+        # if there is only one bulk node, we can't perform the normal layouting algorithm
+        no_boundary_special_handling = len(graph_without_boundaries.nodes()) == 1
+        if no_boundary_special_handling:
+            graph_without_boundaries = graph
 
         with NamedTemporaryFile("w+t", suffix=".wrl") as f:
             graphviz_draw(graph_without_boundaries, lambda node: {"shape": "point"}, filename=f.name, method="neato",
@@ -200,6 +204,9 @@ class Plotter3D:
             y = float(pos_match.group("y"))
             z = float(pos_match.group("z"))
             ret[node_index] = np.asarray([x, y, z])
+
+        if no_boundary_special_handling:
+            return ret
 
         # center position of the bulk
         center = np.asarray([0.0, 0.0, 0.0])
@@ -687,7 +694,7 @@ class Plotter3D:
 @dataclasses.dataclass
 class Plotter2D(Plotter3D):
     dimension: ClassVar[int] = 2
-    distance: int = 4
+    distance: int = 0
 
     @staticmethod
     def _primary_distance_to_boundarynodeoffset(distance: int) -> Optional[float]:
