@@ -91,8 +91,8 @@ def print_stats(graph: rustworkx.PyGraph, distance: int, dimension: int = 3):
     print(f"\nn: {n}, k: {k}, d: {distance}")
 
 
-def plot_graphs(graph: rustworkx.PyGraph):
-    plotter = Plotter3D(graph)
+def plot_graphs(graph: rustworkx.PyGraph, distance: int):
+    plotter = Plotter3D(graph, distance=distance)
 
     plotter.show_debug_mesh(plotter.construct_debug_mesh(graph), show_labels=False, exclude_boundaries=False)
     plotter.show_dual_mesh(show_labels=False, explode_factor=0, exclude_boundaries=False)
@@ -156,13 +156,13 @@ print_stats(graph, d, dimension=2)
 exit()
 
 basic_decoder_test(graph)
-plot_graphs(graph)
+plot_graphs(graph, d)
 
 exit()
 
 x_dual_graph = construct_x_dual_graph(graph)
 
-plotter = Plotter3D(x_dual_graph)
+plotter = Plotter3D(x_dual_graph, distance=d)
 
 # for pairs of mutual exclusive two-color-colors, there is a 1:1 mapping from edges to qubits
 # -> so, we can decode the syndrome by applying a MWPM approach to this graph directly

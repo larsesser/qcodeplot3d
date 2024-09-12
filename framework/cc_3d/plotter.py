@@ -119,6 +119,7 @@ def project_to_plane(points: list[list[float]]) -> list[list[float]]:
 @dataclasses.dataclass
 class Plotter3D:
     dual_graph: rx.PyGraph
+    distance: int
     _dual_mesh: pyvista.PolyData = dataclasses.field(default=None, init=False)
     _primary_mesh: pyvista.PolyData = dataclasses.field(default=None, init=False)
     storage_dir: pathlib.Path = dataclasses.field(default=pathlib.Path(__file__).parent.parent.absolute())
@@ -694,7 +695,6 @@ class Plotter3D:
 @dataclasses.dataclass
 class Plotter2D(Plotter3D):
     dimension: ClassVar[int] = 2
-    distance: int = 0
 
     @staticmethod
     def _primary_distance_to_boundarynodeoffset(distance: int) -> Optional[float]:
