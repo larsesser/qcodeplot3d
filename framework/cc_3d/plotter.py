@@ -358,6 +358,13 @@ class Plotter3D:
 
         return ret
 
+    @staticmethod
+    def _primary_distance_to_boundarynodeoffset(distance: int) -> Optional[float]:
+        return {
+            4: 0.25,
+            6: 0.3,
+        }.get(distance)
+
     def _construct_primary_mesh(self, highlighted_volumes: list[DualGraphNode] = None,
                                 qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None):
         """Construct primary mesh from dual_mesh.
@@ -394,9 +401,29 @@ class Plotter3D:
             if sum(node.is_boundary for node in dg_nodes) == 2:
                 # move the point a bit more outward (away from the center)
                 center += 0.1 * (center - dual_mesh_center)
+            # the following placing adjustment are intended and tested for square color codes only
+            if sum(node.is_boundary for node in dg_nodes) == 2 and (offset := self._primary_distance_to_boundarynodeoffset(self.distance)):
+                # is this qubit the neighbour of a corner qubit?
+                for corner_node in dg_nodes:
+                    if corner_node.is_boundary:
+                        continue
+                    boundary_graph_indices = [index for index in self.dual_graph.neighbors(corner_node.index)
+                                              if self.dual_graph.nodes()[index].is_boundary]
+                    if len(boundary_graph_indices) != 3:
+                        continue
+                    # yes, so construct the position of the corner qubit ...
+                    boundary_graph_indices.append(corner_node.index)
+                    corner_points = [self.dual_mesh.points[self.get_dual_mesh_index(index)] for index in boundary_graph_indices]
+                    corner_center = np.asarray([0.0, 0.0, 0.0])
+                    for point in corner_points:
+                        corner_center += point
+                    corner_center = corner_center / len(corner_points)
+                    corner_center += 0.35 * (corner_center - dual_mesh_center)
+                    # ... and move this qubit closer to the corner qubit
+                    center -= offset * (center - corner_center)
             # exactly three nodes are boundary nodes
             elif sum(node.is_boundary for node in dg_nodes) == 3:
-                center += 0.3 * (center - dual_mesh_center)
+                center += 0.35 * (center - dual_mesh_center)
             # use given coordinates if provided
             if qubit_coordinates:
                 points.append(qubit_coordinates[qubit])
