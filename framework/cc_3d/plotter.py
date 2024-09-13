@@ -366,11 +366,19 @@ class Plotter3D:
         }.get(distance)
 
     def _construct_primary_mesh(self, highlighted_volumes: list[DualGraphNode] = None,
-                                qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None):
+                                qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None,
+                                face_color: Color = None, node_color: Color = None,
+                                lowest_title: tuple[int, int, int] = None, highest_title: tuple[int, int, int] = None):
         """Construct primary mesh from dual_mesh.
 
         :param qubit_coordinates: Use them instead of calculating the coordinates from the dual_mesh.
+        :param face_color: If present, show only faces with this color.
+        :param node_color: If present, show only nodes with this color.
+        :param lowest_title: If present, only nodes with col, row, layer higher or equal than this tuple are shown.
+        :param highest_title: If present, only nodes with col, row, layer lower or equal than this tuple are shown.
         """
+        if face_color and node_color:
+            raise ValueError("Only one of face_color and node_color may be present.")
         highlighted_volumes = highlighted_volumes or []
         # group dual lattice cells (of the tetrahedron) by qubit
         qubit_to_facepositions: dict[int, list[int]] = defaultdict(list)
@@ -438,14 +446,23 @@ class Plotter3D:
         volumes = []
         volume_ids = []
         volume_colors = []
+        all_edges = set()
+        present_edges = set()
         for node in self.dual_graph.nodes():
             # do not add a volume for boundaries
             if node.is_boundary:
                 continue
+            if node.title and (match := re.match(r"\((?P<col>-?\d+),(?P<row>-?\d+),(?P<layer>-?\d+)\)", node.title)):
+                layer, row, col = int(match.group("layer")), int(match.group("row")), int(match.group("col"))
+                if lowest_title and not (lowest_title[0] <= col and lowest_title[1] <= row and lowest_title[2] <= layer ):
+                    continue
+                if highest_title and not (col <= highest_title[0] and row <= highest_title[1] and layer <= highest_title[2]):
+                    continue
             # each dual graph edge corresponds to a primary graph face
-            all_face_qubits = [edge.qubits for _, _, edge in self.dual_graph.out_edges(node.index)]
+            all_face_qubits = [(edge.color, edge.qubits) for _, _, edge in self.dual_graph.out_edges(node.index)]
             faces = []
-            for face_qubits in all_face_qubits:
+            face_colors = []
+            for f_color, face_qubits in all_face_qubits:
                 face_points = [qubit_to_point[qubit] for qubit in face_qubits]
                 # project the points to a 2D plane with 2D coordinates, then calculate their triangulation
                 triangulation = Delaunay(project_to_plane(face_points), qhull_options="QJ")
@@ -453,17 +470,41 @@ class Plotter3D:
                 tmp_point_map = {k: v for k, v in zip(range(triangulation.npoints), face_qubits)}
                 simplexes = [[tmp_point_map[point] for point in face] for face in triangulation.simplices]
                 face = [qubit_to_pointposition[qubit] for qubit in triangles_to_face(simplexes)]
-                faces.append(face)
+                if (face_color is None and node_color is None) or (node_color and node_color == node.color):
+                    faces.append(face)
+                    face_colors.append(node.color.highlight if node in highlighted_volumes else node.color)
+                elif (face_color and face_color == f_color):
+                    # otherwise, most faces would be included twice, once per volume
+                    if face in volumes:
+                        continue
+                    faces.append(face)
+                    face_colors.append(face_color)
+                for edge in zip(face + [face[-1]], face[1:] + [face[0]]):
+                    all_edges.add(edge)
+                    all_edges.add(edge[::-1])
+                    if (face_color is None and node_color is None) or (face_color and face_color == f_color) or (node_color and node_color == node.color):
+                        present_edges.add(edge)
+                        present_edges.add(edge[::-1])
             # add volume faces
             volumes.extend(faces)
             # add volume ids
             volume_ids.extend([self.next_id] * len(faces))
             # add volume colors
-            volume_colors.extend([node.color.highlight if node in highlighted_volumes else node.color] * len(faces))
-        ret = pyvista.PolyData(points, faces=convert_faces(volumes))
+            volume_colors.extend(face_colors)
+        present_point_pos = set(itertools.chain.from_iterable(present_edges))
+        lines = []
+        line_ids = []
+        line_colors = []
+        for edge in sorted(all_edges - present_edges):
+            if edge[0] in present_point_pos and edge[1] in present_point_pos:
+                lines.append(edge)
+                line_ids.append(self.next_id)
+                # TODO how to color the edges properly when face_color is given?
+                line_colors.append(face_color or node_color)
+        ret = pyvista.PolyData(points, faces=convert_faces(volumes), lines=convert_faces(lines) if len(lines) else None)
         ret.point_data['qubits'] = qubits
-        ret.cell_data['face_ids'] = volume_ids
-        ret.cell_data['colors'] = volume_colors
+        ret.cell_data['face_ids'] = [*line_ids, *volume_ids]
+        ret.cell_data['colors'] = [*line_colors, *volume_colors]
         return ret
 
     @staticmethod
@@ -605,10 +646,15 @@ class Plotter3D:
 
     def show_primary_mesh(self, show_qubit_labels: bool = False, explode_factor: float = 0.0, print_cpos: bool = False,
                           highlighted_volumes: list[DualGraphNode] = None, highlighted_qubits: list[int] = None,
-                          qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None) -> None:
+                          qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None,
+                          only_faces_with_color: Color = None, only_nodes_with_color: Color = None,
+                          lowest_title: tuple[int, int, int] = None, highest_title: tuple[int, int, int] = None,
+                          ) -> None:
         plotter = self.get_primary_mesh_plotter(
             show_qubit_labels, explode_factor, off_screen=False, highlighted_volumes=highlighted_volumes,
-            highlighted_qubits=highlighted_qubits, qubit_coordinates=qubit_coordinates, point_size=15)
+            highlighted_qubits=highlighted_qubits, qubit_coordinates=qubit_coordinates, point_size=15,
+            only_faces_with_color=only_faces_with_color, only_nodes_with_color=only_nodes_with_color,
+            lowest_title=lowest_title, highest_title=highest_title)
 
         def my_cpos_callback(*args):
             # plotter.add_text(str(plotter.camera_position), name="cpos")
@@ -620,16 +666,19 @@ class Plotter3D:
 
     def get_primary_mesh_plotter(self, show_qubit_labels: bool = False, explode_factor: float = 0.0,
                                  off_screen: bool = True, point_size: int = 70, highlighted_volumes: list[DualGraphNode] = None,
-                                 highlighted_qubits: list[int] = None, qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None
-                                 ) -> pyvista.plotting.Plotter:
+                                 highlighted_qubits: list[int] = None, qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None,
+                                 only_faces_with_color: Color = None, only_nodes_with_color: Color = None,
+                                 lowest_title: tuple[int, int, int] = None, highest_title: tuple[int, int, int] = None,
+        ) -> pyvista.plotting.Plotter:
         """Return the plotter preloaded with the primary mesh.
 
         :param highlighted_volumes: Change color of given volumes to highlighted color. Take care to adjust the cmap of
             pyvista_theme to 'Color.highlighted_color_map' (otherwise there will be no visible effect).
         """
         highlighted_qubits = highlighted_qubits or []
-        if highlighted_volumes or qubit_coordinates:
-            mesh = self._construct_primary_mesh(highlighted_volumes, qubit_coordinates)
+        if highlighted_volumes or qubit_coordinates or only_faces_with_color or only_nodes_with_color or lowest_title or highest_title:
+            mesh = self._construct_primary_mesh(highlighted_volumes, qubit_coordinates, only_faces_with_color,
+                                                only_nodes_with_color, lowest_title, highest_title)
         else:
             mesh = self.primary_mesh
         if explode_factor != 0.0:
@@ -640,12 +689,15 @@ class Plotter3D:
         else:
             theme = self.pyvista_theme
         plt = pyvista.plotting.Plotter(theme=theme, off_screen=off_screen)
+        # only show qubits which are present in at least one face
+        used_qubit_pos = set(itertools.chain.from_iterable(reconvert_faces(mesh.faces)))
         normal_qubits = set(mesh.point_data['qubits']) - set(highlighted_qubits)
         for qubits, color in [(normal_qubits, "indigo"), (highlighted_qubits, "violet")]:
             if not qubits:
                 continue
             positions = [pos for pos, qubit in enumerate(mesh.point_data['qubits']) if qubit in qubits]
-            coordinates = np.asarray([coordinate for pos, coordinate in enumerate(mesh.points) if pos in positions])
+            coordinates = np.asarray([coordinate for pos, coordinate in enumerate(mesh.points)
+                                      if pos in positions and pos in used_qubit_pos])
             plt.add_points(coordinates, point_size=point_size, color=color)
         if show_qubit_labels:
             plt.add_point_labels(mesh, "qubits", point_size=point_size, font_size=20)
@@ -716,6 +768,8 @@ class Plotter3D:
         light = pyvista.Light(light_type='headlight')
         light.intensity = 0.8
         plt.add_light(light)
+        if self.dimension == 3:
+            plt.remove_all_lights()
         return plt
 
 
