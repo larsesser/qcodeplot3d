@@ -716,7 +716,9 @@ class Plotter3D:
             theme = self.pyvista_theme
         plt = pyvista.plotting.Plotter(theme=theme, off_screen=off_screen)
         # only show qubits which are present in at least one face
-        used_qubit_pos = set(itertools.chain.from_iterable(reconvert_faces(mesh.faces)))
+        used_qubit_pos = set()
+        if not explode_factor:
+            used_qubit_pos = set(itertools.chain.from_iterable(reconvert_faces(mesh.faces)))
         normal_qubits = set(mesh.point_data['qubits']) - set(highlighted_qubits)
         for qubits, color in [(normal_qubits, "indigo"), (highlighted_qubits, "violet")]:
             positions = [pos for pos, qubit in enumerate(mesh.point_data['qubits']) if qubit in qubits and pos in used_qubit_pos]
