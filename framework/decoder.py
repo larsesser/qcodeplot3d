@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import Literal, overload
 
 from framework.syndrome import Syndrome
+from framework.stabilizers import Color
 from framework.util import Kind
 
 
@@ -15,11 +16,11 @@ class Decoder(abc.ABC):
         ...
 
     @overload
-    def decode(self, syndrome: Syndrome, return_all_corrections: Literal[True]) -> list[list[int]]:
+    def decode(self, syndrome: Syndrome, return_all_corrections: Literal[True]) -> dict[tuple[Color, ...], list[int]]:
         ...
 
     @abc.abstractmethod
-    def decode(self, syndrome: Syndrome, return_all_corrections: bool = False) -> list[int] | list[list[int]]:
+    def decode(self, syndrome: Syndrome, return_all_corrections: bool = False) -> list[int] | dict[tuple[Color, ...], list[int]]:
         """Determine the qubits on which a correction shall be applied from a given syndrome."""
 
 
