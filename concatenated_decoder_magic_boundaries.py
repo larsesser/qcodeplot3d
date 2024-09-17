@@ -117,14 +117,14 @@ def basic_decoder_test(graph: rustworkx.PyGraph):
     # emulate no qubit errors
     print("\nEmulate single-qubit errors")
     results = decoder.decode(Syndrome({stabilizer: SyndromeValue(False) for stabilizer in x_stabilizer}), return_all_corrections=True)
-    if any(result != [] for result in results):
+    if any(result != [] for result in results.values()):
         print(None, results)
     # emulate single-qubit errors
     for qubit in qubits:
         true_stabilizer = [stabilizer for stabilizer in x_stabilizer if qubit in stabilizer.qubits]
         syndrome = Syndrome({stabilizer: SyndromeValue(stabilizer in true_stabilizer) for stabilizer in x_stabilizer})
         results = decoder.decode(syndrome, return_all_corrections=True)
-        if any(result != [qubit] for result in results):
+        if any(result != [qubit] for result in results.values()):
             print(qubit, results)
 
 
@@ -137,14 +137,14 @@ def basic_x_decoder_test(graph: rustworkx.PyGraph):
     # emulate no qubit errors
     print("\nEmulate single-qubit errors")
     results = decoder.decode(Syndrome({stabilizer: SyndromeValue(False) for stabilizer in z_stabilizer}), return_all_corrections=True)
-    if any(result != [] for result in results):
+    if any(result != [] for result in results.values()):
         print(None, results)
     # emulate single-qubit errors
     for qubit in qubits:
         true_stabilizer = [stabilizer for stabilizer in z_stabilizer if qubit in stabilizer.qubits]
         syndrome = Syndrome({stabilizer: SyndromeValue(stabilizer in true_stabilizer) for stabilizer in z_stabilizer})
         results = decoder.decode(syndrome, return_all_corrections=True)
-        if any(result != [qubit] for result in results):
+        if any(result != [qubit] for result in results.values()):
             print(qubit, results)
 
 
