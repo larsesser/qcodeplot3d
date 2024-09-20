@@ -860,8 +860,15 @@ class Plotter2D(Plotter3D):
     def _primary_distance_to_boundarynodeoffset(distance: int) -> Optional[float]:
         return {
             4: 0.3,
-            6: 0.35,
+            6: 0.37,
         }.get(distance)
+
+    @staticmethod
+    def _primary_corne_node_offset(distance: int) -> float:
+        return {
+            4: 0.3,
+            6: 0.31,
+        }.get(distance, 0.3)
 
     def _construct_primary_mesh(self, highlighted_volumes: list[DualGraphNode] = None,
                                 qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None,
@@ -917,12 +924,12 @@ class Plotter2D(Plotter3D):
                     for point in corner_points:
                         corner_center += point
                     corner_center = corner_center / len(corner_points)
-                    corner_center += 0.3 * (corner_center - dual_mesh_center)
+                    corner_center += self._primary_corne_node_offset(self.distance) * (corner_center - dual_mesh_center)
                     # ... and move this qubit closer to the corner qubit
                     center -= offset * (center - corner_center)
             # exactly two nodes are boundary nodes
             if sum(node.is_boundary for node in dg_nodes) == 2:
-                center += 0.3 * (center - dual_mesh_center)
+                center += self._primary_corne_node_offset(self.distance) * (center - dual_mesh_center)
             # use given coordinates if provided
             if qubit_coordinates:
                 points.append(qubit_coordinates[qubit])
