@@ -375,7 +375,8 @@ class Plotter3D:
                                 qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None,
                                 face_color: Color | list[Color] = None, node_color: Color | list[Color] = None,
                                 lowest_title: tuple[int, int, int] = None, highest_title: tuple[int, int, int] = None,
-                                mandatory_qubits: set[int] = None, string_operator_qubits: set[int] = None):
+                                mandatory_qubits: set[int] = None, string_operator_qubits: set[int] = None,
+                                color_edges: bool = False):
         """Construct primary mesh from dual_mesh.
 
         :param qubit_coordinates: Use them instead of calculating the coordinates from the dual_mesh.
@@ -386,6 +387,7 @@ class Plotter3D:
         :param mandatory_qubits: If present, only faces with support on any of this qubits are shown.
         :param string_operator_qubits: If present, only edges with this qubits will be displayed. Mainly useful if
             only_nodes_with_color is given.
+        :param color_edges: If true, color edges with the color of the cells they connect.
         """
         if face_color is not None and node_color is not None:
             raise ValueError("Only one of face_color and node_color may be present.")
@@ -459,14 +461,19 @@ class Plotter3D:
 
 
         # vertices -> volumes
-        volumes = []
-        volume_ids = []
-        volume_colors = []
+        volumes: list[list[int]] = []
+        volumes_by_pos: dict[int, set[int]] = {}
+        volume_ids: list[int] = []
+        volume_colors: list[Color] = []
+        volume_colors_by_pos: dict[int, Color] = {}
         all_edges = set()
         present_edges = set()
-        for node in self.dual_graph.nodes():
+        for pos, node in enumerate(self.dual_graph.nodes()):
             # do not add a volume for boundaries
             if node.is_boundary:
+                # add pseudo volume_by_pos and volume_colors_by_pos to color edges
+                volumes_by_pos[pos] = {qubit_to_pointposition[qubit] for qubit in node.qubits}
+                volume_colors_by_pos[pos] = node.color
                 continue
             if node.title and (match := re.match(r"\((?P<col>-?\d+),(?P<row>-?\d+),(?P<layer>-?\d+)\)", node.title)):
                 layer, row, col = int(match.group("layer")), int(match.group("row")), int(match.group("col"))
@@ -477,7 +484,7 @@ class Plotter3D:
             # each dual graph edge corresponds to a primary graph face
             all_face_qubits = [(edge.color, edge.qubits) for _, _, edge in self.dual_graph.out_edges(node.index)
                                if set(edge.qubits) & mandatory_qubits]
-            faces = []
+            faces: list[list[int]] = []
             face_colors = []
             for f_color, face_qubits in all_face_qubits:
                 face_points = [qubit_to_point[qubit] for qubit in face_qubits]
@@ -506,15 +513,17 @@ class Plotter3D:
                         present_edges.add(edge[::-1])
             # add volume faces
             volumes.extend(faces)
+            volumes_by_pos[pos] = set(itertools.chain.from_iterable(faces))
             # add volume ids
             volume_ids.extend([self.next_id] * len(faces))
             # add volume colors
             volume_colors.extend(face_colors)
+            volume_colors_by_pos[pos] = face_colors[0] if face_colors else -1
         present_point_pos = set(itertools.chain.from_iterable(present_edges))
         # only those qubits may support additional edges
         if string_operator_qubits:
             present_point_pos &= {qubit_to_pointposition[qubit] for qubit in string_operator_qubits}
-        lines = []
+        lines: list[tuple[int, int]] = []
         line_ids = []
         line_colors = []
         if node_color is not None:
@@ -523,6 +532,15 @@ class Plotter3D:
                     lines.append(edge)
                     line_ids.append(self.next_id)
                     line_colors.append(node_color[0])
+        elif color_edges:
+            for pos1, pos2 in itertools.combinations(volumes_by_pos.keys(), 2):
+                if volume_colors_by_pos[pos1] != volume_colors_by_pos[pos2] or volume_colors[pos1] < 0:
+                    continue
+                for edge in itertools.product(volumes_by_pos[pos1], volumes_by_pos[pos2]):
+                    if edge in all_edges and edge not in lines and (edge[1], edge[0]) not in lines:
+                        lines.append(edge)
+                        line_ids.append(self.next_id)
+                        line_colors.append(volume_colors_by_pos[pos1])
         ret = pyvista.PolyData(points, faces=convert_faces(volumes), lines=convert_faces(lines) if len(lines) else None)
         ret.point_data['qubits'] = qubits
         ret.cell_data['face_ids'] = [*line_ids, *volume_ids]
@@ -693,7 +711,8 @@ class Plotter3D:
                                  highlighted_qubits: list[int] = None, qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None,
                                  only_faces_with_color: Color | list[Color] = None, only_nodes_with_color: Color | list[Color] = None,
                                  lowest_title: tuple[int, int, int] = None, highest_title: tuple[int, int, int] = None,
-                                 mandatory_qubits: set[int] = None,  string_operator_qubits: set[int] = None,
+                                 mandatory_qubits: set[int] = None,  string_operator_qubits: set[int] = None, color_edges: bool = False,
+                                 show_normal_qubits: bool = True,
         ) -> pyvista.plotting.Plotter:
         """Return the plotter preloaded with the primary mesh.
 
@@ -701,10 +720,10 @@ class Plotter3D:
             pyvista_theme to 'Color.highlighted_color_map' (otherwise there will be no visible effect).
         """
         highlighted_qubits = highlighted_qubits or []
-        if highlighted_volumes or qubit_coordinates or only_faces_with_color or only_nodes_with_color or lowest_title or highest_title or mandatory_qubits or string_operator_qubits:
+        if highlighted_volumes or qubit_coordinates or only_faces_with_color or only_nodes_with_color or lowest_title or highest_title or mandatory_qubits or string_operator_qubits or color_edges:
             mesh = self._construct_primary_mesh(highlighted_volumes, qubit_coordinates, only_faces_with_color,
                                                 only_nodes_with_color, lowest_title, highest_title, mandatory_qubits,
-                                                string_operator_qubits)
+                                                string_operator_qubits, color_edges)
         else:
             mesh = self.primary_mesh
         if explode_factor != 0.0:
@@ -719,7 +738,10 @@ class Plotter3D:
         used_qubit_pos = set()
         if not explode_factor:
             used_qubit_pos = set(itertools.chain.from_iterable(reconvert_faces(mesh.faces)))
-        normal_qubits = set(mesh.point_data['qubits']) - set(highlighted_qubits)
+        if show_normal_qubits:
+            normal_qubits = set(mesh.point_data['qubits']) - set(highlighted_qubits)
+        else:
+            normal_qubits = set()
         for qubits, color in [(normal_qubits, "indigo"), (highlighted_qubits, "violet")]:
             positions = [pos for pos, qubit in enumerate(mesh.point_data['qubits']) if qubit in qubits and pos in used_qubit_pos]
             qubit_labels = [f"{qubit}" for pos, qubit in enumerate(mesh.point_data['qubits']) if pos in positions]
@@ -729,7 +751,8 @@ class Plotter3D:
             plt.add_points(coordinates, point_size=point_size, color=color)
             if show_qubit_labels:
                 plt.add_point_labels(coordinates, qubit_labels, show_points=False, font_size=20)
-        plt.add_mesh(mesh, scalars="colors", show_scalar_bar=False, clim=Color.color_limits(), smooth_shading=True)
+        plt.add_mesh(mesh, scalars="colors", show_scalar_bar=False, clim=Color.color_limits(), smooth_shading=True,
+                     line_width=25 if color_edges else None)
         # useful code sniped to print all qubits of all faces which lay in the same plane, given by a face of qubits
         # plane_qubits = [78, 1388, 466]
         # req_face_color = Color.rb
@@ -825,7 +848,11 @@ class Plotter2D(Plotter3D):
         }.get(distance)
 
     def _construct_primary_mesh(self, highlighted_volumes: list[DualGraphNode] = None,
-                                qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None):
+                                qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None,
+                                face_color: Color | list[Color] = None, node_color: Color | list[Color] = None,
+                                lowest_title: tuple[int, int, int] = None, highest_title: tuple[int, int, int] = None,
+                                mandatory_qubits: set[int] = None, string_operator_qubits: set[int] = None,
+                                color_edges: bool = False):
         """Construct primary mesh from dual_mesh.
 
         :param qubit_coordinates: Use them instead of calculating the coordinates from the dual_mesh.
@@ -891,12 +918,18 @@ class Plotter2D(Plotter3D):
             qubits.append(qubit)
 
         # vertices -> faces
-        faces = []
-        face_ids = []
-        face_colors = []
-        for node in self.dual_graph.nodes():
+        faces: list[list[int]] = []
+        faces_by_pos: dict[int, set[int]] = {}
+        face_ids: list[int] = []
+        face_colors: list[Color] = []
+        face_colors_by_pos: dict[int, Color] = {}
+        all_edges: set[tuple[int, int]] = set()
+        for pos, node in enumerate(self.dual_graph.nodes()):
             # do not add a triangle for boundaries
             if node.is_boundary:
+                # add pseudo faces_by_pos and face_colors_by_pos to color edges
+                faces_by_pos[pos] = {qubit_to_pointposition[qubit] for qubit in node.qubits}
+                face_colors_by_pos[pos] = node.color
                 continue
             # 2 dimensional coordinates are enough, z coordinate is always 0
             face_points = [(qubit_to_point[qubit][0], qubit_to_point[qubit][1]) for qubit in node.qubits]
@@ -905,11 +938,30 @@ class Plotter2D(Plotter3D):
             tmp_point_map = {k: v for k, v in zip(range(triangulation.npoints), node.qubits)}
             simplexes = [[tmp_point_map[point] for point in face] for face in triangulation.simplices]
             face = [qubit_to_pointposition[qubit] for qubit in triangles_to_face(simplexes)]
+            for edge in zip(face + [face[-1]], face[1:] + [face[0]]):
+                all_edges.add(edge)
+                all_edges.add((edge[1], edge[0]))
             faces.append(face)
+            faces_by_pos[pos] = set(face)
             face_ids.append(self.next_id)
-            face_colors.append(node.color.highlight if node in highlighted_faces else node.color)
-        ret = pyvista.PolyData(points, faces=convert_faces(faces))
+            face_color = node.color.highlight if node in highlighted_faces else node.color
+            face_colors.append(face_color)
+            face_colors_by_pos[pos] = face_color
+
+        lines: list[tuple[int, int]] = []
+        line_ids = []
+        line_colors = []
+        if color_edges:
+            for pos1, pos2 in itertools.combinations(faces_by_pos.keys(), 2):
+                if face_colors_by_pos[pos1] != face_colors_by_pos[pos2]:
+                    continue
+                for edge in itertools.product(faces_by_pos[pos1], faces_by_pos[pos2]):
+                    if edge in all_edges and edge not in lines and (edge[1], edge[0]) not in lines:
+                        lines.append(edge)
+                        line_ids.append(self.next_id)
+                        line_colors.append(face_colors_by_pos[pos1])
+        ret = pyvista.PolyData(points, faces=convert_faces(faces), lines=convert_faces(lines) if len(lines) else None)
         ret.point_data['qubits'] = qubits
-        ret.cell_data['face_ids'] = face_ids
-        ret.cell_data['colors'] = face_colors
+        ret.cell_data['face_ids'] = [*line_ids, *face_ids]
+        ret.cell_data['colors'] = [*line_colors, *face_colors]
         return ret
