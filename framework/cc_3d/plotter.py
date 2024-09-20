@@ -757,6 +757,16 @@ class Plotter3D:
             plt.add_points(coordinates, point_size=point_size, color=color)
             if show_qubit_labels:
                 plt.add_point_labels(coordinates, qubit_labels, show_points=False, font_size=20)
+        # extract lines from mesh, plot them separately
+        if only_nodes_with_color is not None:
+            line_poses = reconvert_faces(mesh.lines)
+            pos_to_point = {pos: point for pos, point in enumerate(mesh.points)}
+            lines = np.asarray([list(pos_to_point[pos]) for pos in itertools.chain.from_iterable(line_poses)])
+            line_color = Color.highlighted_color_map_3d().colors[Color(only_nodes_with_color).highlight]
+            plt.add_lines(lines, line_color, width=25)
+            # remove lines from mesh
+            mesh.lines = None
+            mesh.cell_data["colors"] = list(mesh.cell_data["colors"])[len(line_poses):]
         plt.add_mesh(mesh, scalars="colors", show_scalar_bar=False, clim=Color.color_limits(), smooth_shading=True,
                      line_width=25 if color_edges else None)
         # useful code sniped to print all qubits of all faces which lay in the same plane, given by a face of qubits
