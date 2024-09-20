@@ -636,7 +636,8 @@ class Plotter3D:
         return plt
 
     def show_debug_mesh(self, mesh: pyvista.PolyData, show_labels: bool = False, exclude_boundaries: bool = False,
-                        point_size: int = 15, line_width: int = 1, print_cpos: bool = False) -> None:
+                        point_size: int = 15, line_width: int = 1, print_cpos: bool = False,
+                        initial_cpos = None) -> None:
         plotter = self.get_debug_mesh_plotter(mesh, show_labels, exclude_boundaries, off_screen=False,
                                               point_size=point_size, line_width=line_width)
 
@@ -646,6 +647,8 @@ class Plotter3D:
 
         if print_cpos:
             plotter.iren.add_observer(vtk.vtkCommand.EndInteractionEvent, my_cpos_callback)
+        if initial_cpos:
+            plotter.camera_position = initial_cpos
         plotter.show()
 
     def get_debug_mesh_plotter(self, mesh: pyvista.PolyData, show_labels: bool = False, exclude_boundaries: bool = False,
@@ -690,6 +693,7 @@ class Plotter3D:
                           only_faces_with_color: Color | list[Color] = None, only_nodes_with_color: Color | list[Color] = None,
                           lowest_title: tuple[int, int, int] = None, highest_title: tuple[int, int, int] = None,
                           mandatory_qubits: set[int] = None, string_operator_qubits: set[int] = None,
+                          initial_cpos = None,
                           ) -> None:
         plotter = self.get_primary_mesh_plotter(
             show_qubit_labels, explode_factor, off_screen=False, highlighted_volumes=highlighted_volumes,
@@ -704,6 +708,8 @@ class Plotter3D:
 
         if print_cpos:
             plotter.iren.add_observer(vtk.vtkCommand.EndInteractionEvent, my_cpos_callback)
+        if initial_cpos:
+            plotter.camera_position = initial_cpos
         plotter.show()
 
     def get_primary_mesh_plotter(self, show_qubit_labels: bool = False, explode_factor: float = 0.0,
