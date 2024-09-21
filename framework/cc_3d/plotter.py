@@ -116,6 +116,24 @@ def project_to_plane(points: list[list[float]]) -> list[list[float]]:
     return ret
 
 
+def project_to_given_plane(plane: list[np.ndarray], points: list[list[float]]) -> list[np.ndarray]:
+    """Take a bunch of 3D points laying and a 3D plane and project them to the 3D plane."""
+    if any(len(point) != 3 for point in points):
+        raise ValueError("All points must have 3D coordinates.")
+    if len(plane) < 3:
+        raise ValueError("Need at least 3 points to determine the plane.")
+    points = np.asarray(points)
+
+    n = np.cross(plane[0] - plane[1], plane[0] - plane[2])
+    n_normalized = n / np.linalg.norm(n)
+    ret = []
+    for point in points:
+        t = (np.dot(n_normalized, plane[0]) - np.dot(n_normalized, point)) / np.dot(n_normalized, n_normalized)
+        ret.append(point + t * n_normalized)
+
+    return ret
+
+
 def distance_to_plane(plane: list[np.ndarray], points: list[list[np.ndarray]]) -> list[float]:
     n = np.cross(plane[0] - plane[1], plane[0] - plane[2])
     n_normalized = n / np.linalg.norm(n)
@@ -406,6 +424,7 @@ class Plotter3D:
         qubit_to_point: dict[int, npt.NDArray[np.float64]] = {}
         qubit_to_pointposition: dict[int, int] = {}
         qubits: list[int] = []
+        corner_qubits: set[int] = set()
         dual_mesh_faces = reconvert_faces(self.dual_mesh.faces)
         # determine center of dual mesh, to translate corner qubits in relation to this
         dual_mesh_center = np.asarray([0.0, 0.0, 0.0])
@@ -421,10 +440,6 @@ class Plotter3D:
             for point in tetrahedron.points:
                 center += point
             center = center / len(tetrahedron.points)
-            # exactly two nodes are boundary nodes
-            if sum(node.is_boundary for node in dg_nodes) == 2:
-                # move the point a bit more outward (away from the center)
-                center += 0.1 * (center - dual_mesh_center)
             # the following placing adjustment are intended and tested for square color codes only
             if sum(node.is_boundary for node in dg_nodes) == 2 and (offset := self._primary_distance_to_boundarynodeoffset(self.distance)):
                 # is this qubit the neighbour of a corner qubit?
@@ -446,8 +461,9 @@ class Plotter3D:
                     # ... and move this qubit closer to the corner qubit
                     center -= offset * (center - corner_center)
             # exactly three nodes are boundary nodes
-            elif sum(node.is_boundary for node in dg_nodes) == 3:
+            if sum(node.is_boundary for node in dg_nodes) == 3:
                 center += 0.35 * (center - dual_mesh_center)
+                corner_qubits.add(qubit)
             # use given coordinates if provided
             if qubit_coordinates:
                 points.append(qubit_coordinates[qubit])
@@ -457,6 +473,32 @@ class Plotter3D:
                 qubit_to_point[qubit] = center
             qubit_to_pointposition[qubit] = pointposition
             qubits.append(qubit)
+        # move qubits at the outside more outward, to form an even plane at each boundary (tested for cubic color codes)
+        # first, calculate the reference planes ...
+        boundary_to_reference_plane: dict[int, list[np.ndarray]] = {}
+        for node in self.dual_graph.nodes():
+            if not node.is_boundary:
+                continue
+            face_corner_qubit_coordinates = [qubit_to_point[qubit] for qubit in set(node.qubits) & corner_qubits]
+            max_distance = 0
+            reference_plane = []
+            for neighbour_index in self.dual_graph.neighbors(node.index):
+                neighbour = self.dual_graph[neighbour_index]
+                if neighbour.is_boundary:
+                    continue
+                references = [qubit_to_point[qubit] for qubit in set(node.qubits) & set(neighbour.qubits)]
+                if all(distance > max_distance for distance in distance_to_plane(face_corner_qubit_coordinates, references)):
+                    reference_plane = references
+                    max_distance = min(distance_to_plane(face_corner_qubit_coordinates, references))
+            boundary_to_reference_plane[node.index] = reference_plane
+        # ... then, apply the moving
+        for node_index, reference_plane in boundary_to_reference_plane.items():
+            node = self.dual_graph[node_index]
+            face_qubit_coordinates = [qubit_to_point[qubit] for qubit in node.qubits]
+            for qubit, coordinate in zip(node.qubits, project_to_given_plane(reference_plane, face_qubit_coordinates)):
+                qubit_to_point[qubit] = coordinate
+                points[qubit_to_pointposition[qubit]] = coordinate
+
         mandatory_qubits = mandatory_qubits or set(qubits)
 
 
