@@ -364,8 +364,8 @@ class Plotter3D:
                 color = edge.color if edge.color is not None else Color.by
             elif edge.is_edge_between_boundaries:
                 color = Color.red
-            elif edge.node1.is_boundary or edge.node2.is_boundary:
-                color = Color.green
+            # elif edge.node1.is_boundary or edge.node2.is_boundary:
+            #     color = Color.green
             else:
                 # grey
                 color = Color.by
@@ -537,8 +537,9 @@ class Plotter3D:
                 simplexes = [[tmp_point_map[point] for point in face] for face in triangulation.simplices]
                 face = [qubit_to_pointposition[qubit] for qubit in triangles_to_face(simplexes)]
                 if (face_color is None and node_color is None) or (node_color is not None and node.color in node_color):
-                    faces.append(face)
-                    face_colors.append(node.color.highlight if node in highlighted_volumes else node.color)
+                    if string_operator_qubits is None or string_operator_qubits & set(node.qubits):
+                        faces.append(face)
+                        face_colors.append(node.color.highlight if node in highlighted_volumes else node.color)
                 elif (face_color is not None and f_color in face_color):
                     # otherwise, most faces would be included twice, once per volume
                     if face in volumes:
@@ -564,7 +565,7 @@ class Plotter3D:
         present_point_pos = set(itertools.chain.from_iterable(present_edges))
         # only those qubits may support additional edges
         if string_operator_qubits:
-            present_point_pos &= {qubit_to_pointposition[qubit] for qubit in string_operator_qubits}
+            present_point_pos = {qubit_to_pointposition[qubit] for qubit in string_operator_qubits}
         lines: list[tuple[int, int]] = []
         line_ids = []
         line_colors = []
@@ -786,6 +787,8 @@ class Plotter3D:
         used_qubit_pos = set()
         if not explode_factor:
             used_qubit_pos = set(itertools.chain.from_iterable(reconvert_faces(mesh.faces)))
+            if string_operator_qubits:
+                used_qubit_pos.update([pos for pos, qubit in enumerate(mesh.point_data['qubits']) if qubit in string_operator_qubits])
         if show_normal_qubits:
             normal_qubits = set(mesh.point_data['qubits']) - set(highlighted_qubits)
         else:
