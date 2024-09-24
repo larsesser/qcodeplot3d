@@ -386,7 +386,7 @@ class Plotter3D:
     def _primary_distance_to_boundarynodeoffset(distance: int) -> Optional[float]:
         return {
             4: 0.25,
-            6: 0.3,
+            6: 0.32,
         }.get(distance)
 
     def _construct_primary_mesh(self, highlighted_volumes: list[DualGraphNode] = None,
@@ -493,6 +493,8 @@ class Plotter3D:
             boundary_to_reference_plane[node.index] = reference_plane
         # ... then, apply the moving
         for node_index, reference_plane in boundary_to_reference_plane.items():
+            if reference_plane == []:
+                continue
             node = self.dual_graph[node_index]
             face_qubit_coordinates = [qubit_to_point[qubit] for qubit in node.qubits]
             for qubit, coordinate in zip(node.qubits, project_to_given_plane(reference_plane, face_qubit_coordinates)):
@@ -795,12 +797,12 @@ class Plotter3D:
             normal_qubits = set()
         for qubits, color in [(normal_qubits, "indigo"), (highlighted_qubits, "violet")]:
             positions = [pos for pos, qubit in enumerate(mesh.point_data['qubits']) if qubit in qubits and pos in used_qubit_pos]
-            qubit_labels = [f"{qubit}" for pos, qubit in enumerate(mesh.point_data['qubits']) if pos in positions]
             coordinates = np.asarray([coordinate for pos, coordinate in enumerate(mesh.points) if pos in positions])
             if len(coordinates) == 0:
                 continue
             plt.add_points(coordinates, point_size=point_size, color=color)
             if show_qubit_labels:
+                qubit_labels = [f"{qubit}" for pos, qubit in enumerate(mesh.point_data['qubits']) if pos in positions]
                 plt.add_point_labels(coordinates, qubit_labels, show_points=False, font_size=20)
         # extract lines from mesh, plot them separately
         if only_nodes_with_color is not None:
