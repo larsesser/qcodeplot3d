@@ -426,7 +426,7 @@ class Plotter3D:
                                 face_color: Color | list[Color] = None, node_color: Color | list[Color] = None,
                                 lowest_title: tuple[int, int, int] = None, highest_title: tuple[int, int, int] = None,
                                 mandatory_qubits: set[int] = None, string_operator_qubits: set[int] = None,
-                                color_edges: bool = False) -> pyvista.PolyData:
+                                color_edges: bool = False, transparent_faces: bool = False) -> pyvista.PolyData:
         """Construct primary mesh from dual_mesh.
 
         :param qubit_coordinates: Use them instead of calculating the coordinates from the dual_mesh.
@@ -480,6 +480,8 @@ class Plotter3D:
             # exactly three nodes are boundary nodes
             if sum(node.is_boundary for node in dg_nodes) == 3:
                 corner_qubits.add(qubit)
+                if self.distance == 3:
+                    center = center + 1 * (center - dual_mesh_center)
             # use given coordinates if provided
             if qubit_coordinates:
                 points.append(qubit_coordinates[qubit])
@@ -496,16 +498,19 @@ class Plotter3D:
             if not node.is_boundary:
                 continue
             face_corner_qubit_coordinates = [qubit_to_point[qubit] for qubit in set(node.qubits) & corner_qubits]
-            max_distance = 0
-            reference_plane = []
-            for neighbour_index in self.dual_graph.neighbors(node.index):
-                neighbour = self.dual_graph[neighbour_index]
-                if neighbour.is_boundary:
-                    continue
-                references = [qubit_to_point[qubit] for qubit in set(node.qubits) & set(neighbour.qubits)]
-                if all(distance > max_distance for distance in distance_to_plane(face_corner_qubit_coordinates, references)):
-                    reference_plane = references
-                    max_distance = min(distance_to_plane(face_corner_qubit_coordinates, references))
+            if self.distance == 3:
+                reference_plane = face_corner_qubit_coordinates
+            else:
+                max_distance = 0
+                reference_plane = []
+                for neighbour_index in self.dual_graph.neighbors(node.index):
+                    neighbour = self.dual_graph[neighbour_index]
+                    if neighbour.is_boundary:
+                        continue
+                    references = [qubit_to_point[qubit] for qubit in set(node.qubits) & set(neighbour.qubits)]
+                    if all(distance > max_distance for distance in distance_to_plane(face_corner_qubit_coordinates, references)):
+                        reference_plane = references
+                        max_distance = min(distance_to_plane(face_corner_qubit_coordinates, references))
             boundary_to_reference_plane[node.index] = reference_plane
         # ... then, apply the moving to the plane ...
         for node_index, reference_plane in boundary_to_reference_plane.items():
@@ -584,13 +589,24 @@ class Plotter3D:
                 if (face_color is None and node_color is None) or (node_color is not None and node.color in node_color):
                     if string_operator_qubits is None or string_operator_qubits & set(node.qubits):
                         faces.append(face)
-                        face_colors.append(node.color.highlight if node in highlighted_volumes else node.color)
+                        this_face_color = node.color
+                        if node in highlighted_volumes:
+                            face_colors.append(node.color.highlight)
+                        elif transparent_faces:
+                            face_colors.append(node.color.transparent)
+                        else:
+                            face_colors.append(node.color)
                 elif (face_color is not None and f_color in face_color):
                     # otherwise, most faces would be included twice, once per volume
                     if face in volumes:
                         continue
                     faces.append(face)
-                    face_colors.append(f_color)
+                    if node in highlighted_volumes:
+                        face_colors.append(f_color.highlight)
+                    elif transparent_faces:
+                        face_colors.append(f_color.transparent)
+                    else:
+                        face_colors.append(f_color)
                 for edge in zip(face + [face[-1]], face[1:] + [face[0]]):
                     all_edges.add(edge)
                     all_edges.add(edge[::-1])
@@ -641,6 +657,7 @@ class Plotter3D:
     @staticmethod
     def _dual_mesh_coordinates_from_primary_mesh_boundary_factor(distance: int) -> Optional[float]:
         return {
+            3: 4.5,
             4: 1.5,
             6: 1.0,
         }.get(distance)
@@ -649,17 +666,28 @@ class Plotter3D:
         primary_mesh = primary_mesh or self.primary_mesh
         lines = reconvert_faces(primary_mesh.lines)
         faces = reconvert_faces(primary_mesh.faces)
+        boundary_nodes = [node for node in self.dual_graph.nodes() if node.is_boundary]
         pointpos_to_point: dict[int, npt.NDArray[np.float64]] = {pos: point for pos, point in enumerate(primary_mesh.points)}
-        dg_index_to_points: dict[int, list[npt.NDArray[np.float64]]] = defaultdict(list)
+        pointpos_to_qubit: dict[int, int] = {pos: qubit for pos, qubit in enumerate(primary_mesh.point_data['qubits'])}
+        dg_index_to_points: dict[int, list[tuple[int, npt.NDArray[np.float64]]]] = defaultdict(list)
         for dg_index, face in zip(primary_mesh.cell_data['pyvista_indices'][len(lines):], faces):
-            dg_index_to_points[dg_index].extend([pointpos_to_point[pos] for pos in face])
+            for pos in face:
+                dg_index_to_points[dg_index].append((pointpos_to_qubit[pos], pointpos_to_point[pos]))
+        corner_qubits = set()
+        if self.distance == 3:
+            corner_qubits = {(set(node1.qubits) & set(node2.qubits) & set(node3.qubits)).pop()
+                             for node1, node2, node3 in itertools.combinations(boundary_nodes, 3)}
         ret: dict[int, npt.NDArray[np.float64]] = {}
         # first, compute the center of each volume
         for dg_index, points in dg_index_to_points.items():
             center = np.asarray([0.0, 0.0, 0.0])
-            for point in points:
+            divisor = len(points)
+            for qubit, point in points:
                 center += point
-            center = center / len(points)
+                if qubit in corner_qubits:
+                    center += 5*point
+                    divisor += 5
+            center = center / divisor
             ret[dg_index] = center
         # calculate the center of all nodes
         center = np.asarray([0.0, 0.0, 0.0])
@@ -667,8 +695,8 @@ class Plotter3D:
             center += point
         center = center / len(ret)
         # then, compute the position of each boundary node
-        for boundary_index in [node.index for node in self.dual_graph.nodes() if node.is_boundary]:
-            adjacent_nodes = [index for index in self.dual_graph.neighbors(boundary_index) if not self.dual_graph[index].is_boundary]
+        for node in boundary_nodes:
+            adjacent_nodes = [index for index in self.dual_graph.neighbors(node.index) if not self.dual_graph[index].is_boundary]
             face_center = np.asarray([0.0, 0.0, 0.0])
             for index, position in ret.items():
                 if index not in adjacent_nodes:
@@ -678,8 +706,13 @@ class Plotter3D:
 
             # extrapolate the position of the boundary node from the line through center and face_center
             factor = self._dual_mesh_coordinates_from_primary_mesh_boundary_factor(self.distance) or 1
-            ret[boundary_index] = face_center + factor*(face_center - center)
+            ret[node.index] = face_center + factor*(face_center - center)
         return ret
+
+
+    def get_primary_graph_qubit_coordinates(self, primary_mesh: pyvista.PolyData = None) -> dict[int, npt.NDArray[np.float64]]:
+        primary_mesh = primary_mesh or self.primary_mesh
+        return {qubit: coordinate for qubit, coordinate in zip(primary_mesh.point_data['qubits'], primary_mesh.points)}
 
 
     @staticmethod
@@ -827,15 +860,16 @@ class Plotter3D:
                           qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None,
                           only_faces_with_color: Color | list[Color] = None, only_nodes_with_color: Color | list[Color] = None,
                           lowest_title: tuple[int, int, int] = None, highest_title: tuple[int, int, int] = None,
-                          mandatory_qubits: set[int] = None, string_operator_qubits: set[int] = None,
-                          initial_cpos = None, show_normal_qubits: bool = True,
+                          mandatory_qubits: set[int] = None, string_operator_qubits: set[int] = None, line_width: float = None,
+                          initial_cpos = None, show_normal_qubits: bool = True, wireframe_plot: bool = False, transparent_faces: bool = False,
                           ) -> None:
         plotter = self.get_primary_mesh_plotter(
             show_qubit_labels, explode_factor, off_screen=False, highlighted_volumes=highlighted_volumes,
             highlighted_qubits=highlighted_qubits, qubit_coordinates=qubit_coordinates, point_size=15,
             only_faces_with_color=only_faces_with_color, only_nodes_with_color=only_nodes_with_color,
             lowest_title=lowest_title, highest_title=highest_title, mandatory_qubits=mandatory_qubits,
-            string_operator_qubits=string_operator_qubits, show_normal_qubits=show_normal_qubits)
+            string_operator_qubits=string_operator_qubits, show_normal_qubits=show_normal_qubits,
+            line_width=line_width, wireframe_plot=wireframe_plot, transparent_faces=transparent_faces)
 
         def my_cpos_callback(*args):
             # plotter.add_text(str(plotter.camera_position), name="cpos")
@@ -853,7 +887,8 @@ class Plotter3D:
                                  only_faces_with_color: Color | list[Color] = None, only_nodes_with_color: Color | list[Color] = None,
                                  lowest_title: tuple[int, int, int] = None, highest_title: tuple[int, int, int] = None,
                                  mandatory_qubits: set[int] = None,  string_operator_qubits: set[int] = None, color_edges: bool = False,
-                                 show_normal_qubits: bool = True,
+                                 show_normal_qubits: bool = True, line_width: float = None, wireframe_plot: bool = False,
+                                 transparent_faces: bool = False,
         ) -> pyvista.plotting.Plotter:
         """Return the plotter preloaded with the primary mesh.
 
@@ -861,15 +896,18 @@ class Plotter3D:
             pyvista_theme to 'Color.highlighted_color_map' (otherwise there will be no visible effect).
         """
         highlighted_qubits = highlighted_qubits or []
-        if highlighted_volumes or qubit_coordinates or only_faces_with_color or only_nodes_with_color or lowest_title or highest_title or mandatory_qubits or string_operator_qubits or color_edges:
+        if highlighted_volumes or qubit_coordinates or only_faces_with_color or only_nodes_with_color or lowest_title or highest_title or mandatory_qubits or string_operator_qubits or color_edges or transparent_faces:
             mesh = self._construct_primary_mesh(highlighted_volumes, qubit_coordinates, only_faces_with_color,
                                                 only_nodes_with_color, lowest_title, highest_title, mandatory_qubits,
-                                                string_operator_qubits, color_edges)
+                                                string_operator_qubits, color_edges, transparent_faces)
         else:
             mesh = self.primary_mesh
         if explode_factor != 0.0:
             mesh = self.explode(mesh, explode_factor)
-        if self.dimension == 3:
+        if transparent_faces:
+            theme = self.get_plotting_theme()
+            theme.cmap = Color.transparent_color_map()
+        elif self.dimension == 3:
             theme = self.get_plotting_theme()
             theme.cmap = Color.highlighted_color_map_3d()
         else:
@@ -904,13 +942,12 @@ class Plotter3D:
             # remove lines from mesh
             mesh.lines = None
             mesh.cell_data["colors"] = list(mesh.cell_data["colors"])[len(line_poses):]
-        line_width = None
-        if color_edges:
-            line_with = 25
-        elif only_faces_with_color:
-            line_width = 20
-        plt.add_mesh(mesh, scalars="colors", show_scalar_bar=False, clim=Color.color_limits(), smooth_shading=True,
-                     line_width=line_width)
+        if wireframe_plot or transparent_faces:
+            plt.add_mesh(mesh, show_scalar_bar=False, color="black", smooth_shading=True,
+                         line_width=line_width, style='wireframe')
+        if not wireframe_plot:
+            plt.add_mesh(mesh, scalars="colors", show_scalar_bar=False, clim=Color.color_limits(), smooth_shading=True,
+                         line_width=line_width)
         # useful code sniped to print all qubits of all faces which lay in the same plane, given by a face of qubits
         # plane_qubits = [78, 1388, 466]
         # req_face_color = Color.rb
@@ -926,17 +963,31 @@ class Plotter3D:
         light = pyvista.Light(light_type='headlight')
         light.intensity = 0.8
         plt.add_light(light)
-        if self.dimension == 3:
+        if self.dimension == 3 and not wireframe_plot and not transparent_faces:
             plt.remove_all_lights()
         return plt
 
-    def show_debug_primary_meshes(self, mesh: pyvista.PolyData, highlighted_qubits: list[int] = None,
-                                  highlighted_edges: list[GraphEdge] = None,
-                                  show_qubit_labels: bool = False, explode_factor: float = 0.0,
-                                  print_cpos: bool = False) -> None:
+    def show_debug_primary_meshes(self, mesh: pyvista.PolyData, show_qubit_labels: bool = False, explode_factor: float = 0.0,
+                                  highlighted_volumes: list[DualGraphNode] = None, highlighted_qubits: list[int] = None,
+                                  qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None,
+                                  only_faces_with_color: Color | list[Color] = None,
+                                  only_nodes_with_color: Color | list[Color] = None,
+                                  lowest_title: tuple[int, int, int] = None, highest_title: tuple[int, int, int] = None,
+                                  mandatory_qubits: set[int] = None, string_operator_qubits: set[int] = None,
+                                  wireframe_plot: bool = False, transparent_faces: bool = False,
+                                  show_normal_qubits: bool = True, mesh_line_width: int = 1, primary_line_width: int = 1,
+                                  highlighted_edges: list[GraphEdge] = None, show_normal_edges: bool = True,
+                                  initial_cpos=None, print_cpos: bool = False,
+                                  ) -> None:
         plotter = self.get_debug_primary_meshes_plotter(
-            mesh, highlighted_qubits, highlighted_edges, show_qubit_labels, explode_factor,
-            off_screen=False, line_width=1, qubit_point_size=20, node_point_size=20)
+            mesh, show_qubit_labels, explode_factor, off_screen=False, highlighted_volumes=highlighted_volumes,
+            highlighted_qubits=highlighted_qubits, qubit_coordinates=qubit_coordinates, qubit_point_size=15,
+            only_faces_with_color=only_faces_with_color, only_nodes_with_color=only_nodes_with_color,
+            lowest_title=lowest_title, highest_title=highest_title, mandatory_qubits=mandatory_qubits,
+            string_operator_qubits=string_operator_qubits, show_normal_qubits=show_normal_qubits,
+            wireframe_plot=wireframe_plot, transparent_faces=transparent_faces,
+            highlighted_edges=highlighted_edges, show_normal_edges=show_normal_edges,
+            node_point_size=20, mesh_line_width=mesh_line_width, primary_line_width=primary_line_width)
 
         def my_cpos_callback(*args):
             # plotter.add_text(str(plotter.camera_position), name="cpos")
@@ -944,53 +995,45 @@ class Plotter3D:
 
         if print_cpos:
             plotter.iren.add_observer(vtk.vtkCommand.EndInteractionEvent, my_cpos_callback)
+        if initial_cpos:
+            plotter.camera_position = initial_cpos
         plotter.show()
 
-    def get_debug_primary_meshes_plotter(self, mesh: pyvista.PolyData, highlighted_qubits: list[int] = None,
-                                         highlighted_edges: list[GraphEdge] = None,
-                                         show_qubit_labels: bool = False, explode_factor: float = 0.0,
-                                         off_screen: bool = True, line_width: int = 4,
-                                         qubit_point_size: int = 70, node_point_size: int = 120) -> pyvista.plotting.Plotter:
+    def get_debug_primary_meshes_plotter(self, mesh: pyvista.PolyData, show_qubit_labels: bool = False, explode_factor: float = 0.0,
+                                         off_screen: bool = True, qubit_point_size: int = 70, highlighted_volumes: list[DualGraphNode] = None,
+                                         highlighted_qubits: list[int] = None, qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None,
+                                         only_faces_with_color: Color | list[Color] = None, only_nodes_with_color: Color | list[Color] = None,
+                                         lowest_title: tuple[int, int, int] = None, highest_title: tuple[int, int, int] = None,
+                                         mandatory_qubits: set[int] = None,  string_operator_qubits: set[int] = None, color_edges: bool = False,
+                                         show_normal_qubits: bool = True, wireframe_plot: bool = False, transparent_faces: bool = False,
+                                         highlighted_edges: list[GraphEdge] = None, mesh_line_width: int = 4, node_point_size: int = 120,
+                                         show_normal_edges: bool = True, primary_line_width: int = None) -> pyvista.plotting.Plotter:
         """Return the plotter preloaded with the debug and primary mesh.
 
         :param highlighted_edges: Edges of the debug graph to highlight.
         """
-        highlighted_qubits = highlighted_qubits or []
         highlighted_edges = highlighted_edges or []
-        primary_mesh = self.primary_mesh
         if explode_factor != 0.0:
             mesh = self.explode(mesh, explode_factor)
-            primary_mesh = self.explode(primary_mesh, explode_factor)
-        plt = pyvista.plotting.Plotter(theme=self.pyvista_theme, off_screen=off_screen)
-        normal_qubits = set(primary_mesh.point_data['qubits']) - set(highlighted_qubits)
-        for qubits, color in [(normal_qubits, "indigo"), (highlighted_qubits, "violet")]:
-            if not qubits:
-                continue
-            positions = [pos for pos, qubit in enumerate(primary_mesh.point_data['qubits']) if qubit in qubits]
-            coordinates = np.asarray([coordinate for pos, coordinate in enumerate(primary_mesh.points) if pos in positions])
-            plt.add_points(coordinates, point_size=qubit_point_size, color=color)
-        if show_qubit_labels:
-            plt.add_point_labels(primary_mesh, "qubits", point_size=qubit_point_size, font_size=20)
-        plt.add_mesh(primary_mesh, scalars="colors", show_scalar_bar=False, clim=Color.color_limits(), smooth_shading=True)
+        plt = self.get_primary_mesh_plotter(show_qubit_labels, explode_factor, off_screen, qubit_point_size,
+                                            highlighted_volumes, highlighted_qubits, qubit_coordinates,
+                                            only_faces_with_color,only_nodes_with_color, lowest_title, highest_title,
+                                            mandatory_qubits, string_operator_qubits, color_edges, show_normal_qubits,
+                                            primary_line_width, wireframe_plot, transparent_faces)
         plt.add_points(mesh.points, scalars=mesh["colors"], point_size=node_point_size, show_scalar_bar=False,
                        clim=Color.color_limits())
         if highlighted_edges:
             highlighted_edge_indices = [edge.index for edge in highlighted_edges]
             all_edges = reconvert_faces(mesh.lines)
             normal_edge_pos = [pos for pos, index in enumerate(mesh.cell_data['edge_index']) if index not in highlighted_edge_indices]
-            if normal_edge_pos:
+            if normal_edge_pos and show_normal_edges:
                 normal_edge = pyvista.PolyData(mesh.points, lines=convert_faces([edge for pos, edge in enumerate(all_edges) if pos in normal_edge_pos]))
-                plt.add_mesh(normal_edge, show_scalar_bar=False, line_width=line_width, smooth_shading=True, color="silver")
+                plt.add_mesh(normal_edge, show_scalar_bar=False, line_width=mesh_line_width, smooth_shading=True, color="silver")
             highlighted_edge_pos = [pos for pos, index in enumerate(mesh.cell_data['edge_index']) if index in highlighted_edge_indices]
             highlighted_edge = pyvista.PolyData(mesh.points, lines=convert_faces([edge for pos, edge in enumerate(all_edges) if pos in highlighted_edge_pos]))
-            plt.add_mesh(highlighted_edge, show_scalar_bar=False, line_width=line_width*5, smooth_shading=True, color="orange")
-        else:
-            plt.add_mesh(mesh, show_scalar_bar=False, line_width=line_width, smooth_shading=True, color="silver")
-        light = pyvista.Light(light_type='headlight')
-        light.intensity = 0.8
-        plt.add_light(light)
-        if self.dimension == 3:
-            plt.remove_all_lights()
+            plt.add_mesh(highlighted_edge, show_scalar_bar=False, line_width=mesh_line_width*5, smooth_shading=True, color="orange")
+        elif show_normal_edges:
+            plt.add_mesh(mesh, show_scalar_bar=False, line_width=mesh_line_width, smooth_shading=True, color="silver")
         return plt
 
 
@@ -1028,7 +1071,7 @@ class Plotter2D(Plotter3D):
                                 face_color: Color | list[Color] = None, node_color: Color | list[Color] = None,
                                 lowest_title: tuple[int, int, int] = None, highest_title: tuple[int, int, int] = None,
                                 mandatory_qubits: set[int] = None, string_operator_qubits: set[int] = None,
-                                color_edges: bool = False):
+                                color_edges: bool = False, transparent_faces: bool = False):
         """Construct primary mesh from dual_mesh.
 
         :param qubit_coordinates: Use them instead of calculating the coordinates from the dual_mesh.
