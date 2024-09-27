@@ -907,7 +907,7 @@ class Plotter3D:
                                  only_faces_with_color: Color | list[Color] = None, only_nodes_with_color: Color | list[Color] = None,
                                  lowest_title: tuple[int, int, int] = None, highest_title: tuple[int, int, int] = None,
                                  mandatory_qubits: set[int] = None,  string_operator_qubits: set[int] = None, color_edges: bool = False,
-                                 show_normal_qubits: bool = True, line_width: float = None, wireframe_plot: bool = False,
+                                 show_normal_qubits: bool = True, line_width: float = 3, wireframe_plot: bool = False,
                                  transparent_faces: bool = False,
         ) -> pyvista.plotting.Plotter:
         """Return the plotter preloaded with the primary mesh.
@@ -966,12 +966,12 @@ class Plotter3D:
             if show_qubit_labels:
                 qubit_labels = [f"{qubit}" for pos, qubit in enumerate(mesh.point_data['qubits']) if pos in positions]
                 plt.add_point_labels(coordinates, qubit_labels, show_points=False, font_size=20)
-        if wireframe_plot or transparent_faces:
-            plt.add_mesh(mesh, show_scalar_bar=False, color="black", smooth_shading=True,
-                         line_width=line_width, style='wireframe')
+        if not color_edges:
+            plt.add_mesh(mesh, show_scalar_bar=False, color="black", smooth_shading=True, line_width=line_width, style='wireframe')
         if not wireframe_plot:
             plt.add_mesh(mesh, scalars="colors", show_scalar_bar=False, clim=Color.color_limits(), smooth_shading=True,
-                         line_width=line_width, opacity=0.3 if transparent_faces else None, show_edges=not color_edges)
+                         show_edges=False, opacity=0.2 if transparent_faces else None,
+                         ambient=1 if transparent_faces else None, diffuse=0 if transparent_faces else None)
         # useful code sniped to print all qubits of all faces which lay in the same plane, given by a face of qubits
         # plane_qubits = [78, 1388, 466]
         # req_face_color = Color.rb
