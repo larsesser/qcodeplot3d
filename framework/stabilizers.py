@@ -173,7 +173,7 @@ class Color(enum.IntEnum):
     @classmethod
     def color_map(cls) -> Colormap:
         """Regular color map for normal plotting."""
-        return ListedColormap(cls.get_color_colors() * 3)
+        return ListedColormap(cls.get_color_colors() * 2)
 
     @property
     def highlight(self) -> int:
@@ -182,10 +182,6 @@ class Color(enum.IntEnum):
         When using the regular color_map, this results in the same color.
         """
         return self.value + self.get_highest_value() + 1
-
-    @property
-    def transparent(self) -> int:
-        return self.value + 2*self.get_highest_value() + 1
 
     @classmethod
     def highlighted_color_map(cls) -> Colormap:
@@ -196,7 +192,7 @@ class Color(enum.IntEnum):
         highlighted_colors = np.asarray(cls.get_color_colors())
         dampened_colors = highlighted_colors.copy()
         dampened_colors[:, 0:3] *= 0.45
-        return ListedColormap(np.concatenate([dampened_colors, highlighted_colors, highlighted_colors]))
+        return ListedColormap(np.concatenate([dampened_colors, highlighted_colors]))
 
     @classmethod
     def highlighted_color_map_3d(cls) -> Colormap:
@@ -207,24 +203,12 @@ class Color(enum.IntEnum):
         highlighted_colors = np.asarray(cls.get_color_colors())
         dampened_colors = highlighted_colors.copy()
         dampened_colors[:, 0:3] *= 0.6
-        return ListedColormap(np.concatenate([dampened_colors, highlighted_colors, highlighted_colors]))
-
-    @classmethod
-    def transparent_color_map(cls) -> Colormap:
-        """Color map providing a reduced highlighted color by default and allows highlight certain colors.
-
-        Allows transparent colors, therefore the values of dampened colors are adjusted.
-        """
-        highlighted_colors = np.asarray(cls.get_color_colors())
-        dampened_colors = highlighted_colors.copy()
-        dampened_colors[:, 0:3] *= 0.5
-        transparent_colors = [[e[0], e[1], e[2], 0.2] for e in dampened_colors]
-        return ListedColormap(np.concatenate([dampened_colors, highlighted_colors, transparent_colors]))
+        return ListedColormap(np.concatenate([dampened_colors, highlighted_colors]))
 
     @classmethod
     def color_limits(cls) -> list[int]:
         """Minimal and maximal numerical value representing a color of this class."""
-        return [min(cls), max(cls).transparent]
+        return [min(cls), max(cls).highlight]
 
     def combine(self, other: "Color") -> "Color":
         if not (self.is_monochrome and other.is_monochrome):

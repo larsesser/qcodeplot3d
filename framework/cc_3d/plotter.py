@@ -205,6 +205,7 @@ class Plotter3D:
         theme.lighting = 'light kit'
         theme.render_points_as_spheres = True
         theme.render_lines_as_tubes = True
+        theme.hidden_line_removal = False
         return theme
 
     @property
@@ -426,7 +427,7 @@ class Plotter3D:
                                 face_color: Color | list[Color] = None, node_color: Color | list[Color] = None,
                                 lowest_title: tuple[int, int, int] = None, highest_title: tuple[int, int, int] = None,
                                 mandatory_qubits: set[int] = None, string_operator_qubits: set[int] = None,
-                                color_edges: bool = False, transparent_faces: bool = False) -> pyvista.PolyData:
+                                color_edges: bool = False) -> pyvista.PolyData:
         """Construct primary mesh from dual_mesh.
 
         :param qubit_coordinates: Use them instead of calculating the coordinates from the dual_mesh.
@@ -589,11 +590,8 @@ class Plotter3D:
                 if (face_color is None and node_color is None) or (node_color is not None and node.color in node_color):
                     if string_operator_qubits is None or string_operator_qubits & set(node.qubits):
                         faces.append(face)
-                        this_face_color = node.color
                         if node in highlighted_volumes:
                             face_colors.append(node.color.highlight)
-                        elif transparent_faces:
-                            face_colors.append(node.color.transparent)
                         else:
                             face_colors.append(node.color)
                 elif (face_color is not None and f_color in face_color):
@@ -603,8 +601,6 @@ class Plotter3D:
                     faces.append(face)
                     if node in highlighted_volumes:
                         face_colors.append(f_color.highlight)
-                    elif transparent_faces:
-                        face_colors.append(f_color.transparent)
                     else:
                         face_colors.append(f_color)
                 for edge in zip(face + [face[-1]], face[1:] + [face[0]]):
@@ -820,7 +816,7 @@ class Plotter3D:
         plotter.show()
 
     def get_debug_mesh_plotter(self, mesh: pyvista.PolyData, show_labels: bool = False, exclude_boundaries: bool = False,
-                               off_screen: bool = True, point_size: int = 120, line_width: int = 4, edge_color: str = None) -> pyvista.plotting.Plotter:
+                               off_screen: bool = True, point_size: int = 120, line_width: int = 10, edge_color: str = None) -> pyvista.plotting.Plotter:
         if exclude_boundaries:
             boundary_indices = {index for index, is_boundary in enumerate(mesh["is_boundary"]) if is_boundary}
             new_indices = {old: new for old, new in zip(
@@ -844,10 +840,12 @@ class Plotter3D:
         if show_labels:
             plt.add_point_labels(mesh, "point_labels", point_size=point_size, font_size=20)
         if edge_color:
-            plt.add_mesh(mesh, show_scalar_bar=False, color=edge_color, line_width=line_width, smooth_shading=True)
+            plt.add_mesh(mesh, show_scalar_bar=False, color=edge_color, line_width=line_width, smooth_shading=True,
+                         show_vertices=True, point_size=point_size, style="wireframe")
         else:
             plt.add_mesh(mesh, scalars="edge_colors", show_scalar_bar=False, cmap=Color.color_map(),
-                         clim=Color.color_limits(), line_width=line_width, smooth_shading=True)
+                         clim=Color.color_limits(), line_width=line_width, smooth_shading=True,
+                         show_vertices=True, point_size=point_size, style="wireframe")
         plt.add_points(mesh.points, scalars=mesh["colors"], point_size=point_size, show_scalar_bar=False,
                        clim=Color.color_limits())
         light = pyvista.Light(light_type='headlight')
@@ -896,18 +894,15 @@ class Plotter3D:
             pyvista_theme to 'Color.highlighted_color_map' (otherwise there will be no visible effect).
         """
         highlighted_qubits = highlighted_qubits or []
-        if highlighted_volumes or qubit_coordinates or only_faces_with_color or only_nodes_with_color or lowest_title or highest_title or mandatory_qubits or string_operator_qubits or color_edges or transparent_faces:
+        if highlighted_volumes or qubit_coordinates or only_faces_with_color or only_nodes_with_color or lowest_title or highest_title or mandatory_qubits or string_operator_qubits or color_edges:
             mesh = self._construct_primary_mesh(highlighted_volumes, qubit_coordinates, only_faces_with_color,
                                                 only_nodes_with_color, lowest_title, highest_title, mandatory_qubits,
-                                                string_operator_qubits, color_edges, transparent_faces)
+                                                string_operator_qubits, color_edges)
         else:
             mesh = self.primary_mesh
         if explode_factor != 0.0:
             mesh = self.explode(mesh, explode_factor)
-        if transparent_faces:
-            theme = self.get_plotting_theme()
-            theme.cmap = Color.transparent_color_map()
-        elif self.dimension == 3:
+        if self.dimension == 3 and not transparent_faces:
             theme = self.get_plotting_theme()
             theme.cmap = Color.highlighted_color_map_3d()
         else:
@@ -947,7 +942,7 @@ class Plotter3D:
                          line_width=line_width, style='wireframe')
         if not wireframe_plot:
             plt.add_mesh(mesh, scalars="colors", show_scalar_bar=False, clim=Color.color_limits(), smooth_shading=True,
-                         line_width=line_width)
+                         line_width=line_width, opacity=0.3 if transparent_faces else None)
         # useful code sniped to print all qubits of all faces which lay in the same plane, given by a face of qubits
         # plane_qubits = [78, 1388, 466]
         # req_face_color = Color.rb
@@ -977,6 +972,7 @@ class Plotter3D:
                                   wireframe_plot: bool = False, transparent_faces: bool = False,
                                   show_normal_qubits: bool = True, mesh_line_width: int = 1, primary_line_width: int = 1,
                                   highlighted_edges: list[GraphEdge] = None, show_normal_edges: bool = True,
+                                  highlighted_line_width: int = 1,
                                   initial_cpos=None, print_cpos: bool = False,
                                   ) -> None:
         plotter = self.get_debug_primary_meshes_plotter(
@@ -987,7 +983,8 @@ class Plotter3D:
             string_operator_qubits=string_operator_qubits, show_normal_qubits=show_normal_qubits,
             wireframe_plot=wireframe_plot, transparent_faces=transparent_faces,
             highlighted_edges=highlighted_edges, show_normal_edges=show_normal_edges,
-            node_point_size=20, mesh_line_width=mesh_line_width, primary_line_width=primary_line_width)
+            node_point_size=20, mesh_line_width=mesh_line_width, primary_line_width=primary_line_width,
+            highlighted_line_width=highlighted_line_width)
 
         def my_cpos_callback(*args):
             # plotter.add_text(str(plotter.camera_position), name="cpos")
@@ -1006,8 +1003,8 @@ class Plotter3D:
                                          lowest_title: tuple[int, int, int] = None, highest_title: tuple[int, int, int] = None,
                                          mandatory_qubits: set[int] = None,  string_operator_qubits: set[int] = None, color_edges: bool = False,
                                          show_normal_qubits: bool = True, wireframe_plot: bool = False, transparent_faces: bool = False,
-                                         highlighted_edges: list[GraphEdge] = None, mesh_line_width: int = 4, node_point_size: int = 120,
-                                         show_normal_edges: bool = True, primary_line_width: int = None) -> pyvista.plotting.Plotter:
+                                         highlighted_edges: list[GraphEdge] = None, mesh_line_width: int = 10, node_point_size: int = 120,
+                                         show_normal_edges: bool = True, primary_line_width: int = None, highlighted_line_width: int = None) -> pyvista.plotting.Plotter:
         """Return the plotter preloaded with the debug and primary mesh.
 
         :param highlighted_edges: Edges of the debug graph to highlight.
@@ -1020,20 +1017,24 @@ class Plotter3D:
                                             only_faces_with_color,only_nodes_with_color, lowest_title, highest_title,
                                             mandatory_qubits, string_operator_qubits, color_edges, show_normal_qubits,
                                             primary_line_width, wireframe_plot, transparent_faces)
-        plt.add_points(mesh.points, scalars=mesh["colors"], point_size=node_point_size, show_scalar_bar=False,
-                       clim=Color.color_limits())
         if highlighted_edges:
             highlighted_edge_indices = [edge.index for edge in highlighted_edges]
             all_edges = reconvert_faces(mesh.lines)
             normal_edge_pos = [pos for pos, index in enumerate(mesh.cell_data['edge_index']) if index not in highlighted_edge_indices]
             if normal_edge_pos and show_normal_edges:
                 normal_edge = pyvista.PolyData(mesh.points, lines=convert_faces([edge for pos, edge in enumerate(all_edges) if pos in normal_edge_pos]))
-                plt.add_mesh(normal_edge, show_scalar_bar=False, line_width=mesh_line_width, smooth_shading=True, color="silver")
+                plt.add_mesh(normal_edge, show_scalar_bar=False, line_width=mesh_line_width, smooth_shading=True, color="silver",
+                             point_size=node_point_size, show_vertices=True, style="wireframe")
             highlighted_edge_pos = [pos for pos, index in enumerate(mesh.cell_data['edge_index']) if index in highlighted_edge_indices]
             highlighted_edge = pyvista.PolyData(mesh.points, lines=convert_faces([edge for pos, edge in enumerate(all_edges) if pos in highlighted_edge_pos]))
-            plt.add_mesh(highlighted_edge, show_scalar_bar=False, line_width=mesh_line_width*5, smooth_shading=True, color="orange")
+            plt.add_mesh(highlighted_edge, show_scalar_bar=False, line_width=highlighted_line_width, smooth_shading=True, color="orange",
+                         point_size=node_point_size, show_vertices=True, style="wireframe")
         elif show_normal_edges:
-            plt.add_mesh(mesh, show_scalar_bar=False, line_width=mesh_line_width, smooth_shading=True, color="silver")
+            plt.add_mesh(mesh, show_scalar_bar=False, point_size=node_point_size, line_width=mesh_line_width, smooth_shading=True,
+                         color="silver", show_vertices=True, style="wireframe")
+        plt.add_points(mesh.points, scalars=mesh["colors"], point_size=node_point_size, show_scalar_bar=False,
+                      clim=Color.color_limits())
+        plt.enable_anti_aliasing('msaa', multi_samples=16)
         return plt
 
 
