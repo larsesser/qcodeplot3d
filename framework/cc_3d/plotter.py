@@ -392,7 +392,12 @@ class Plotter3D:
                 color = edge_color
             elif use_edges_colors:
                 # use grey as fallback
-                color = edge.color if edge.color is not None else Color.by
+                color = Color.by
+                if edge.color:
+                    if self.dimension == 2:
+                        color = ({Color.red, Color.green, Color.blue} - {edge.node1.color, edge.node2.color}).pop()
+                    elif self.dimension == 3:
+                        color = edge.color
             elif edge.is_edge_between_boundaries:
                 color = Color.red
             # elif edge.node1.is_boundary or edge.node2.is_boundary:
@@ -1033,7 +1038,8 @@ class Plotter3D:
                                          mandatory_qubits: set[int] = None,  string_operator_qubits: set[int] = None, color_edges: bool = False,
                                          show_normal_qubits: bool = True, wireframe_plot: bool = False, transparent_faces: bool = False,
                                          highlighted_edges: list[GraphEdge] = None, mesh_line_width: int = 10, node_point_size: int = 120,
-                                         show_normal_edges: bool = True, primary_line_width: int = None, highlighted_line_width: int = None) -> pyvista.plotting.Plotter:
+                                         show_normal_edges: bool = True, primary_line_width: int = None, highlighted_line_width: int = None,
+                                         mesh_line_color: Optional[str] = None) -> pyvista.plotting.Plotter:
         """Return the plotter preloaded with the debug and primary mesh.
 
         :param highlighted_edges: Edges of the debug graph to highlight.
@@ -1059,8 +1065,12 @@ class Plotter3D:
             plt.add_mesh(highlighted_edge, show_scalar_bar=False, line_width=highlighted_line_width, smooth_shading=True, color="orange",
                          point_size=node_point_size, show_vertices=True, style="wireframe")
         elif show_normal_edges:
-            plt.add_mesh(mesh, show_scalar_bar=False, point_size=node_point_size, line_width=mesh_line_width, smooth_shading=True,
-                         color="silver", show_vertices=True, style="wireframe")
+            if mesh_line_color:
+                plt.add_mesh(mesh, show_scalar_bar=False, point_size=node_point_size, line_width=mesh_line_width, smooth_shading=True,
+                            color="silver", show_vertices=True, style="wireframe")
+            else:
+                plt.add_mesh(mesh, scalars="edge_colors", show_scalar_bar=False, point_size=node_point_size, line_width=mesh_line_width,
+                             smooth_shading=True, clim=Color.color_limits(), show_vertices=True, style="wireframe")
         plt.add_points(mesh.points, scalars=mesh["colors"], point_size=node_point_size, show_scalar_bar=False,
                       clim=Color.color_limits())
         plt.enable_anti_aliasing('msaa', multi_samples=16)
