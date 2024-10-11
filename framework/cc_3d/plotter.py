@@ -393,7 +393,7 @@ class Plotter3D:
             elif use_edges_colors:
                 # use grey as fallback
                 color = Color.by
-                if edge.color:
+                if edge.color is not None:
                     if self.dimension == 2:
                         color = ({Color.red, Color.green, Color.blue} - {edge.node1.color, edge.node2.color}).pop()
                     elif self.dimension == 3:
