@@ -1016,6 +1016,7 @@ class Plotter3D:
                                   show_normal_qubits: bool = True, mesh_line_width: int = 1, primary_line_width: int = 1,
                                   highlighted_edges: list[GraphEdge] = None, show_normal_edges: bool = True,
                                   highlighted_line_width: int = 1, mandatory_cell_qubits: set[int] = None,
+                                  mesh_line_color: str = None,
                                   initial_cpos=None, print_cpos: bool = False,
                                   ) -> None:
         plotter = self.get_debug_primary_meshes_plotter(
@@ -1025,7 +1026,7 @@ class Plotter3D:
             lowest_title=lowest_title, highest_title=highest_title, mandatory_face_qubits=mandatory_face_qubits,
             string_operator_qubits=string_operator_qubits, show_normal_qubits=show_normal_qubits,
             wireframe_plot=wireframe_plot, transparent_faces=transparent_faces,
-            highlighted_edges=highlighted_edges, show_normal_edges=show_normal_edges,
+            highlighted_edges=highlighted_edges, show_normal_edges=show_normal_edges, mesh_line_color=mesh_line_color,
             node_point_size=20, mesh_line_width=mesh_line_width, primary_line_width=primary_line_width,
             highlighted_line_width=highlighted_line_width, mandatory_cell_qubits=mandatory_cell_qubits)
 
