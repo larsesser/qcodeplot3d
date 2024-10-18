@@ -343,7 +343,7 @@ class Plotter3D:
     def construct_debug_mesh(self, graph: rx.PyGraph, coordinates: dict[int, npt.NDArray[np.float64]] = None,
                              use_edges_colors: bool = False, edge_color: Color = None,
                              highlighted_nodes: list[GraphNode] = None, highlighted_edges: list[GraphEdge] = None,
-                             include_edges_between_boundaries: bool = True) -> pyvista.PolyData:
+                             include_edges_between_boundaries: bool = True, mandatory_qubits: set[int] = None) -> pyvista.PolyData:
         """Create a 3D mesh of the given rustworkx Graph.
 
         Nodes must be GraphNode and edges GraphEdge objects.
@@ -353,6 +353,11 @@ class Plotter3D:
         :param highlighted_nodes: Change color of given nodes to highlighted color. Take care to adjust the cmap of
             pyvista_theme to 'Color.highlighted_color_map' (otherwise there will be no visible effect).
         """
+        graph = graph.copy()
+        if mandatory_qubits:
+            for node in graph.nodes():
+                if not set(node.qubits) & mandatory_qubits:
+                    graph.remove_node(node.index)
         highlighted_nodes = highlighted_nodes or []
         highlighted_edges = highlighted_edges or []
         # calculate positions of points (or use given coordinates)
