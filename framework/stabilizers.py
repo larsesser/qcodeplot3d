@@ -170,6 +170,24 @@ class Color(enum.IntEnum):
             to_rgba("#7570b3"),  # green yellow
         ]
 
+    @property
+    def speaking_name(self) -> str:
+        return {
+            Color.red: "red",
+            Color.blue: "blue",
+            Color.green: "green",
+            Color.yellow: "yellow",
+            Color.rb: "pink",
+            Color.rg: "brown",
+            Color.ry: "gold",
+            Color.bg: "olive green",
+            Color.by: "grey",
+            Color.gy: "purple",
+        }[self]
+
+    def __repr__(self):
+        return f"<Color.{self.name}: {self.speaking_name}>"
+
     @classmethod
     def color_map(cls) -> Colormap:
         """Regular color map for normal plotting."""
