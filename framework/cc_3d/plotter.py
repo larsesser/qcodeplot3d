@@ -439,7 +439,8 @@ class Plotter3D:
                                 face_color: Color | list[Color] = None, node_color: Color | list[Color] = None,
                                 lowest_title: tuple[int, int, int] = None, highest_title: tuple[int, int, int] = None,
                                 mandatory_face_qubits: set[int] = None, string_operator_qubits: set[int] = None,
-                                color_edges: bool = False, mandatory_cell_qubits: set[int] = None) -> pyvista.PolyData:
+                                color_edges: bool = False, mandatory_cell_qubits: set[int] = None,
+                                face_syndrome_qubits: set[int] = None) -> pyvista.PolyData:
         """Construct primary mesh from dual_mesh.
 
         :param qubit_coordinates: Use them instead of calculating the coordinates from the dual_mesh.
@@ -562,6 +563,8 @@ class Plotter3D:
                 points[qubit_to_pointposition[qubit]] = coordinate
         mandatory_face_qubits = mandatory_face_qubits or set(qubits)
         mandatory_cell_qubits = mandatory_cell_qubits or set(qubits)
+        if face_syndrome_qubits:
+            mandatory_face_qubits = face_syndrome_qubits
 
         pointpos_to_point: dict[int, npt.NDArray[np.float64]] = {}
         for pointpos, point in enumerate(points):
@@ -597,7 +600,8 @@ class Plotter3D:
                 continue
             # each dual graph edge corresponds to a primary graph face
             all_face_qubits = [(edge.color, edge.qubits) for _, _, edge in self.dual_graph.out_edges(node.index)
-                               if set(edge.qubits) & mandatory_face_qubits]
+                               if set(edge.qubits) & mandatory_face_qubits
+                               and (face_syndrome_qubits is None or len(set(edge.qubits) & face_syndrome_qubits)) % 2 == 1]
             faces: list[list[int]] = []
             face_colors = []
             for f_color, face_qubits in all_face_qubits:
@@ -927,7 +931,7 @@ class Plotter3D:
                                  lowest_title: tuple[int, int, int] = None, highest_title: tuple[int, int, int] = None,
                                  mandatory_face_qubits: set[int] = None,  string_operator_qubits: set[int] = None, color_edges: bool = False,
                                  show_normal_qubits: bool = True, line_width: float = 3, wireframe_plot: bool = False,
-                                 transparent_faces: bool = False, mandatory_cell_qubits: set[int] = None,
+                                 transparent_faces: bool = False, mandatory_cell_qubits: set[int] = None, face_syndrome_qubits: set[int] = None,
         ) -> pyvista.plotting.Plotter:
         """Return the plotter preloaded with the primary mesh.
 
@@ -935,10 +939,10 @@ class Plotter3D:
             pyvista_theme to 'Color.highlighted_color_map' (otherwise there will be no visible effect).
         """
         highlighted_qubits = highlighted_qubits or []
-        if highlighted_volumes or qubit_coordinates or only_faces_with_color or only_nodes_with_color or lowest_title or highest_title or mandatory_face_qubits or string_operator_qubits or color_edges or mandatory_cell_qubits:
+        if highlighted_volumes or qubit_coordinates or only_faces_with_color or only_nodes_with_color or lowest_title or highest_title or mandatory_face_qubits or string_operator_qubits or color_edges or mandatory_cell_qubits or face_syndrome_qubits:
             mesh = self._construct_primary_mesh(highlighted_volumes, qubit_coordinates, only_faces_with_color,
                                                 only_nodes_with_color, lowest_title, highest_title, mandatory_face_qubits,
-                                                string_operator_qubits, color_edges, mandatory_cell_qubits)
+                                                string_operator_qubits, color_edges, mandatory_cell_qubits, face_syndrome_qubits)
         else:
             mesh = self.primary_mesh
         if explode_factor != 0.0:
@@ -977,7 +981,7 @@ class Plotter3D:
         else:
             normal_qubits = set()
         for qubits, color in [(normal_qubits, "indigo"), (highlighted_qubits, "violet")]:
-            positions = [pos for pos, qubit in enumerate(mesh.point_data['qubits']) if qubit in qubits and pos in used_qubit_pos]
+            positions = [pos for pos, qubit in enumerate(mesh.point_data['qubits']) if qubit in qubits and (pos in used_qubit_pos or face_syndrome_qubits)]
             coordinates = np.asarray([coordinate for pos, coordinate in enumerate(mesh.points) if pos in positions])
             if len(coordinates) == 0:
                 continue
@@ -1054,7 +1058,8 @@ class Plotter3D:
                                          show_normal_qubits: bool = True, wireframe_plot: bool = False, transparent_faces: bool = False,
                                          highlighted_edges: list[GraphEdge] = None, mesh_line_width: int = 10, node_point_size: int = 120,
                                          show_normal_edges: bool = True, primary_line_width: int = None, highlighted_line_width: int = None,
-                                         mesh_line_color: Optional[str] = None, mandatory_cell_qubits: set[int] = None) -> pyvista.plotting.Plotter:
+                                         mesh_line_color: Optional[str] = None, mandatory_cell_qubits: set[int] = None,
+                                         face_syndrome_qubits: set[int] = None) -> pyvista.plotting.Plotter:
         """Return the plotter preloaded with the debug and primary mesh.
 
         :param highlighted_edges: Edges of the debug graph to highlight.
@@ -1066,7 +1071,7 @@ class Plotter3D:
                                             highlighted_volumes, highlighted_qubits, qubit_coordinates,
                                             only_faces_with_color,only_nodes_with_color, lowest_title, highest_title,
                                             mandatory_face_qubits, string_operator_qubits, color_edges, show_normal_qubits,
-                                            primary_line_width, wireframe_plot, transparent_faces, mandatory_cell_qubits)
+                                            primary_line_width, wireframe_plot, transparent_faces, mandatory_cell_qubits, face_syndrome_qubits)
         if highlighted_edges:
             highlighted_edge_indices = [edge.index for edge in highlighted_edges]
             all_edges = reconvert_faces(mesh.lines)
