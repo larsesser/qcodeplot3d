@@ -3,6 +3,7 @@ import dataclasses
 from dataclasses import dataclass
 from functools import cached_property
 from typing import Optional
+import random
 
 from framework.stabilizers import Color, Stabilizer
 
@@ -49,6 +50,9 @@ class GraphEdge(GraphObject, abc.ABC):
     node1: GraphNode
     node2: GraphNode
 
+    def __post_init__(self):
+        _ = self.weight
+
     @cached_property
     def is_edge_between_boundaries(self) -> bool:
         return self.node1.is_boundary and self.node2.is_boundary
@@ -69,6 +73,10 @@ class GraphEdge(GraphObject, abc.ABC):
             return self.node1.color.intersect(self.node2.color)
         return None
 
+    @cached_property
+    def weight(self) -> float:
+        return random.uniform(1 - 1e-6, 1 + 1e-6)
+
     def __contains__(self, item):
         """Boilerplate code for pymatching."""
         return False
@@ -77,6 +85,8 @@ class GraphEdge(GraphObject, abc.ABC):
         """Boilerplate code for pymatching."""
         if attr not in {"fault_ids", "weight", "error_probability"}:
             raise RuntimeError
+        # if attr == "weight":
+        #     return self.weight
         return default
 
 
@@ -130,6 +140,7 @@ class DualGraphEdge(GraphEdge):
     stabilizer: Optional[Stabilizer] = dataclasses.field(default=None, init=False)
 
     def __post_init__(self):
+        super().__post_init__()
         if self.is_stabilizer:
             if self.node1.is_stabilizer:
                 stab_length = self.node1.stabilizer.length
