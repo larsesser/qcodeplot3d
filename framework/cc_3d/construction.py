@@ -290,8 +290,8 @@ def construct_x_dual_graph(dual_graph: rustworkx.PyGraph) -> rustworkx.PyGraph:
     for node1, node2 in itertools.combinations(x_dual_graph.nodes(), 2):
         if x_dual_graph.has_edge(node1.index, node2.index):
             continue
-        elif node1.is_boundary and node2.is_boundary:
-            continue
+        # elif node1.is_boundary and node2.is_boundary:
+        #     continue
         elif set(node1.qubits) & set(node2.qubits):
             x_dual_graph.add_edge(node1.index, node2.index, XDualGraphEdge(max_id, node1, node2))
             max_id += 1
