@@ -85,8 +85,8 @@ class GraphEdge(GraphObject, abc.ABC):
         """Boilerplate code for pymatching."""
         if attr not in {"fault_ids", "weight", "error_probability"}:
             raise RuntimeError
-        # if attr == "weight":
-        #     return self.weight
+        if attr == "weight":
+            return self.weight
         return default
 
 
