@@ -352,7 +352,6 @@ def count_independent(stabilizers: list[Operator]) -> int:
 
     This is the rank of their check matrix.
     """
-    check_stabilizers(stabilizers, check_independence=False)
     # since x and z stabilizers are always independent, we count them separately to reduce overhead
     x_matrix = get_check_matrix(stabilizers, only_x=True)
     x_rank = 0
