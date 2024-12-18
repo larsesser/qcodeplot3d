@@ -830,65 +830,6 @@ class Plotter3D:
     def get_qubit_coordinates(primary_mesh: pyvista.PolyData) -> dict[int, npt.NDArray[np.float64]]:
         return {qubit: coordinate for qubit, coordinate in zip(primary_mesh.point_data['qubits'], primary_mesh.points)}
 
-
-    @staticmethod
-    def explode(mesh: pyvista.PolyData, factor=0.4) -> pyvista.UnstructuredGrid:
-        # group cells by id
-        cells = defaultdict(list)
-        for cell, anid in enumerate(mesh.cell_data['face_ids']):
-            cells[anid].append(cell)
-
-        # extract each cell, translate it by its center of mass, and recombine
-        ret_points = []
-        ret_cells = []
-        ret_celltypes = []
-        ret_color = []
-        ret_color_points = []
-        ret_face_ids = []
-        ret_point_labels = []
-        ret_qubits = []
-        ret_edge_index = []
-        for data in cells.values():
-            volume = mesh.extract_cells(data)
-            # translate by center of mass
-            center = np.asarray([0.0, 0.0, 0.0])
-            for point in volume.points:
-                center += point
-            center = center / len(volume.points)
-            volume.translate(factor * center, inplace=True)
-            ret_points.extend(volume.points)
-            num_points = len(ret_points)
-            point_converter = {key: value for key, value in zip(range(volume.n_points), range(num_points - volume.n_points, num_points))}
-            # convert the cell point positions
-            ret_cells.extend(convert_faces([[point_converter[point] for point in cell] for cell in reconvert_faces(volume.cells)]))
-            ret_celltypes.extend(volume.celltypes)
-            if 'colors' in volume.cell_data:
-                ret_color.extend(volume.cell_data['colors'])
-            if 'colors' in volume.point_data:
-                ret_color_points.extend(volume.point_data['colors'])
-            if 'face_ids' in volume.cell_data:
-                ret_face_ids.extend(volume.cell_data['face_ids'])
-            if 'point_labels' in volume.point_data:
-                ret_point_labels.extend(volume.point_data['point_labels'])
-            if 'qubits' in volume.point_data:
-                ret_qubits.extend(volume.point_data['qubits'])
-            if 'edge_index' in volume.cell_data:
-                ret_edge_index.extend(volume.cell_data['edge_index'])
-        ret = pyvista.UnstructuredGrid(ret_cells, ret_celltypes, ret_points)
-        if ret_color:
-            ret.cell_data['colors'] = ret_color
-        if ret_color_points:
-            ret.point_data['colors'] = ret_color_points
-        if ret_face_ids:
-            ret.cell_data['face_ids'] = ret_face_ids
-        if ret_point_labels:
-            ret.point_data['point_labels'] = ret_point_labels
-        if ret_qubits:
-            ret.point_data['qubits'] = ret_qubits
-        if ret_edge_index:
-            ret.cell_data['edge_index'] = ret_edge_index
-        return ret
-
     def plot_debug_mesh(
         self,
         *,
