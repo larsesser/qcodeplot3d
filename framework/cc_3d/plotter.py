@@ -175,7 +175,6 @@ class Plotter3D:
     dual_graph: rx.PyGraph
     distance: int
     _dual_mesh: pyvista.PolyData = dataclasses.field(default=None, init=False)
-    _primary_mesh: pyvista.PolyData = dataclasses.field(default=None, init=False)
     storage_dir: pathlib.Path = dataclasses.field(default=pathlib.Path(__file__).parent.parent.absolute())
     pyvista_theme: pyvista.plotting.themes.DocumentTheme = dataclasses.field(default=None, init=False)
     highes_id: int = dataclasses.field(default=0, init=False)
@@ -191,12 +190,6 @@ class Plotter3D:
         if not self._dual_mesh:
             self._dual_mesh = self._construct_dual_mesh()
         return self._dual_mesh
-
-    @property
-    def primary_mesh(self) -> pyvista.PolyData:
-        if not self._primary_mesh:
-            self._primary_mesh = self._construct_primary_mesh()
-        return self._primary_mesh
 
     @staticmethod
     def get_plotting_theme() -> pyvista.plotting.themes.DocumentTheme:
@@ -222,7 +215,7 @@ class Plotter3D:
     def get_dual_mesh_index(self, graph_index: int) -> int:
         return self._dualgraph_to_dualmesh[graph_index]
 
-    def get_3d_coordinates(self, graph: rx.PyGraph) -> dict[int, npt.NDArray[np.float64]]:
+    def layout_rustworkx_graph(self, graph: rx.PyGraph) -> dict[int, npt.NDArray[np.float64]]:
         """Calculate 3D coordinates of nodes by layouting the rustworkx graph.
 
         Take special care to place boundary nodes at a meaningful position.
@@ -288,7 +281,7 @@ class Plotter3D:
     def _construct_dual_mesh(self, highlighted_nodes: list[GraphNode] = None) -> pyvista.PolyData:
         highlighted_nodes = highlighted_nodes or []
         # calculate positions of points
-        node2coordinates = self.get_3d_coordinates(self.dual_graph)
+        node2coordinates = self.layout_rustworkx_graph(self.dual_graph)
         points = np.asarray([node2coordinates[index] for index in self.dual_graph.node_indices()])
 
         # generate pyvista edges from rustworkx edges
@@ -353,15 +346,16 @@ class Plotter3D:
         :param highlighted_nodes: Change color of given nodes to highlighted color. Take care to adjust the cmap of
             pyvista_theme to 'Color.highlighted_color_map' (otherwise there will be no visible effect).
         """
-        graph = graph.copy()
         if mandatory_qubits:
+            graph = graph.copy()
             for node in graph.nodes():
                 if not set(node.qubits) & mandatory_qubits:
                     graph.remove_node(node.index)
         highlighted_nodes = highlighted_nodes or []
         highlighted_edges = highlighted_edges or []
+
         # calculate positions of points (or use given coordinates)
-        node2coordinates = coordinates or self.get_3d_coordinates(graph)
+        node2coordinates = coordinates or self.layout_rustworkx_graph(graph)
         points = np.asarray([node2coordinates[index] for index in graph.node_indices()])
 
         # generate pyvista edges from rustworkx edges
@@ -579,13 +573,13 @@ class Plotter3D:
 
         return points
 
-    def _construct_primary_mesh(self, highlighted_volumes: list[DualGraphNode] = None,
-                                qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None,
-                                face_color: Color | list[Color] = None, node_color: Color | list[Color] = None,
-                                lowest_title: tuple[int, int, int] = None, highest_title: tuple[int, int, int] = None,
-                                mandatory_face_qubits: set[int] = None, string_operator_qubits: set[int] = None,
-                                color_edges: bool = False, mandatory_cell_qubits: set[int] = None,
-                                face_syndrome_qubits: set[int] = None) -> pyvista.PolyData:
+    def construct_primary_mesh(self, highlighted_volumes: list[DualGraphNode] = None,
+                               qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None,
+                               face_color: Color | list[Color] = None, node_color: Color | list[Color] = None,
+                               lowest_title: tuple[int, int, int] = None, highest_title: tuple[int, int, int] = None,
+                               mandatory_face_qubits: set[int] = None, string_operator_qubits: set[int] = None,
+                               color_edges: bool = False, mandatory_cell_qubits: set[int] = None,
+                               face_syndrome_qubits: set[int] = None) -> pyvista.PolyData:
         """Construct primary mesh from dual_mesh.
 
         :param qubit_coordinates: Use them instead of calculating the coordinates from the dual_mesh.
@@ -745,10 +739,9 @@ class Plotter3D:
             6: 1.0,
         }.get(distance)
 
-    # TODO rename to layout_dual_nodes
-    def get_dual_mesh_coordinates_from_primary_mesh(self, primary_mesh: pyvista.PolyData = None) -> dict[int, npt.NDArray[np.float64]]:
+    def layout_dual_nodes(self, primary_mesh: pyvista.PolyData) -> dict[int, npt.NDArray[np.float64]]:
         # compute the center of each volume
-        ret: dict[int, npt.NDArray[np.float64]] = self.preprocess_dual_node_layout_tetrahedron(primary_mesh or self.primary_mesh)
+        ret: dict[int, npt.NDArray[np.float64]] = self.preprocess_dual_node_layout_tetrahedron(primary_mesh)
 
         # calculate the center of all nodes
         center = np.asarray([0.0, 0.0, 0.0])
@@ -772,7 +765,6 @@ class Plotter3D:
             ret[node.index] = face_center + factor*(face_center - center)
 
         return ret
-
 
     def preprocess_dual_node_layout_tetrahedron(self, primary_mesh: pyvista.PolyData):
         lines = reconvert_faces(primary_mesh.lines)
@@ -834,9 +826,8 @@ class Plotter3D:
 
         return ret
 
-
-    def get_primary_graph_qubit_coordinates(self, primary_mesh: pyvista.PolyData = None) -> dict[int, npt.NDArray[np.float64]]:
-        primary_mesh = primary_mesh or self.primary_mesh
+    @staticmethod
+    def get_qubit_coordinates(primary_mesh: pyvista.PolyData) -> dict[int, npt.NDArray[np.float64]]:
         return {qubit: coordinate for qubit, coordinate in zip(primary_mesh.point_data['qubits'], primary_mesh.points)}
 
 
@@ -1026,12 +1017,10 @@ class Plotter3D:
             pyvista_theme to 'Color.highlighted_color_map' (otherwise there will be no visible effect).
         """
         highlighted_qubits = highlighted_qubits or []
-        if highlighted_volumes or qubit_coordinates or only_faces_with_color or only_nodes_with_color or lowest_title or highest_title or mandatory_face_qubits or string_operator_qubits or color_edges or mandatory_cell_qubits or face_syndrome_qubits:
-            mesh = self._construct_primary_mesh(highlighted_volumes, qubit_coordinates, only_faces_with_color,
-                                                only_nodes_with_color, lowest_title, highest_title, mandatory_face_qubits,
-                                                string_operator_qubits, color_edges, mandatory_cell_qubits, face_syndrome_qubits)
-        else:
-            mesh = self.primary_mesh
+        # TODO add caching for specific call combinations? or for plain combination?
+        mesh = self.construct_primary_mesh(highlighted_volumes, qubit_coordinates, only_faces_with_color,
+                                           only_nodes_with_color, lowest_title, highest_title, mandatory_face_qubits,
+                                           string_operator_qubits, color_edges, mandatory_cell_qubits, face_syndrome_qubits)
         if explode_factor != 0.0:
             mesh = self.explode(mesh, explode_factor)
         if self.dimension == 3 and not transparent_faces:
@@ -1213,12 +1202,12 @@ class Plotter2D(Plotter3D):
             factor = 0.5
         return factor
 
-    def _construct_primary_mesh(self, highlighted_volumes: list[DualGraphNode] = None,
-                                qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None,
-                                face_color: Color | list[Color] = None, node_color: Color | list[Color] = None,
-                                lowest_title: tuple[int, int, int] = None, highest_title: tuple[int, int, int] = None,
-                                mandatory_face_qubits: set[int] = None, string_operator_qubits: set[int] = None,
-                                color_edges: bool = False, transparent_faces: bool = False, mandatory_cell_qubits: set[int] = None):
+    def construct_primary_mesh(self, highlighted_volumes: list[DualGraphNode] = None,
+                               qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None,
+                               face_color: Color | list[Color] = None, node_color: Color | list[Color] = None,
+                               lowest_title: tuple[int, int, int] = None, highest_title: tuple[int, int, int] = None,
+                               mandatory_face_qubits: set[int] = None, string_operator_qubits: set[int] = None,
+                               color_edges: bool = False, transparent_faces: bool = False, mandatory_cell_qubits: set[int] = None):
         """Construct primary mesh from dual_mesh.
 
         :param qubit_coordinates: Use them instead of calculating the coordinates from the dual_mesh.
