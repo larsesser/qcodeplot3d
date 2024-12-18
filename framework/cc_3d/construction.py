@@ -44,6 +44,85 @@ def tetrahedron_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
     return dual_graph
 
 
+def tetrahedron_d5_dual_graph() -> rustworkx.PyGraph:
+    volumes = [
+        # ecke links
+        [15, 16, 31, 49, 11, 12, 27, 61],
+        # ecke rechts
+        [18, 19, 44, 51, 14, 10, 41, 65],
+        # ecke hinten
+        [33, 34, 42, 45, 29, 30, 39, 22],
+        # bottom, left, half
+        [31, 49, 47, 32, 27, 61, 60, 28],
+        # bottom, right, front
+        [17, 18, 51, 50, 64, 65, 13, 14],
+        # bottom, right, middle
+        [50, 51, 44, 43, 46, 48, 64, 65, 41, 40, 62, 63],
+        # bottom, front
+        [49, 16, 17, 50, 48, 47, 61, 12, 13, 64, 63, 60, 8, 9, 55, 54, 59, 58],
+        # bottom center
+        [47, 48, 46, 45, 33, 32, 60, 63, 62, 22, 29, 28, 59, 58, 57, 56, 26, 25],
+        # bottom right
+        [42, 45, 46, 43, 39, 22, 62, 40, 37, 56, 57, 38],
+
+        # middle, left
+        [27, 28, 60, 61, 11, 12, 8, 5, 25, 59, 54, 23],
+        # middle, right
+        [62, 63, 64, 65, 41, 40, 57, 58, 13, 14, 10, 38, 55, 9, 6, 7, 36, 53],
+        # middle, center
+        [25, 59, 58, 57, 56, 26, 23, 54, 55, 38, 37, 24, 20, 21, 53, 36, 35, 52],
+        # middle, back
+        [30, 29, 22, 39, 24, 26, 56, 37],
+
+        # ecke oben
+        [1, 2, 3, 4, 20, 21, 52, 35],
+        # top, right
+        [6, 7, 36, 53, 35, 52, 2, 4],
+        # top front
+        [3, 4, 6, 9, 8, 5, 54, 55, 23, 20, 53, 52]
+
+    ]
+
+    boundaries = [
+        # bottom
+        [15, 16, 17, 18, 19, 31, 49, 50, 51, 47, 48, 44, 32, 46, 43, 33, 45, 42, 34],
+        # front
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19],
+        # left
+        [15, 31, 27, 11, 32, 28, 33, 29, 25, 26, 34, 30, 24, 23, 5, 20, 21, 1, 3],
+        # right
+        [19, 44, 41, 10, 43, 40, 42, 39, 34, 30, 24, 37, 38, 36, 7, 21, 35, 2, 1]
+    ]
+
+    dual_graph = rustworkx.PyGraph(multigraph=False)
+
+    nodes = {tuple(sorted(qubits)): PreDualGraphNode(str(qubits)) for qubits in volumes}
+    boundary_nodes = {tuple(sorted(qubits)): PreDualGraphNode(str(qubits), is_boundary=True) for qubits in boundaries}
+
+    dual_graph.add_nodes_from(list(boundary_nodes.values()))
+    dual_graph.add_nodes_from(list(nodes.values()))
+    for index in dual_graph.node_indices():
+        dual_graph[index].index = index
+
+    all_nodes = nodes.copy()
+    all_nodes.update(boundary_nodes)
+    for qubits1, qubits2 in itertools.combinations(all_nodes, 2):
+        if len(set(qubits1) & set(qubits2)) > 3:
+            add_edge(dual_graph, all_nodes[qubits1], all_nodes[qubits2])
+
+    coloring_qubits(dual_graph, dimension=3)
+    return dual_graph
+
+    # x_stabilizers = [
+    #     Operator(65, x_positions=qubits) for qubits in volumes
+    # ]
+    # z_stabilizers = [
+    #     Operator(65, z_positions=list(set(qubits1) & set(qubits2))) for qubits1, qubits2 in
+    #     itertools.combinations(volumes + boundaries, 2)
+    #     if len(set(qubits1) & set(qubits2)) > 3 and not (qubits1 in boundaries and qubits2 in boundaries)
+    # ]
+
+
 def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
     """See https://www.nature.com/articles/ncomms12302#Sec12"""
     if not distance % 2 == 0:
