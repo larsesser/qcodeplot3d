@@ -334,10 +334,19 @@ class Plotter3D(abc.ABC):
 
         return ret
 
-    def construct_debug_mesh(self, graph: rx.PyGraph, coordinates: dict[int, npt.NDArray[np.float64]] = None,
-                             use_edges_colors: bool = False, edge_color: Color = None,
-                             highlighted_nodes: list[GraphNode] = None, highlighted_edges: list[GraphEdge] = None,
-                             include_edges_between_boundaries: bool = True, mandatory_qubits: set[int] = None) -> pyvista.PolyData:
+    def construct_debug_mesh(
+        self,
+        graph: rx.PyGraph,
+        *,
+        coordinates: dict[int, npt.NDArray[np.float64]] = None,
+        use_edges_colors: bool = False,
+        edge_color: Color = None,
+        highlighted_nodes: list[GraphNode] = None,
+        highlighted_edges: list[GraphEdge] = None,
+        include_edges_between_boundaries: bool = True,
+        exclude_boundaries: bool = False,
+        mandatory_qubits: set[int] = None
+    ) -> pyvista.PolyData:
         """Create a 3D mesh of the given rustworkx Graph.
 
         Nodes must be GraphNode and edges GraphEdge objects.
@@ -351,6 +360,11 @@ class Plotter3D(abc.ABC):
             graph = graph.copy()
             for node in graph.nodes():
                 if not set(node.qubits) & mandatory_qubits:
+                    graph.remove_node(node.index)
+        if exclude_boundaries:
+            graph = graph.copy()
+            for node in graph.nodes():
+                if node.is_boundary:
                     graph.remove_node(node.index)
         highlighted_nodes = highlighted_nodes or []
         highlighted_edges = highlighted_edges or []
@@ -659,9 +673,9 @@ class Plotter3D(abc.ABC):
 
     def plot_debug_mesh(
         self,
+        mesh: pyvista.PolyData,
         *,
-        mesh: pyvista.PolyData, show_labels: bool = False,
-        exclude_boundaries: bool = False,
+        show_labels: bool = False,
         point_size: int = None,
         line_width: int = None,
         edge_color: str = None,
@@ -671,29 +685,9 @@ class Plotter3D(abc.ABC):
     ) -> None:
         # use default values
         if point_size is None:
-            point_size = 120 if filename is None else 15
+            point_size = 15 if filename is None else 120
         if line_width is None:
-            line_width = 10 if filename is None else 1
-
-        if exclude_boundaries:
-            boundary_indices = {index for index, is_boundary in enumerate(mesh["is_boundary"]) if is_boundary}
-            new_indices = {old: new for old, new in zip(
-                [i for i in range(len(mesh.points)) if i not in boundary_indices],
-                range(len(mesh.points) - len(boundary_indices))
-            )}
-            points = [point for index, point in enumerate(mesh.points) if index not in boundary_indices]
-            lines = [[new_indices[index] for index in line] for line in reconvert_faces(mesh.lines) if set(line).isdisjoint(boundary_indices)]
-            labels = [label for index, label in enumerate(mesh["point_labels"]) if index not in boundary_indices]
-            colors = [color for index, color in enumerate(mesh.point_data["colors"]) if index not in boundary_indices]
-            edge_colors = [color for color, line in zip(mesh.cell_data["edge_colors"], reconvert_faces(mesh.lines))
-                           if set(line).isdisjoint(boundary_indices)]
-            edge_index = [index for index, line in zip(mesh.cell_data["edge_index"], reconvert_faces(mesh.lines))
-                          if set(line).isdisjoint(boundary_indices)]
-            mesh = pyvista.PolyData(points, lines=convert_faces(lines))
-            mesh["point_labels"] = labels
-            mesh.point_data["colors"] = colors
-            mesh.cell_data["edge_colors"] = edge_colors
-            mesh.cell_data["edge_index"] = edge_index
+            line_width = 1 if filename is None else 10
 
         plt = pyvista.plotting.Plotter(theme=self.pyvista_theme, off_screen=filename is not None)
         if show_labels:
