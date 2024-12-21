@@ -982,6 +982,7 @@ class TetrahedronPlotter(Plotter3D):
         corner_qubits = {qubit: nodes for qubit, nodes in qubit_to_boundaries.items() if len(nodes) == 3}
         border_qubits = {qubit: nodes for qubit, nodes in qubit_to_boundaries.items() if len(nodes) == 2}
         boundary_qubits = {qubit: nodes for qubit, nodes in qubit_to_boundaries.items() if len(nodes) == 1}
+        bulk_qubits = {qubit for qubit, nodes in qubit_to_boundaries.items() if len(nodes) == 0}
 
         # move corner qubits more outward
         dual_mesh_center = np.asarray([0.0, 0.0, 0.0])
@@ -1021,12 +1022,22 @@ class TetrahedronPlotter(Plotter3D):
                                                        qubit_to_point[plane_qubits[2]]], [qubit_to_point[qubit]])
             qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = new_coordinate
 
+        # move bulk qubits more to center
+        dual_mesh_center = np.asarray([0.0, 0.0, 0.0])
+        for point in self.dual_mesh.points:
+            dual_mesh_center += point
+        dual_mesh_center /= len(self.dual_mesh.points)
+        for qubit in bulk_qubits:
+            coordinate = qubit_to_point[qubit] - 0.25 * (qubit_to_point[qubit] - dual_mesh_center)
+            qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = coordinate
+
         return points
 
     @staticmethod
     def _layout_dual_nodes_factor(distance: int) -> Optional[float]:
         return {
             3: 4.5,
+            5: 3,
         }.get(distance)
 
     def preprocess_dual_node_layout(self, primary_mesh: pyvista.PolyData):
