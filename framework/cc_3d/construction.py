@@ -1,3 +1,4 @@
+import dataclasses
 import itertools
 
 import rustworkx
@@ -5,43 +6,6 @@ import rustworkx
 from framework.base import DualGraphNode, XDualGraphEdge, XDualGraphNode
 from framework.construction import PreDualGraphNode, add_edge, coloring_qubits
 from framework.stabilizers import Color, Operator
-
-
-def tetrahedron_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
-    if distance != 3:
-        raise NotImplementedError
-
-    dual_graph = rustworkx.PyGraph(multigraph=False)
-    left = PreDualGraphNode("left", is_boundary=True)
-    right = PreDualGraphNode("right", is_boundary=True)
-    back = PreDualGraphNode("back", is_boundary=True)
-    front = PreDualGraphNode("front", is_boundary=True)
-    boundaries = [left, right, back, front]
-
-    nodes = [PreDualGraphNode("1"), PreDualGraphNode("2"), PreDualGraphNode("3"), PreDualGraphNode("4")]
-
-    dual_graph.add_nodes_from(boundaries)
-    dual_graph.add_nodes_from(nodes)
-    for index in dual_graph.node_indices():
-        dual_graph[index].index = index
-
-    # edges between boundary and boundary
-    for node1, node2 in itertools.combinations(boundaries, 2):
-        add_edge(dual_graph, node1, node2)
-
-    # edges between boundary and node
-    for excluded_index, boundary in enumerate(boundaries):
-        for index, node in enumerate(nodes):
-            if excluded_index == index:
-                continue
-            add_edge(dual_graph, boundary, node)
-
-    # edges between node and node
-    for node1, node2 in itertools.combinations(nodes, 2):
-        add_edge(dual_graph, node1, node2)
-
-    coloring_qubits(dual_graph, dimension=3)
-    return dual_graph
 
 
 def tetrahedron_d5_dual_graph() -> rustworkx.PyGraph:
@@ -122,6 +86,188 @@ def tetrahedron_d5_dual_graph() -> rustworkx.PyGraph:
     #     if len(set(qubits1) & set(qubits2)) > 3 and not (qubits1 in boundaries and qubits2 in boundaries)
     # ]
 
+
+@dataclasses.dataclass
+class Node:
+    color: Color
+    col: int  # x coordinate
+    row: int  # y coordinate
+    layer: int  # z coordinate
+    pre_dg_node: PreDualGraphNode = dataclasses.field(init=False)
+
+    def __post_init__(self):
+        self.pre_dg_node = PreDualGraphNode(f"({self.col}, {self.row}, {self.layer})", is_boundary=False)
+
+    @property
+    def index(self) -> int:
+        return self.pre_dg_node.index
+
+    @index.setter
+    def index(self, index: int) -> None:
+        self.pre_dg_node.index = index
+
+    def __hash__(self):
+        return hash((self.col, self.row, self.layer, self.color))
+
+    @property
+    def coordinate_2d(self) -> tuple[int, int]:
+        return self.col, self.row
+
+
+def tetrahedron_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
+    if not distance % 2 == 1:
+        raise ValueError("d must be an odd integer")
+
+    # construct all layers, which are 2D triangular codes of distance d, d-2, d-4 ... to d=3
+    num_layers = (distance - 1) // 2
+
+    def node_position(num_rows: int, offset: tuple[int, int] = (0, 0), only: str = None) -> list[tuple[int, int]]:
+        """Position of nodes of one color. Top of triangle is (0, 0).
+
+        :param only: only node positions at right, left or center boundary.
+        """
+        ret: list[tuple[int, int]] = []
+        if only is None:
+            for row in range(0, 2*num_rows, 2):
+                for col in range(-row//2, row//2+1, 2):
+                    ret.append((col+offset[0], row+offset[1]))
+        elif only == "left":
+            for row in range(0, 2*num_rows, 2):
+                ret.append((-row//2 +offset[0], row+offset[1]))
+        elif only == "right":
+            for row in range(0, 2*num_rows, 2):
+                ret.append((+row//2 +offset[0], row+offset[1]))
+        elif only == "center":
+            row = 2*num_rows-2
+            for col in range(-row // 2, row // 2 + 1, 2):
+                ret.append((col + offset[0], row + offset[1]))
+        else:
+            raise NotImplementedError
+        return ret
+
+    all_nodes: list[Node] = []
+    all_edges: set[tuple[Node, Node]] = set()
+    rgy_layers: dict[int, dict[tuple[int, int], Node]] = {}
+    rgb_layers: dict[int, dict[tuple[int, int], Node]] = {}
+
+    # create boundaries
+    left = PreDualGraphNode("left", is_boundary=True)
+    right = PreDualGraphNode("right", is_boundary=True)
+    center = PreDualGraphNode("center", is_boundary=True)
+    bottom = PreDualGraphNode("bottom", is_boundary=True)
+    all_boundary_edges: list[tuple[PreDualGraphNode, PreDualGraphNode]] = []
+    for b1, b2 in itertools.combinations([left, right, center, bottom], 2):
+        all_boundary_edges.append((b1, b2))
+
+    # create each 2D layer, enumerated from top to bottom, create from bottom to top
+    for layer in range(num_layers, 0, -1):
+        # create nodes of this layer
+        red_offset = (0, 0)
+        red_nodes = [Node(Color.red, col, row, layer) for col, row in node_position(layer, red_offset)]
+        green_offset = (0, 2)
+        green_nodes = [Node(Color.green, col, row, layer) for col, row in node_position(layer, green_offset)]
+        yellow_offset = (1, 1)
+        yellow_nodes = [Node(Color.yellow, col, row, layer) for col, row in node_position(layer, yellow_offset)]
+        blue_nodes = [Node(Color.blue, col, row, layer) for col, row in node_position(layer, yellow_offset)]
+        all_nodes.extend(red_nodes + green_nodes + yellow_nodes + blue_nodes)
+        rgy_layer = {node.coordinate_2d: node for node in [*red_nodes, *green_nodes, *yellow_nodes]}
+        rgy_layers[layer] = rgy_layer
+        rgb_layer = {node.coordinate_2d: node for node in [*red_nodes, *green_nodes, *blue_nodes]}
+        rgb_layers[layer] = rgb_layer
+
+        # add nodes between layer and boundary nodes
+        # left
+        for offset, layer_dict in [(red_offset, rgy_layer), (green_offset, rgy_layer), (yellow_offset, rgb_layer)]:
+            for position in node_position(layer, offset, only="left"):
+                all_boundary_edges.append((left, layer_dict[position].pre_dg_node))
+        # right
+        for offset, layer_dict in [(red_offset, rgy_layer), (yellow_offset, rgy_layer), (yellow_offset, rgb_layer)]:
+            for position in node_position(layer, offset, only="right"):
+                all_boundary_edges.append((right, layer_dict[position].pre_dg_node))
+        # center
+        for offset, layer_dict in [(green_offset, rgy_layer), (yellow_offset, rgy_layer), (yellow_offset, rgb_layer)]:
+            for position in node_position(layer, offset, only="center"):
+                all_boundary_edges.append((center, layer_dict[position].pre_dg_node))
+
+        # add edges between nodes of this layer
+        for (x, y), node in rgy_layer.items():
+            # blue nodes are placed on top of yellow ones, and share their edges
+            if node.color == Color.yellow:
+                all_edges.add((rgb_layer[(x, y)], node))
+            # add trivial neighbours
+            for x_offset in [-1, +1]:
+                for y_offset in [-1, 0, +1]:
+                    if n := rgy_layer.get((x+x_offset, y+y_offset)):
+                        all_edges.add((node, n))
+                        if node.color == Color.yellow:
+                            all_edges.add((rgb_layer[(x, y)], n))
+            # add neighbour above / below. If there is no node, add next-next neighbour
+            if n := rgy_layer.get((x, y+1)):
+                all_edges.add((node, n))
+                if node.color == Color.yellow:
+                    all_edges.add((rgb_layer[(x, y)], n))
+            elif n := rgy_layer.get((x, y+2)):
+                all_edges.add((node, n))
+                if node.color == Color.yellow:
+                    all_edges.add((rgb_layer[(x, y)], n))
+            if n := rgy_layer.get((x, y-1)):
+                all_edges.add((node, n))
+                if node.color == Color.yellow:
+                    all_edges.add((rgb_layer[(x, y)], n))
+            elif n := rgy_layer.get((x, y-2)):
+                all_edges.add((node, n))
+                if node.color == Color.yellow:
+                    all_edges.add((rgb_layer[(x, y)], n))
+
+        # connect to bottom boundary
+        if layer == num_layers:
+            for node in rgy_layer.values():
+                all_boundary_edges.append((bottom, node.pre_dg_node))
+            continue
+
+        # add edges between nodes of this and the lower layer
+        for (x, y), node in rgy_layer.items():
+            # move nodes of this layer at the correct position at the lower layer
+            if node.color == Color.red:
+                y = y + 2
+            else:
+                y = y + 1
+
+            # connect node with respective node of one level lower
+            all_edges.add((rgb_layers[layer+1][(x, y)], node))
+
+            if node.color == Color.green:
+                continue
+
+            # add trivial neighbours
+            for x_offset in [-1, +1]:
+                for y_offset in [-1, 0, +1]:
+                    if (n := rgb_layers[layer+1].get((x+x_offset, y+y_offset))) and n.color != node.color:
+                        all_edges.add((node, n))
+            # add neighbour above / below. If there is no node, add next-next neighbour
+            if (n := rgb_layers[layer+1].get((x, y+1))) and n.color != node.color:
+                all_edges.add((node, n))
+            elif (n := rgb_layers[layer+1].get((x, y+2))) and n.color != node.color:
+                all_edges.add((node, n))
+            if (n := rgb_layers[layer+1].get((x, y-1))) and n.color != node.color:
+                all_edges.add((node, n))
+            elif (n := rgb_layers[layer+1].get((x, y-2))) and n.color != node.color:
+                all_edges.add((node, n))
+
+    graph = rustworkx.PyGraph(multigraph=False)
+    for node in [left, right, center, bottom]:
+        index = graph.add_node(node)
+        node.index = index
+    for node in all_nodes:
+        index = graph.add_node(node.pre_dg_node)
+        node.index = index
+    for edge in all_boundary_edges:
+        add_edge(graph, edge[0], edge[1])
+    for edge in all_edges:
+        add_edge(graph, edge[0].pre_dg_node, edge[1].pre_dg_node)
+
+    coloring_qubits(graph, 3, do_coloring=True)
+    return graph
 
 def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
     """See https://www.nature.com/articles/ncomms12302#Sec12"""
