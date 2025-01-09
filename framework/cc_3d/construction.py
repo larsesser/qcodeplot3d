@@ -60,7 +60,7 @@ def tetrahedron_d5_dual_graph() -> rustworkx.PyGraph:
 
     dual_graph = rustworkx.PyGraph(multigraph=False)
 
-    nodes = {tuple(sorted(qubits)): PreDualGraphNode(str(qubits)) for qubits in volumes}
+    nodes = {tuple(sorted(qubits)): PreDualGraphNode(str(number)) for number, qubits in enumerate(volumes)}
     boundary_nodes = {tuple(sorted(qubits)): PreDualGraphNode(str(qubits), is_boundary=True) for qubits in boundaries}
 
     dual_graph.add_nodes_from(list(boundary_nodes.values()))
@@ -75,6 +75,15 @@ def tetrahedron_d5_dual_graph() -> rustworkx.PyGraph:
             add_edge(dual_graph, all_nodes[qubits1], all_nodes[qubits2])
 
     coloring_qubits(dual_graph, dimension=3)
+    # edge: DualGraphEdge
+    # edges: dict[Color, list[DualGraphEdge]] = collections.defaultdict(list)
+    # for edge in dual_graph.edges():
+    #     if edge.node1.is_boundary or edge.node2.is_boundary:
+    #         continue
+    #     edges[edge.color].append(edge)
+    # for color, e in edges.items():
+    #     print(f"Edges of color {color.name}")
+    #     print("\t".join(f"{edge.node1.title}-{edge.node2.title}" for edge in e))
     return dual_graph
 
     # x_stabilizers = [
@@ -555,5 +564,17 @@ def construct_cubic_logicals(dual_graph: rustworkx.PyGraph) -> tuple[list[Operat
 
     x_logicals = sorted(logicals.keys())
     z_logicals = [logicals[x_logical] for x_logical in x_logicals]
+
+    return x_logicals, z_logicals
+
+
+def construct_tetrahedron_logicals(dual_graph: rustworkx.PyGraph) -> tuple[list[Operator], list[Operator]]:
+    boundary_nodes: list[DualGraphNode] = [node for node in dual_graph.nodes() if node.is_boundary]
+    x_face = boundary_nodes[0].qubits
+    z_edge = list(set(boundary_nodes[1].qubits) & set(boundary_nodes[2].qubits))
+    all_qubits = boundary_nodes[0].all_qubits
+
+    x_logicals = [Operator(len(all_qubits), x_positions=x_face)]
+    z_logicals = [Operator(len(all_qubits), z_positions=z_edge)]
 
     return x_logicals, z_logicals

@@ -51,9 +51,9 @@ class Operator:
         x_positions = sorted(x_positions or [])
         z_positions = sorted(z_positions or [])
         if len(x_positions) != len(set(x_positions)):
-            raise ValueError("Indexes in x_positions are not unique.")
+            raise ValueError(f"Indexes in x_positions are not unique: {x_positions}")
         if len(z_positions) != len(set(z_positions)):
-            raise ValueError("Indexes in z_positions are not unique.")
+            raise ValueError(f"Indexes in z_positions are not unique: {z_positions}.")
         if overlap := set(x_positions) & set(z_positions):
             raise ValueError(f"Overlap detected: {overlap}")
         for positions in [x_positions, z_positions]:
