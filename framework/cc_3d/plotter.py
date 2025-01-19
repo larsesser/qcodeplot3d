@@ -1,5 +1,6 @@
 """Plotting dual lattice & constructed primary lattice from graph definition."""
 import abc
+import collections
 import dataclasses
 import itertools
 import pathlib
@@ -972,6 +973,30 @@ class Plotter3D(abc.ABC):
         return None
 
 
+
+def rotate_points(points: list[npt.NDArray[np.float64]], x_angle: float, y_angle: float, z_angle: float, center: npt.NDArray[np.float64]=None):
+    """Rotate all points by x, y and then z axis around the given center."""
+    if center is not None:
+        points = [point - center for point in points]
+
+    x_mat = np.array([[1, 0, 0],
+                      [0, np.cos(z_angle), -np.sin(z_angle)],
+                      [0, np.sin(z_angle), np.cos(z_angle)]])
+    points = [x_mat.dot(point.transpose()) for point in points]
+    y_mat = np.array([[np.cos(y_angle), 0, np.sin(y_angle)],
+                      [0, 1, 0],
+                      [-np.sin(y_angle), 0, np.cos(y_angle)]])
+    points = [y_mat.dot(point.transpose()) for point in points]
+    z_mat = np.array([[np.cos(x_angle), -np.sin(x_angle), 0],
+                      [np.sin(x_angle), np.cos(x_angle), 0],
+                      [0, 0, 1]])
+    points = [z_mat.dot(point.transpose()) for point in points]
+
+    if center is not None:
+        points = [point + center for point in points]
+    return points
+
+
 @dataclasses.dataclass
 class TetrahedronPlotter(Plotter3D):
     def postprocess_primary_node_layout(
@@ -981,37 +1006,44 @@ class TetrahedronPlotter(Plotter3D):
         qubit_to_point = {qubit: points[pointpos] for qubit, pointpos in qubit_to_pointpos.items()}
         corner_qubits = {qubit: nodes for qubit, nodes in qubit_to_boundaries.items() if len(nodes) == 3}
         border_qubits = {qubit: nodes for qubit, nodes in qubit_to_boundaries.items() if len(nodes) == 2}
+        border_to_qubit: dict[tuple[int, int]: list[int]] = collections.defaultdict(list)
+        for qubit, nodes in border_qubits.items():
+            border_to_qubit[tuple(sorted([nodes[0].index, nodes[1].index]))].append(qubit)
         boundary_qubits = {qubit: nodes for qubit, nodes in qubit_to_boundaries.items() if len(nodes) == 1}
         bulk_qubits = {qubit for qubit, nodes in qubit_to_boundaries.items() if len(nodes) == 0}
 
         # move corner qubits more outward
         dual_mesh_center = np.asarray([0.0, 0.0, 0.0])
-        for point in self.dual_mesh.points:
-            dual_mesh_center += point
-        dual_mesh_center /= len(self.dual_mesh.points)
         for qubit in corner_qubits:
-            coordinate = qubit_to_point[qubit] + 2.0 * (qubit_to_point[qubit] - dual_mesh_center)
+            dual_mesh_center += qubit_to_point[qubit]
+        dual_mesh_center /= len(corner_qubits)
+        for qubit in corner_qubits:
+            coordinate = qubit_to_point[qubit] + 1.25 * (qubit_to_point[qubit] - dual_mesh_center)
             qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = coordinate
 
-        # project border qubits to the line spanned by their respective corner qubits
-        for qubit, boundaries in border_qubits.items():
-            line_qubits = list(set(boundaries[0].qubits) & set(boundaries[1].qubits) & set(corner_qubits))
+        # rotate corner qubits around center
+        # coordinates = [qubit_to_point[qubit] for qubit in corner_qubits]
+        # rotated = rotate_points(coordinates, 0, 0, 0, dual_mesh_center)
+        # for qubit, coordinate in zip(corner_qubits, rotated):
+        #     qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = coordinate
+
+        # move border qubits to the line spanned by their respective corner qubits, equally spaced
+        for boundary_indices, qubits in border_to_qubit.items():
+            boundary1 = self.dual_graph[boundary_indices[0]]
+            boundary2 = self.dual_graph[boundary_indices[1]]
+
+            # project qubits to the border, sort them by in order of appearance
+            line_qubits = list(set(boundary1.qubits) & set(boundary2.qubits) & set(corner_qubits))
             if len(line_qubits) != 2:
                 raise ValueError
             line = [qubit_to_point[line_qubits[0]], qubit_to_point[line_qubits[1]]]
-            coordinate = project_to_line(line, qubit_to_point[qubit])
-            distance1 = distance_between_points(line[0], coordinate)
-            distance2 = distance_between_points(line[1], coordinate)
-            # move point to center
-            if abs(distance1 - distance2) < 10:
-                coordinate = (line[0] + line[1]) / 2
-            # move point closer to corner 1
-            elif distance1 < distance2:
-                coordinate = coordinate - 0.2 * (coordinate - line[0])
-            # move point closer to corner 2
-            else:
-                coordinate = coordinate - 0.2 * (coordinate - line[1])
-            qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = coordinate
+            tmp = {qubit: distance_between_points(line[0], project_to_line(line, qubit_to_point[qubit])) for qubit in qubits}
+            qubit_order = sorted(tmp, key=lambda x: tmp[x])
+
+            # assign equal-spaced coordinates to each qubit
+            qubit_distance = (line[1] - line[0]) / (len(qubits) + 1)
+            for i, qubit in enumerate(qubit_order, start=1):
+                qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = line[0] + i*qubit_distance
 
         # project boundary qubits to the plane spanned by their corner qubits
         for qubit, boundaries in boundary_qubits.items():
@@ -1024,9 +1056,9 @@ class TetrahedronPlotter(Plotter3D):
 
         # move bulk qubits more to center
         dual_mesh_center = np.asarray([0.0, 0.0, 0.0])
-        for point in self.dual_mesh.points:
-            dual_mesh_center += point
-        dual_mesh_center /= len(self.dual_mesh.points)
+        for qubit in corner_qubits:
+            dual_mesh_center += qubit_to_point[qubit]
+        dual_mesh_center /= len(corner_qubits)
         for qubit in bulk_qubits:
             coordinate = qubit_to_point[qubit] - 0.25 * (qubit_to_point[qubit] - dual_mesh_center)
             qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = coordinate
