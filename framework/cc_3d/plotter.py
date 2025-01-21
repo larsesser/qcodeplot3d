@@ -10,6 +10,7 @@ from tempfile import NamedTemporaryFile
 from typing import ClassVar, Optional
 
 import numpy as np
+import numpy.linalg
 import numpy.typing as npt
 import pyvista
 import pyvista.plotting
@@ -84,7 +85,7 @@ def triangles_to_face(triangles: list[list[int]]) -> list[int]:
     return face
 
 
-def project_to_plane(points: list[list[float]]) -> list[list[float]]:
+def project_to_2d_plane(points: list[list[float]]) -> list[list[float]]:
     """Take a bunch of 3D points laying in (approximately) one 2D plane and project them to 2D points wrt this plane."""
     if any(len(point) != 3 for point in points):
         raise ValueError("All points must have 3D coordinates.")
@@ -120,6 +121,29 @@ def project_to_plane(points: list[list[float]]) -> list[list[float]]:
     return ret
 
 
+def project_to_3d_plane(points: list[list[float]]) -> list[list[float]]:
+    """Take a bunch of 3D points laying in (approximately) one 2D plane and project them to 2D points wrt this plane."""
+    if any(len(point) != 3 for point in points):
+        raise ValueError("All points must have 3D coordinates.")
+    if len(points) < 3:
+        raise ValueError("Need at least 3 points to determine the plane.")
+    points = np.asarray(points)
+    p_transposed = points.transpose()
+
+    # paragraph taken from https://math.stackexchange.com/a/99317
+    # "center of mass" of the plane
+    centeroid = np.mean(p_transposed, axis=1, keepdims=True)
+    # calculate the singular value decomposition of the centered points
+    svd = np.linalg.svd(p_transposed - centeroid)
+    # the left singular vector is the searched normal vector
+    normal = svd[0][:, -1]
+    normal = normal / np.linalg.norm(normal)
+
+    centeroid = centeroid.transpose()[0]
+    projected = [p - (p - centeroid).dot(normal) for p in points]
+
+    return projected
+
 def project_to_given_plane(plane: list[np.ndarray], points: list[list[float]]) -> list[np.ndarray]:
     """Take a bunch of 3D points laying and a 3D plane and project them to the 3D plane."""
     if any(len(point) != 3 for point in points):
@@ -136,6 +160,29 @@ def project_to_given_plane(plane: list[np.ndarray], points: list[list[float]]) -
         ret.append(point + t * n_normalized)
 
     return ret
+
+
+def cross_point_3_planes(plane1: list[np.ndarray], plane2: list[np.ndarray], plane3: list[np.ndarray]) -> list[np.ndarray]:
+    n_planes: list[npt.NDArray[np.float64]] = []
+    b_planes: list[float] = []
+
+    for points in [plane1, plane2, plane3]:
+        points = np.asarray(points)
+        p_transposed = points.transpose()
+        # paragraph taken from https://math.stackexchange.com/a/99317
+        # "center of mass" of the plane
+        centeroid = np.mean(p_transposed, axis=1, keepdims=True)
+        a = centeroid.transpose()[0]
+        # calculate the singular value decomposition of the centered points
+        svd = np.linalg.svd(p_transposed - centeroid)
+        # the left singular vector is the searched normal vector
+        normal = svd[0][:, -1]
+        b = a.dot(normal)
+        n_planes.append(normal)
+        b_planes.append(b)
+
+    # treat plane equations as system of linear equations, solve to obtain cross point
+    return np.linalg.solve(n_planes, b_planes)
 
 
 def project_to_line(line: list[np.ndarray], point: np.ndarray) -> np.ndarray:
@@ -160,6 +207,25 @@ def project_to_line(line: list[np.ndarray], point: np.ndarray) -> np.ndarray:
     # t = max(0, min(1, np.sum((point - p1) * (p2 - p1)) / l2))
 
     return p1 + t * (p2 - p1)
+
+
+def cross_point_2_lines(line1: list[np.ndarray], line2: list[np.ndarray]) -> np.ndarray:
+    """Line1 and Line2 are lists of two or more points on the respecitve line."""
+    a = []
+    b = []
+    for i in [0, 1]:
+        a.append([line1[0][i] - line1[1][i], line2[0][i] - line2[1][i]])
+        b.append(line1[0][i] + line2[0][i])
+    # a = [line1[0], line2[0]]
+    # b = [line1[0].dot(line1[1]), line2[0].dot(line2[1])]
+    # print(a)
+    # print(b)
+    s = np.linalg.lstsq(a, b)
+    #print(line1)
+    #print(line2)
+    #print(line1[0] + s[0][0] * (line1[0] - line1[1]))
+    #exit()
+    return line1[0] + s[0][0] * (line1[0] - line1[1])
 
 
 def distance_to_plane(plane: list[np.ndarray], points: list[list[np.ndarray]]) -> list[float]:
@@ -547,7 +613,7 @@ class Plotter3D(abc.ABC):
             for f_color, face_qubits in all_face_qubits:
                 face_points = [qubit_to_point[qubit] for qubit in face_qubits]
                 # project the points to a 2D plane with 2D coordinates, then calculate their triangulation
-                triangulation = Delaunay(project_to_plane(face_points), qhull_options="QJ")
+                triangulation = Delaunay(project_to_2d_plane(face_points), qhull_options="QJ")
                 # extract faces of the triangulation, take care to use the qubits
                 tmp_point_map = {k: v for k, v in zip(range(triangulation.npoints), face_qubits)}
                 simplexes = [[tmp_point_map[point] for point in face] for face in triangulation.simplices]
@@ -980,15 +1046,15 @@ def rotate_points(points: list[npt.NDArray[np.float64]], x_angle: float, y_angle
         points = [point - center for point in points]
 
     x_mat = np.array([[1, 0, 0],
-                      [0, np.cos(z_angle), -np.sin(z_angle)],
-                      [0, np.sin(z_angle), np.cos(z_angle)]])
+                      [0, np.cos(x_angle), -np.sin(x_angle)],
+                      [0, np.sin(x_angle), np.cos(x_angle)]])
     points = [x_mat.dot(point.transpose()) for point in points]
     y_mat = np.array([[np.cos(y_angle), 0, np.sin(y_angle)],
                       [0, 1, 0],
                       [-np.sin(y_angle), 0, np.cos(y_angle)]])
     points = [y_mat.dot(point.transpose()) for point in points]
-    z_mat = np.array([[np.cos(x_angle), -np.sin(x_angle), 0],
-                      [np.sin(x_angle), np.cos(x_angle), 0],
+    z_mat = np.array([[np.cos(z_angle), -np.sin(z_angle), 0],
+                      [np.sin(z_angle), np.cos(z_angle), 0],
                       [0, 0, 1]])
     points = [z_mat.dot(point.transpose()) for point in points]
 
@@ -1010,22 +1076,45 @@ class TetrahedronPlotter(Plotter3D):
         for qubit, nodes in border_qubits.items():
             border_to_qubit[tuple(sorted([nodes[0].index, nodes[1].index]))].append(qubit)
         boundary_qubits = {qubit: nodes for qubit, nodes in qubit_to_boundaries.items() if len(nodes) == 1}
+        boundary_to_qubit: dict[int, list[int]] = collections.defaultdict(list)
+        for qubit, nodes in boundary_qubits.items():
+            boundary_to_qubit[nodes[0].index].append(qubit)
         bulk_qubits = {qubit for qubit, nodes in qubit_to_boundaries.items() if len(nodes) == 0}
 
-        # move corner qubits more outward
-        dual_mesh_center = np.asarray([0.0, 0.0, 0.0])
-        for qubit in corner_qubits:
-            dual_mesh_center += qubit_to_point[qubit]
-        dual_mesh_center /= len(corner_qubits)
-        for qubit in corner_qubits:
-            coordinate = qubit_to_point[qubit] + 1.25 * (qubit_to_point[qubit] - dual_mesh_center)
-            qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = coordinate
 
-        # rotate corner qubits around center
-        # coordinates = [qubit_to_point[qubit] for qubit in corner_qubits]
-        # rotated = rotate_points(coordinates, 0, 0, 0, dual_mesh_center)
-        # for qubit, coordinate in zip(corner_qubits, rotated):
-        #     qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = coordinate
+        # TODO use enhanced method for d=5
+        if self.distance <= 5:
+            # move corner qubits more outward
+            dual_mesh_center = np.asarray([0.0, 0.0, 0.0])
+            for qubit in corner_qubits:
+                dual_mesh_center += qubit_to_point[qubit]
+            dual_mesh_center /= len(corner_qubits)
+            for qubit in corner_qubits:
+                coordinate = qubit_to_point[qubit] + 1.25 * (qubit_to_point[qubit] - dual_mesh_center)
+                qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = coordinate
+        else:
+            # TODO fix placement of border qubits
+            # determine position of corner qubits from boundary planes
+            boundary_to_qubit_point: dict[int, list[np.ndarray]] = {}
+            for boundary, qubits in boundary_to_qubit.items():
+                boundary_to_qubit_point[boundary] = project_to_3d_plane([qubit_to_point[qubit] for qubit in qubits])
+                for qubit, coordinate in zip(qubits, boundary_to_qubit_point[boundary]):
+                    qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = coordinate
+            for boundary1, boundary2, boundary3 in itertools.combinations(boundary_to_qubit.keys(), 3):
+                coordinate = cross_point_3_planes(boundary_to_qubit_point[boundary1], boundary_to_qubit_point[boundary2],
+                                                  boundary_to_qubit_point[boundary3])
+                qubit = (set(self.dual_graph[boundary1].qubits) & set(self.dual_graph[boundary2].qubits) & set(
+                    self.dual_graph[boundary3].qubits)).pop()
+                qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = coordinate
+
+            # move corner qubits more inward
+            dual_mesh_center = np.asarray([0.0, 0.0, 0.0])
+            for qubit in corner_qubits:
+                dual_mesh_center += qubit_to_point[qubit]
+            dual_mesh_center /= len(corner_qubits)
+            for qubit in corner_qubits:
+                coordinate = qubit_to_point[qubit] - 0.2 * (qubit_to_point[qubit] - dual_mesh_center)
+                qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = coordinate
 
         # move border qubits to the line spanned by their respective corner qubits, equally spaced
         for boundary_indices, qubits in border_to_qubit.items():
@@ -1062,6 +1151,14 @@ class TetrahedronPlotter(Plotter3D):
         for qubit in bulk_qubits:
             coordinate = qubit_to_point[qubit] - 0.25 * (qubit_to_point[qubit] - dual_mesh_center)
             qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = coordinate
+
+        # center the qubits around (0,0,0)
+        dual_mesh_center = np.asarray([0.0, 0.0, 0.0])
+        for qubit in corner_qubits:
+            dual_mesh_center += qubit_to_point[qubit]
+        dual_mesh_center /= len(corner_qubits)
+        for qubit, coordinate in qubit_to_point.items():
+            qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = coordinate - dual_mesh_center
 
         return points
 
