@@ -49,13 +49,18 @@ class GraphNode(GraphObject, abc.ABC):
 class GraphEdge(GraphObject, abc.ABC):
     node1: GraphNode
     node2: GraphNode
+    weight: int = dataclasses.field(init=False)
 
-    def __post_init__(self):
-        _ = self.weight
+    # def __post_init__(self):
+    #     _ = self.weight
 
     @cached_property
     def is_edge_between_boundaries(self) -> bool:
         return self.node1.is_boundary and self.node2.is_boundary
+
+    @cached_property
+    def has_boundary(self) -> bool:
+        return self.node1.is_boundary or self.node2.is_boundary
 
     @cached_property
     def node_ids(self) -> tuple[int, int]:
@@ -73,9 +78,9 @@ class GraphEdge(GraphObject, abc.ABC):
             return self.node1.color.intersect(self.node2.color)
         return None
 
-    @cached_property
-    def weight(self) -> float:
-        return random.uniform(1 - 1e-6, 1 + 1e-6)
+    # @cached_property
+    # def weight(self) -> float:
+    #     return random.uniform(1 - 1e-6, 1 + 1e-6)
 
     def __contains__(self, item):
         """Boilerplate code for pymatching."""
@@ -140,7 +145,7 @@ class DualGraphEdge(GraphEdge):
     stabilizer: Optional[Stabilizer] = dataclasses.field(default=None, init=False)
 
     def __post_init__(self):
-        super().__post_init__()
+        # super().__post_init__()
         if self.is_stabilizer:
             if self.node1.is_stabilizer:
                 stab_length = self.node1.stabilizer.length
