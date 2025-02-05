@@ -49,7 +49,7 @@ class GraphNode(GraphObject, abc.ABC):
 class GraphEdge(GraphObject, abc.ABC):
     node1: GraphNode
     node2: GraphNode
-    weight: int = dataclasses.field(init=False)
+    weight: float = dataclasses.field(init=False)
 
     # def __post_init__(self):
     #     _ = self.weight
