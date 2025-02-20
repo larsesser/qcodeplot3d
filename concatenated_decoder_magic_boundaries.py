@@ -157,6 +157,18 @@ exit()
 def highlighted_nodes(graph: rustworkx.PyGraph, qubits: list[int]) -> list["DualGraphNode"]:
     return [node for node in graph.nodes() if len(set(node.qubits) & set(qubits)) % 2 and not node.is_boundary]
 
+def get_endpoint_nodes(edges: list[GraphEdge]) -> list[GraphNode]:
+    node_ids = set()
+    for edge in edges:
+        for node in [edge.node1, edge.node2]:
+            if node.is_boundary:
+                continue
+            if node.id in node_ids:
+                node_ids.remove(node.id)
+            else:
+                node_ids.add(node.id)
+    return [node for edge in edges for node in (edge.node1, edge.node2) if node.id in node_ids]
+
 def get_syndrome(dual_graph: rustworkx.PyGraph, qubits: list[int]) -> Syndrome:
     return Syndrome({
         node.stabilizer: SyndromeValue(bool(len(set(node.qubits) & set(qubits)) % 2))
@@ -181,7 +193,7 @@ for d in [7]:
     rg_coordinates = {index_map[index]: coordinate for index, coordinate in dg_coordinates.items() if index in index_map}
     # plotter.plot_debug_primary_mesh(plotter.construct_debug_mesh(r_graph, coordinates=rg_coordinates), show_qubit_labels=True)
 
-    errors_on_qubits = [1, 75, 150]
+    errors_on_qubits = [54, 99, 147]
     syndrome = get_syndrome(graph, errors_on_qubits)
     r_matching = decoder._decode_r_graph(syndrome, r_colors, propagate_weight=True)
     r_matching_edges = _matching2edges(r_matching, r_graph)
@@ -208,7 +220,7 @@ for d in [7]:
 
     mc3_matchting = decoder._decode_mc3_graph(syndrome, r_colors, mc3_color, r_matching, propagate_weight=True)
     mc3_matching_edges = _matching2edges(mc3_matchting, mc3_graph)
-    mc3_nodes = highlighted_nodes(mc3_graph, errors_on_qubits)
+    mc3_nodes = get_endpoint_nodes(mc3_matching_edges)
     plotter.plot_debug_primary_mesh(plotter.construct_debug_mesh(mc3_graph, coordinates=mc3_coordinates, highlighted_nodes=mc3_nodes), highlighted_qubits=errors_on_qubits, highlighted_edges=mc3_matching_edges, show_edge_weights=True)
 
     mc4_color = Color.yellow
@@ -228,10 +240,10 @@ for d in [7]:
         else:
             raise RuntimeError
 
-    mc4_matching = decoder._decode_mc4_graph(syndrome, r_colors, mc3_color, mc4_color, mc3_matchting)
+    mc4_matching = decoder._decode_mc4_graph(syndrome, r_colors, mc3_color, mc4_color, mc3_matchting, propagate_weight=True)
     mc4_matching_edges = _matching2edges(mc4_matching, mc4_graph)
-    mc4_nodes = highlighted_nodes(mc4_graph, errors_on_qubits)
-    plotter.plot_debug_primary_mesh(plotter.construct_debug_mesh(mc4_graph, coordinates=mc4_coordinates, highlighted_nodes=mc4_nodes), highlighted_qubits=errors_on_qubits, highlighted_edges=mc4_matching_edges)
+    mc4_nodes = get_endpoint_nodes(mc4_matching_edges)
+    plotter.plot_debug_primary_mesh(plotter.construct_debug_mesh(mc4_graph, coordinates=mc4_coordinates, highlighted_nodes=mc4_nodes), highlighted_qubits=errors_on_qubits, highlighted_edges=mc4_matching_edges, show_edge_weights=True)
 
     # print([edge.qubit for edge in mc4_matching_edges])
     # print(decoder.decode(syndrome))
