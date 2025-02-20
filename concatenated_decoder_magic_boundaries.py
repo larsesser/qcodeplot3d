@@ -5,9 +5,9 @@ from rustworkx.visualization import graphviz_draw
 
 from framework.base import GraphEdge, GraphNode
 from framework.cc_2d.construction import rectangular_2d_dual_graph, square_2d_dual_graph
-from framework.cc_3d.construction import construct_x_dual_graph, cubic_3d_dual_graph
-from framework.cc_3d.decoder import ConcatenatedDecoder, SubsetDecoder
-from framework.cc_3d.plotter import Plotter3D
+from framework.cc_3d.construction import construct_x_dual_graph, cubic_3d_dual_graph, tetrahedron_d5_dual_graph, tetrahedron_3d_dual_graph, construct_tetrahedron_logicals
+from framework.cc_3d.decoder import ConcatenatedDecoder, SubsetDecoder, _calculate_edge_weights, _adjust_edge_weights_with_syndrome, _matching2edges
+from framework.cc_3d.plotter import CubicPlotter, TetrahedronPlotter
 from framework.construction import construct_restricted_graph
 from framework.stabilizers import (
     Color,
@@ -147,9 +147,97 @@ def basic_x_decoder_test(graph: rustworkx.PyGraph):
         if any(result != [qubit] for result in results.values()):
             print(qubit, results)
 
+d=5
+graph = tetrahedron_3d_dual_graph(d)
+plotter = TetrahedronPlotter(graph, distance=d)
+plotter.plot_primary_mesh()
 
-d = 4
-graph = square_2d_dual_graph(d)
+exit()
+
+def highlighted_nodes(graph: rustworkx.PyGraph, qubits: list[int]) -> list["DualGraphNode"]:
+    return [node for node in graph.nodes() if len(set(node.qubits) & set(qubits)) % 2 and not node.is_boundary]
+
+def get_syndrome(dual_graph: rustworkx.PyGraph, qubits: list[int]) -> Syndrome:
+    return Syndrome({
+        node.stabilizer: SyndromeValue(bool(len(set(node.qubits) & set(qubits)) % 2))
+        for node in dual_graph.nodes() if node.is_stabilizer
+    })
+
+for d in [7]:
+    graph = tetrahedron_3d_dual_graph(d)
+    decoder = ConcatenatedDecoder(Kind.x, [Color.red, Color.blue, Color.green, Color.yellow], graph)
+    plotter = TetrahedronPlotter(graph, distance=d)
+    _calculate_edge_weights(graph)
+    dg_coordinates = plotter.layout_dual_nodes(plotter.construct_primary_mesh())
+    primary_coordinates = plotter.get_qubit_coordinates(plotter.construct_primary_mesh())
+    # plotter.plot_primary_mesh()
+    # plotter.plot_primary_mesh(highlighted_qubits=[1, 2, 3, 6, 7, 8, 9, 13, 14, 18, 22, 24, 25, 28, 36, 37, 38, 45, 50, 52, 53, 55, 59, 60, 63, 68, 70, 71, 72, 73, 74, 76, 77, 80, 82, 83, 88, 91, 95, 96, 103, 104, 105, 106, 107, 108, 109, 111, 113, 114, 115, 122, 123, 127, 133, 134, 135, 138, 140, 142, 143, 144, 146, 151, 152, 154, 155, 158, 160, 162, 164, 165, 168, 170, 172, 173])
+    # plotter.plot_debug_primary_mesh(plotter.construct_debug_mesh(graph, coordinates=dg_coordinates))
+
+    r_colors = [Color.green, Color.red]
+    r_graph = decoder.restricted_graph(r_colors)
+    index_map = {node.dg_node.index: node.index for node in r_graph.nodes()}
+    # use 3D coordinates from dual graph layout, so its more clear which node corresponds to which in the visualization
+    rg_coordinates = {index_map[index]: coordinate for index, coordinate in dg_coordinates.items() if index in index_map}
+    # plotter.plot_debug_primary_mesh(plotter.construct_debug_mesh(r_graph, coordinates=rg_coordinates), show_qubit_labels=True)
+
+    errors_on_qubits = [1, 75, 150]
+    syndrome = get_syndrome(graph, errors_on_qubits)
+    r_matching = decoder._decode_r_graph(syndrome, r_colors, propagate_weight=True)
+    r_matching_edges = _matching2edges(r_matching, r_graph)
+    r_nodes = highlighted_nodes(r_graph, errors_on_qubits)
+    plotter.plot_debug_primary_mesh(plotter.construct_debug_mesh(r_graph, coordinates=rg_coordinates, highlighted_nodes=r_nodes), highlighted_qubits=errors_on_qubits, highlighted_edges=r_matching_edges, show_edge_weights=True)
+
+    mc3_color = Color.blue
+    mc3_graph = decoder.mc3_graph(r_colors, mc3_color)
+    # use 3D coordinates from dual graph layout, so its more clear which node corresponds to which in the visualization
+    mc3_coordinates = {}
+    center: list[float] = sum(dg_coordinates.values()) / len(dg_coordinates)
+    for node in mc3_graph.nodes():
+        if node.rg_node is not None:
+            mc3_coordinates[node.index] = dg_coordinates[node.rg_node.dg_node.index]
+        elif node.rg_edge is not None:
+            node1 = node.rg_edge.dg_edge.node1
+            node2 = node.rg_edge.dg_edge.node2
+            # position of node is on center of the face between the rg nodes
+            face_qubits = set(node1.qubits) & set(node2.qubits)
+            coordinate = sum(primary_coordinates[qubit] for qubit in face_qubits) / len(face_qubits)
+            mc3_coordinates[node.index] = coordinate
+        else:
+            raise RuntimeError
+
+    mc3_matchting = decoder._decode_mc3_graph(syndrome, r_colors, mc3_color, r_matching, propagate_weight=True)
+    mc3_matching_edges = _matching2edges(mc3_matchting, mc3_graph)
+    mc3_nodes = highlighted_nodes(mc3_graph, errors_on_qubits)
+    plotter.plot_debug_primary_mesh(plotter.construct_debug_mesh(mc3_graph, coordinates=mc3_coordinates, highlighted_nodes=mc3_nodes), highlighted_qubits=errors_on_qubits, highlighted_edges=mc3_matching_edges, show_edge_weights=True)
+
+    mc4_color = Color.yellow
+    mc4_graph = decoder.mc4_graph(r_colors, mc3_color, mc4_color)
+    # use 3D coordinates from dual graph layout, so its more clear which node corresponds to which in the visualization
+    mc4_coordinates = {}
+    center: list[float] = sum(dg_coordinates.values()) / len(dg_coordinates)
+    for node in mc4_graph.nodes():
+        if node.dg_node is not None:
+            mc4_coordinates[node.index] = dg_coordinates[node.dg_node.index]
+        elif node.mc3_edge is not None:
+            nodes = node.dg_nodes
+            # position of node is on center of the edge between the rg nodes
+            edge_qubits = set(nodes[0].qubits) & set(nodes[1].qubits) & set(nodes[2].qubits)
+            coordinate = sum(primary_coordinates[qubit] for qubit in edge_qubits) / len(edge_qubits)
+            mc4_coordinates[node.index] = coordinate
+        else:
+            raise RuntimeError
+
+    mc4_matching = decoder._decode_mc4_graph(syndrome, r_colors, mc3_color, mc4_color, mc3_matchting)
+    mc4_matching_edges = _matching2edges(mc4_matching, mc4_graph)
+    mc4_nodes = highlighted_nodes(mc4_graph, errors_on_qubits)
+    plotter.plot_debug_primary_mesh(plotter.construct_debug_mesh(mc4_graph, coordinates=mc4_coordinates, highlighted_nodes=mc4_nodes), highlighted_qubits=errors_on_qubits, highlighted_edges=mc4_matching_edges)
+
+    # print([edge.qubit for edge in mc4_matching_edges])
+    # print(decoder.decode(syndrome))
+    # print(decoder.decode(syndrome, return_all_corrections=True))
+
+exit()
 
 print_stats(graph, d, dimension=2)
 
