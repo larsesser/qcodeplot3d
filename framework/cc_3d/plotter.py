@@ -450,8 +450,9 @@ class Plotter3D(abc.ABC):
         boundaries = [node.is_boundary for node in graph.nodes()]
         ret["is_boundary"] = boundaries
 
-        # remember the edge idex
+        # remember the edge index and weight
         ret.cell_data["edge_index"] = [edge.index for edge in graph.edges() if include_edges_between_boundaries or not edge.is_edge_between_boundaries]
+        ret.cell_data["edge_weight"] = [np.round(getattr(edge, "weight", -1), decimals=3) for edge in graph.edges() if include_edges_between_boundaries or not edge.is_edge_between_boundaries]
 
         # add point labels
         point_labels = []
@@ -967,6 +968,7 @@ class Plotter3D(abc.ABC):
         mesh_line_color: Optional[str] = None,
         mandatory_cell_qubits: set[int] = None,
         face_syndrome_qubits: set[int] = None,
+        show_edge_weights: bool = False,
         camera_position: list[tuple[int, int, int]] = None,
         print_camera_position: bool = False,
         filename: pathlib.Path = None,
@@ -982,7 +984,7 @@ class Plotter3D(abc.ABC):
         if primary_line_width is None:
             primary_line_width = 1 if filename is None else 10
         if highlighted_line_width is None:
-            highlighted_line_width = 1 if filename is None else 10
+            highlighted_line_width = 2 if filename is None else 10
 
         plt = self._plot_primary_mesh_internal(
             show_qubit_labels=show_qubit_labels,
@@ -1024,6 +1026,19 @@ class Plotter3D(abc.ABC):
             else:
                 plt.add_mesh(mesh, scalars="edge_colors", show_scalar_bar=False, point_size=node_point_size, line_width=mesh_line_width,
                              smooth_shading=True, clim=Color.color_limits(), show_vertices=True, style="wireframe")
+
+        if show_edge_weights:
+            all_edges = reconvert_faces(mesh.lines)
+            edge_weights = {pos: str(weight) for pos, weight in enumerate(mesh.cell_data['edge_weight'])}
+            edge_labels = []
+            edge_points = []
+            for edge_pos, label in edge_weights.items():
+                point1 = mesh.points[all_edges[edge_pos][0]]
+                point2 = mesh.points[all_edges[edge_pos][1]]
+                center = (point1 + point2) / 2
+                edge_points.append(center)
+                edge_labels.append(label)
+            plt.add_point_labels(edge_points, edge_labels, show_points=False, always_visible=True)
 
         plt.add_points(mesh.points, scalars=mesh["colors"], point_size=node_point_size, show_scalar_bar=False,
                       clim=Color.color_limits())
