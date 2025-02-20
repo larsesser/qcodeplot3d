@@ -213,18 +213,10 @@ def cross_point_2_lines(line1: list[np.ndarray], line2: list[np.ndarray]) -> np.
     """Line1 and Line2 are lists of two or more points on the respecitve line."""
     a = []
     b = []
-    for i in [0, 1]:
+    for i in [0, 1, 2]:
         a.append([line1[0][i] - line1[1][i], line2[0][i] - line2[1][i]])
-        b.append(line1[0][i] + line2[0][i])
-    # a = [line1[0], line2[0]]
-    # b = [line1[0].dot(line1[1]), line2[0].dot(line2[1])]
-    # print(a)
-    # print(b)
+        b.append(- line1[0][i] + line2[0][i])
     s = np.linalg.lstsq(a, b)
-    #print(line1)
-    #print(line2)
-    #print(line1[0] + s[0][0] * (line1[0] - line1[1]))
-    #exit()
     return line1[0] + s[0][0] * (line1[0] - line1[1])
 
 
@@ -1136,18 +1128,30 @@ class TetrahedronPlotter(Plotter3D):
             boundary1 = self.dual_graph[boundary_indices[0]]
             boundary2 = self.dual_graph[boundary_indices[1]]
 
-            # project qubits to the border, sort them by in order of appearance
+            # project qubits to the border
             line_qubits = list(set(boundary1.qubits) & set(boundary2.qubits) & set(corner_qubits))
             if len(line_qubits) != 2:
                 raise ValueError
             line = [qubit_to_point[line_qubits[0]], qubit_to_point[line_qubits[1]]]
+            # place qubit for d=3 tetrahedron in center of boarder
+            if self.distance == 3:
+                qubit_to_point[qubits[0]] = points[qubit_to_pointpos[qubits[0]]] = (line[0] + line[1]) / 2
+                continue
+            to_plane = {qubit: coordinate for qubit, coordinate in zip(qubits, project_to_given_plane([line[0], line[1], dual_mesh_center], [qubit_to_point[qubit] for qubit in qubits]))}
+            for qubit, coordinate in to_plane.items():
+                coordinate = cross_point_2_lines(line, [dual_mesh_center, coordinate])
+                qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = coordinate
+
+            # move first and last qubit of each border more towards the corner
             tmp = {qubit: distance_between_points(line[0], project_to_line(line, qubit_to_point[qubit])) for qubit in qubits}
             qubit_order = sorted(tmp, key=lambda x: tmp[x])
-
+            qubit_to_point[qubit_order[0]] = points[qubit_to_pointpos[qubit_order[0]]] = (2*qubit_to_point[qubit_order[0]] + line[0]) / 3
+            qubit_to_point[qubit_order[-1]] = points[qubit_to_pointpos[qubit_order[-1]]] = (2*qubit_to_point[qubit_order[-1]] + line[1]) / 3
+            # TODO scale remaining qubits better
             # assign equal-spaced coordinates to each qubit
-            qubit_distance = (line[1] - line[0]) / (len(qubits) + 1)
-            for i, qubit in enumerate(qubit_order, start=1):
-                qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = line[0] + i*qubit_distance
+            # qubit_distance = (line[1] - line[0]) / (len(qubits) + 3)
+            # for i, qubit in enumerate(qubit_order[1:-1], start=3):
+            #     qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = line[0] + i*qubit_distance
 
         # project boundary qubits to the plane spanned by their corner qubits
         for qubit, boundaries in boundary_qubits.items():
