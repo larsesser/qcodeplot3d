@@ -49,10 +49,10 @@ class GraphNode(GraphObject, abc.ABC):
 class GraphEdge(GraphObject, abc.ABC):
     node1: GraphNode
     node2: GraphNode
-    weight: float = dataclasses.field(init=False)
+    # weight: float = dataclasses.field(init=False)
 
-    # def __post_init__(self):
-    #     _ = self.weight
+    def __post_init__(self):
+        _ = self.weight
 
     @cached_property
     def is_edge_between_boundaries(self) -> bool:
@@ -78,9 +78,9 @@ class GraphEdge(GraphObject, abc.ABC):
             return self.node1.color.intersect(self.node2.color)
         return None
 
-    # @cached_property
-    # def weight(self) -> float:
-    #     return random.uniform(1 - 1e-6, 1 + 1e-6)
+    @cached_property
+    def weight(self) -> float:
+        return random.uniform(1 - 1e-6, 1 + 1e-6)
 
     def __contains__(self, item):
         """Boilerplate code for pymatching."""
