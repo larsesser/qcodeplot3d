@@ -1,3 +1,5 @@
+"""Construct dual graph representations of rectangular and square 2D color codes."""
+
 import itertools
 
 import rustworkx

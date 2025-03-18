@@ -1,3 +1,5 @@
+"""Implementation of basic graph objects, which are used to construct graph-based quantum codes and graph-based decoders."""
+
 import abc
 import dataclasses
 from dataclasses import dataclass

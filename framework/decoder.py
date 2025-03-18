@@ -1,3 +1,8 @@
+"""Provides the interface of a decoder, which is used in framework/simulator.py.
+
+Implementations of the decoders are provided in cc_2d/decoder.py and cc_3d/decoder.py.
+"""
+
 import abc
 from dataclasses import dataclass, field
 from typing import Literal, overload

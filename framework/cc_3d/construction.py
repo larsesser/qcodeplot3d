@@ -1,3 +1,5 @@
+"""Construct dual graph representations of tetrahedral and cubic 3D color codes."""
+
 import dataclasses
 import itertools
 

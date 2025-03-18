@@ -1,3 +1,5 @@
+"""Generic helpers to construct color codes. Used in cc_2d/construction.py and cc_3d/construction.py."""
+
 import collections
 import itertools
 from typing import Optional

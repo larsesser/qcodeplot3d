@@ -1,3 +1,5 @@
+"""Provide some utility function and classes which are used in multiple files."""
+
 import enum
 import itertools
 

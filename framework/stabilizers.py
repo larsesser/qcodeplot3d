@@ -1,3 +1,11 @@
+"""Provides an implementation of 'operators' and 'stabilizers' as python objects.
+
+The stabilizers are designed as color code stabilizers. The concept of 'color' is also implemented
+as a python object and used extensively for 3D plotting.
+
+This also provides some functions to validate stabilizers and logical operators of CSS codes.
+"""
+
 import enum
 import itertools
 from functools import cache
