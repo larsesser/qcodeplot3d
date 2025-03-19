@@ -686,7 +686,7 @@ class Plotter3D(abc.ABC):
                 distances = [distance_between_points(points[edge[0]], points[edge[1]]) for edge in edges]
                 min_distance = min(distances)
                 for edge, distance in zip(edges, distances):
-                    if edge not in lines and (edge[1], edge[0]) not in lines and 0.9*distance <= min_distance:
+                    if edge not in lines and (edge[1], edge[0]) not in lines and (0.9*distance <= min_distance or self.dimension == 3):
                         lines.append(edge)
                         line_ids.append(self.next_id)
                         line_colors.append(volume_colors_by_pos[pos1].highlight)
