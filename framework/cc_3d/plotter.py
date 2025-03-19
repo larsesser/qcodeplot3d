@@ -249,6 +249,22 @@ class Plotter3D(abc.ABC):
     def dual_mesh(self) -> pyvista.PolyData:
         return self._construct_dual_mesh()
 
+    @cached_property
+    def qubit_to_boundaries(self) -> dict[int, list[DualGraphNode]]:
+        ret: dict[int, list[DualGraphNode]] = dict()
+
+        # group dual lattice cells (of the tetrahedron) by qubit
+        qubit_to_facepositions: dict[int, list[int]] = defaultdict(list)
+        for position, qubit in enumerate(self.dual_mesh.cell_data['qubits']):
+            qubit_to_facepositions[qubit].append(position)
+
+        dual_mesh_faces = reconvert_faces(self.dual_mesh.faces)
+        for pointposition, (qubit, facepositions) in enumerate(qubit_to_facepositions.items()):
+            dg_nodes = [self.get_dual_node(point_index) for point_index in
+                        sorted(set().union(*[dual_mesh_faces[face_index] for face_index in facepositions]))]
+            ret[qubit] = [node for node in dg_nodes if node.is_boundary]
+        return ret
+
     @staticmethod
     def get_plotting_theme() -> pyvista.plotting.themes.DocumentTheme:
         theme = pyvista.plotting.themes.DocumentTheme()
@@ -495,18 +511,13 @@ class Plotter3D(abc.ABC):
         points: list[npt.NDArray[np.float64]] = []
         # map each qubit to the position of its points coordinates
         qubit_to_pointpos: dict[int, int] = {}
-        # map each qubit to the dual graph boundary nodes its tetrahedron touches
-        qubit_to_boundaries: dict[int, list[DualGraphNode]] = dict()
 
         # group dual lattice cells (of the tetrahedron) by qubit
         qubit_to_facepositions: dict[int, list[int]] = defaultdict(list)
         for position, qubit in enumerate(self.dual_mesh.cell_data['qubits']):
             qubit_to_facepositions[qubit].append(position)
 
-        dual_mesh_faces = reconvert_faces(self.dual_mesh.faces)
         for pointposition, (qubit, facepositions) in enumerate(qubit_to_facepositions.items()):
-            dg_nodes = [self.get_dual_node(point_index) for point_index in
-                        sorted(set().union(*[dual_mesh_faces[face_index] for face_index in facepositions]))]
             if given_qubit_coordinates:
                 points.append(given_qubit_coordinates[qubit])
             else:
@@ -518,15 +529,13 @@ class Plotter3D(abc.ABC):
                 center = center / len(tetrahedron.points)
                 points.append(center)
             qubit_to_pointpos[qubit] = pointposition
-            qubit_to_boundaries[qubit] = [node for node in dg_nodes if node.is_boundary]
 
-        points = self.postprocess_primary_node_layout(points, qubit_to_pointpos, qubit_to_boundaries)
+        points = self.postprocess_primary_node_layout(points, qubit_to_pointpos)
         return points, qubit_to_pointpos
 
     @abc.abstractmethod
     def postprocess_primary_node_layout(
-            self, points: list[npt.NDArray[np.float64]], qubit_to_pointpos: dict[int, int],
-            qubit_to_boundaries: dict[int, list[DualGraphNode]]
+            self, points: list[npt.NDArray[np.float64]], qubit_to_pointpos: dict[int, int]
     ) -> list[npt.NDArray[np.float64]]:
         ...
 
@@ -698,8 +707,7 @@ class Plotter3D(abc.ABC):
         ret: dict[int, npt.NDArray[np.float64]] = self.preprocess_dual_node_layout(primary_mesh)
 
         qubit_points: dict[int, npt.NDArray[np.float64]] = {primary_mesh.point_data['qubits'][pos]: point for pos, point in enumerate(primary_mesh.points)}
-        corner_qubits = {(set(node1.qubits) & set(node2.qubits) & set(node3.qubits)).pop()
-                         for node1, node2, node3 in itertools.combinations(self.boundary_nodes, 3)}
+        corner_qubits = {qubit for qubit, nodes in self.qubit_to_boundaries.items() if len(nodes) == 3}
 
         # calculate the center of the code
         center = np.asarray([0.0, 0.0, 0.0])
@@ -1066,23 +1074,33 @@ def rotate_points(points: list[npt.NDArray[np.float64]], x_angle: float, y_angle
     return points
 
 
+# rotate all qubits around the center
+# dual_mesh_center = np.asarray([0.0, 0.0, 0.0])
+# for qubit in corner_qubits:
+#     dual_mesh_center += qubit_to_point[qubit]
+# dual_mesh_center /= len(corner_qubits)
+# coordinates = [qubit_to_point[qubit] for qubit in qubit_to_point]
+# rotated = rotate_points(coordinates, 1.1, 0.4, 0.3, dual_mesh_center)
+# for qubit, coordinate in zip(qubit_to_point, rotated):
+#     qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = coordinate
+
+
 @dataclasses.dataclass
 class TetrahedronPlotter(Plotter3D):
     def postprocess_primary_node_layout(
-            self, points: list[npt.NDArray[np.float64]], qubit_to_pointpos: dict[int, int],
-            qubit_to_boundaries: dict[int, list[DualGraphNode]]
+            self, points: list[npt.NDArray[np.float64]], qubit_to_pointpos: dict[int, int]
     ) -> list[npt.NDArray[np.float64]]:
         qubit_to_point = {qubit: points[pointpos] for qubit, pointpos in qubit_to_pointpos.items()}
-        corner_qubits = {qubit: nodes for qubit, nodes in qubit_to_boundaries.items() if len(nodes) == 3}
-        border_qubits = {qubit: nodes for qubit, nodes in qubit_to_boundaries.items() if len(nodes) == 2}
+        corner_qubits = {qubit: nodes for qubit, nodes in self.qubit_to_boundaries.items() if len(nodes) == 3}
+        border_qubits = {qubit: nodes for qubit, nodes in self.qubit_to_boundaries.items() if len(nodes) == 2}
         border_to_qubit: dict[tuple[int, int]: list[int]] = collections.defaultdict(list)
         for qubit, nodes in border_qubits.items():
             border_to_qubit[tuple(sorted([nodes[0].index, nodes[1].index]))].append(qubit)
-        boundary_qubits = {qubit: nodes for qubit, nodes in qubit_to_boundaries.items() if len(nodes) == 1}
+        boundary_qubits = {qubit: nodes for qubit, nodes in self.qubit_to_boundaries.items() if len(nodes) == 1}
         boundary_to_qubit: dict[int, list[int]] = collections.defaultdict(list)
         for qubit, nodes in boundary_qubits.items():
             boundary_to_qubit[nodes[0].index].append(qubit)
-        bulk_qubits = {qubit for qubit, nodes in qubit_to_boundaries.items() if len(nodes) == 0}
+        bulk_qubits = {qubit for qubit, nodes in self.qubit_to_boundaries.items() if len(nodes) == 0}
 
 
         if self.distance == 3:
@@ -1224,13 +1242,12 @@ class CubicPlotter(Plotter3D):
         return factor
 
     def postprocess_primary_node_layout(
-            self, points: list[npt.NDArray[np.float64]], qubit_to_pointpos: dict[int, int],
-            qubit_to_boundaries: dict[int, list[DualGraphNode]]
+            self, points: list[npt.NDArray[np.float64]], qubit_to_pointpos: dict[int, int]
     ) -> list[npt.NDArray[np.float64]]:
         """Move qubits at the outside more outward, to form an even plane at each boundary."""
         qubit_to_point = {qubit: points[pointpos] for qubit, pointpos in qubit_to_pointpos.items()}
-        corner_qubits = {qubit for qubit, nodes in qubit_to_boundaries.items() if len(nodes) == 3}
-        border_qubits = {qubit: nodes for qubit, nodes in qubit_to_boundaries.items() if len(nodes) == 2}
+        corner_qubits = {qubit for qubit, nodes in self.qubit_to_boundaries.items() if len(nodes) == 3}
+        border_qubits = {qubit: nodes for qubit, nodes in self.qubit_to_boundaries.items() if len(nodes) == 2}
 
         # calculate the reference planes
         boundary_to_reference_plane: dict[int, list[np.ndarray]] = {}
