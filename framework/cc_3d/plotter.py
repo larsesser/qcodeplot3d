@@ -235,7 +235,6 @@ def distance_between_points(point1: list[np.ndarray], point2: list[np.ndarray]) 
 class Plotter3D(abc.ABC):
     dual_graph: rx.PyGraph
     distance: int
-    _dual_mesh: pyvista.PolyData = dataclasses.field(default=None, init=False)
     storage_dir: pathlib.Path = dataclasses.field(default=pathlib.Path(__file__).parent.parent.absolute())
     highes_id: int = dataclasses.field(default=0, init=False)
     _dualgraph_to_dualmesh: dict[int, int] = dataclasses.field(default=None, init=False)
@@ -246,11 +245,9 @@ class Plotter3D(abc.ABC):
     def boundary_nodes(self) -> list[DualGraphNode]:
         return [node for node in self.dual_graph.nodes() if node.is_boundary]
 
-    @property
+    @cached_property
     def dual_mesh(self) -> pyvista.PolyData:
-        if not self._dual_mesh:
-            self._dual_mesh = self._construct_dual_mesh()
-        return self._dual_mesh
+        return self._construct_dual_mesh()
 
     @staticmethod
     def get_plotting_theme() -> pyvista.plotting.themes.DocumentTheme:
