@@ -980,7 +980,7 @@ class Plotter3D(abc.ABC):
         if primary_line_width is None:
             primary_line_width = 1 if filename is None else 10
         if highlighted_line_width is None:
-            highlighted_line_width = 2 if filename is None else 10
+            highlighted_line_width = 2 if filename is None else 25
 
         plt = self._plot_primary_mesh_internal(
             show_qubit_labels=show_qubit_labels,
@@ -1305,7 +1305,7 @@ class CubicPlotter(Plotter3D):
     @staticmethod
     def _layout_dual_nodes_factor(distance: int) -> Optional[float]:
         return {
-            4: 1.5,
+            4: 0.8,
             6: 1.0,
         }.get(distance)
 
