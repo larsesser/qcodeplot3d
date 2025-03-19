@@ -237,14 +237,10 @@ class Plotter3D(abc.ABC):
     distance: int
     _dual_mesh: pyvista.PolyData = dataclasses.field(default=None, init=False)
     storage_dir: pathlib.Path = dataclasses.field(default=pathlib.Path(__file__).parent.parent.absolute())
-    pyvista_theme: pyvista.plotting.themes.DocumentTheme = dataclasses.field(default=None, init=False)
     highes_id: int = dataclasses.field(default=0, init=False)
     _dualgraph_to_dualmesh: dict[int, int] = dataclasses.field(default=None, init=False)
     _dualmesh_to_dualgraph: dict[int, int] = dataclasses.field(default=None, init=False)
     dimension: ClassVar[int] = 3
-
-    def __post_init__(self):
-        self.pyvista_theme = self.get_plotting_theme()
 
     @cached_property
     def boundary_nodes(self) -> list[DualGraphNode]:
@@ -417,8 +413,7 @@ class Plotter3D(abc.ABC):
 
         :param coordinates: Mapping of node indices of graph to 3D coordinates. Use them instead of calculating them.
         :param use_edges_colors: If true, use the color of the GraphEdge object instead of default colors.
-        :param highlighted_nodes: Change color of given nodes to highlighted color. Take care to adjust the cmap of
-            pyvista_theme to 'Color.highlighted_color_map' (otherwise there will be no visible effect).
+        :param highlighted_nodes: Change color of given nodes to highlighted color.
         """
         if mandatory_qubits:
             graph = graph.copy()
@@ -755,7 +750,7 @@ class Plotter3D(abc.ABC):
         if line_width is None:
             line_width = 1 if filename is None else 10
 
-        plt = pyvista.plotting.Plotter(theme=self.pyvista_theme, off_screen=filename is not None)
+        plt = pyvista.plotting.Plotter(theme=self.get_plotting_theme(), off_screen=filename is not None)
         if show_labels:
             plt.add_point_labels(mesh, "point_labels", point_size=point_size, font_size=20)
         if edge_color:
@@ -869,11 +864,9 @@ class Plotter3D(abc.ABC):
                                            only_nodes_with_color, lowest_title, highest_title, mandatory_face_qubits,
                                            string_operator_qubits, color_edges, mandatory_cell_qubits, face_syndrome_qubits)
 
+        theme = self.get_plotting_theme()
         if self.dimension == 3 and not transparent_faces:
-            theme = self.get_plotting_theme()
             theme.cmap = Color.highlighted_color_map_3d()
-        else:
-            theme = self.pyvista_theme
 
         plt = pyvista.plotting.Plotter(theme=theme, off_screen=off_screen)
         # extract lines from mesh, plot them separately
