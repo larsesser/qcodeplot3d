@@ -785,8 +785,8 @@ class Plotter3D(abc.ABC):
         self,
         *,
         show_qubit_labels: bool = False,
-        point_size: int = None,
-        highlighted_point_size: int = None,
+        qubit_point_size: int = None,
+        highlighted_qubit_point_size: int = None,
         highlighted_volumes: list[DualGraphNode] = None,
         highlighted_qubits: list[int] = None,
         qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None,
@@ -807,15 +807,15 @@ class Plotter3D(abc.ABC):
         filename: pathlib.Path = None,
     ) -> None:
         # set default values
-        if point_size is None:
-            point_size = 15 if filename is None else 70
-        if highlighted_point_size is None:
-            highlighted_point_size = 17 if filename is None else 100
+        if qubit_point_size is None:
+            qubit_point_size = 15 if filename is None else 70
+        if highlighted_qubit_point_size is None:
+            highlighted_qubit_point_size = 17 if filename is None else 100
 
         plt = self._plot_primary_mesh_internal(
             show_qubit_labels=show_qubit_labels,
-            point_size=point_size,
-            highlighted_point_size=highlighted_point_size,
+            qubit_point_size=qubit_point_size,
+            highlighted_qubit_point_size=highlighted_qubit_point_size,
             highlighted_volumes=highlighted_volumes,
             highlighted_qubits=highlighted_qubits,
             qubit_coordinates=qubit_coordinates,
@@ -846,8 +846,8 @@ class Plotter3D(abc.ABC):
         self,
         *,
         show_qubit_labels: bool = False,
-        point_size: int = None,
-        highlighted_point_size: int = None,
+        qubit_point_size: int = None,
+        highlighted_qubit_point_size: int = None,
         highlighted_volumes: list[DualGraphNode] = None,
         highlighted_qubits: list[int] = None,
         qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None,
@@ -886,13 +886,13 @@ class Plotter3D(abc.ABC):
             if only_nodes_with_color is not None:
                 line_color = Color.highlighted_color_map_3d().colors[Color(only_nodes_with_color).highlight]
                 plt.add_mesh(edge_mesh, show_scalar_bar=False, line_width=25, smooth_shading=True,
-                             color=line_color, point_size=point_size, show_vertices=False, style="wireframe")
+                             color=line_color, point_size=qubit_point_size, show_vertices=False, style="wireframe")
             elif color_edges:
                 if line_width is None:
                     raise ValueError(line_width)
                 edge_mesh.cell_data["colors"] = list(mesh.cell_data["colors"])[:len(line_poses)]
                 plt.add_mesh(edge_mesh, show_scalar_bar=False, line_width=line_width, smooth_shading=True,
-                             clim=Color.color_limits(), scalars="colors", point_size=point_size, show_vertices=False, style="wireframe")
+                             clim=Color.color_limits(), scalars="colors", point_size=qubit_point_size, show_vertices=False, style="wireframe")
             # remove lines from mesh
             mesh.lines = None
             mesh.cell_data["colors"] = list(mesh.cell_data["colors"])[len(line_poses):]
@@ -905,12 +905,12 @@ class Plotter3D(abc.ABC):
             normal_qubits = set(mesh.point_data['qubits']) - set(highlighted_qubits)
         else:
             normal_qubits = set()
-        for qubits, color, size in [(normal_qubits, "indigo", point_size), (highlighted_qubits, "violet", highlighted_point_size)]:
+        for qubits, color, point_size in [(normal_qubits, "indigo", qubit_point_size), (highlighted_qubits, "violet", highlighted_qubit_point_size)]:
             positions = [pos for pos, qubit in enumerate(mesh.point_data['qubits']) if qubit in qubits and (pos in used_qubit_pos or face_syndrome_qubits)]
             coordinates = np.asarray([coordinate for pos, coordinate in enumerate(mesh.points) if pos in positions])
             if len(coordinates) == 0:
                 continue
-            plt.add_points(coordinates, point_size=size, color=color)
+            plt.add_points(coordinates, point_size=point_size, color=color)
             if show_qubit_labels:
                 qubit_labels = [f"{qubit}" for pos, qubit in enumerate(mesh.point_data['qubits']) if pos in positions]
                 plt.add_point_labels(coordinates, qubit_labels, show_points=False, font_size=20)
@@ -992,8 +992,8 @@ class Plotter3D(abc.ABC):
 
         plt = self._plot_primary_mesh_internal(
             show_qubit_labels=show_qubit_labels,
-            point_size=qubit_point_size,
-            highlighted_point_size=highlighted_qubit_point_size,
+            qubit_point_size=qubit_point_size,
+            highlighted_qubit_point_size=highlighted_qubit_point_size,
             highlighted_volumes=highlighted_volumes,
             highlighted_qubits=highlighted_qubits,
             qubit_coordinates=qubit_coordinates,
