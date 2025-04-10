@@ -1,0 +1,7 @@
+matplotlib
+numpy
+python-sat
+pyvista
+rustworkx
+scipy
+vtk

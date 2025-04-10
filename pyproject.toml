@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "framework"
+version = "0.0.1"
+dependencies = [
+    "matplotlib",
+    "numpy",
+    "python-sat",
+    "pyvista",
+    "rustworkx",
+    "scipy",
+    "vtk",
+]
+authors = [
+  { name="Lars Esser", email="mail@lars-esser.de" },
+]
+description = "Creates 3D visualizations of 3D quantum color codes."
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Graphics :: 3D Rendering",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Quantum Computing",
+    "Topic :: Scientific/Engineering :: Visualization",
+    "Typing :: Typed",
+]
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+keywords = ["color code", "3D", "visualization"]
+
+[project.urls]
+Homepage = "https://github.com/pypa/sampleproject"
+Issues = "https://github.com/pypa/sampleproject/issues"
