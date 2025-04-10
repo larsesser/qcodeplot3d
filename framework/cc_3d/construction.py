@@ -5,9 +5,9 @@ import itertools
 
 import rustworkx
 
-from framework.base import DualGraphNode, XDualGraphEdge, XDualGraphNode
-from framework.construction import PreDualGraphNode, add_edge, coloring_qubits
-from framework.stabilizers import Color, Operator
+from framework.common.construction import PreDualGraphNode, add_edge, coloring_qubits
+from framework.common.graph import DualGraphNode, XDualGraphEdge, XDualGraphNode
+from framework.common.stabilizers import Color, Operator
 
 
 @dataclasses.dataclass

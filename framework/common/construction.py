@@ -8,15 +8,15 @@ import rustworkx
 from pysat.formula import CNF
 from pysat.solvers import Solver
 
-from framework.base import (
+from framework.common import compute_simplexes
+from framework.common.graph import (
     DualGraphEdge,
     DualGraphNode,
     GraphNode,
     RestrictedGraphEdge,
     RestrictedGraphNode,
 )
-from framework.stabilizers import Color
-from framework.util import compute_simplexes
+from framework.common.stabilizers import Color
 
 
 class PreDualGraphNode(GraphNode):

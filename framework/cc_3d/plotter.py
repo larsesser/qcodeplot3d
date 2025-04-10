@@ -17,13 +17,13 @@ import pyvista
 import pyvista.plotting
 import pyvista.plotting.themes
 import rustworkx as rx
+import vtk
 from rustworkx.visualization import graphviz_draw
 from scipy.spatial import Delaunay
-import vtk
 
-from framework.base import DualGraphNode, GraphNode, GraphEdge
-from framework.stabilizers import Color
-from framework.util import compute_simplexes
+from framework.common import compute_simplexes
+from framework.common.graph import DualGraphNode, GraphEdge, GraphNode
+from framework.common.stabilizers import Color
 
 # see https://docs.pyvista.org/version/stable/api/core/_autosummary/pyvista.polydata.n_faces#pyvista.PolyData.n_faces
 pyvista.PolyData.use_strict_n_faces(True)

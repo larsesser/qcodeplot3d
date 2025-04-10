@@ -4,7 +4,7 @@ import itertools
 
 import rustworkx
 
-from framework.construction import PreDualGraphNode, add_edge, coloring_qubits
+from framework.common.construction import PreDualGraphNode, add_edge, coloring_qubits
 
 
 def rectangular_2d_dual_graph(distance: int) -> rustworkx.PyGraph:

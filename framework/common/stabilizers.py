@@ -10,9 +10,9 @@ import enum
 import itertools
 from functools import cache
 from typing import Optional
-from matplotlib.colors import ListedColormap, Colormap, to_rgba
 
 import numpy as np
+from matplotlib.colors import Colormap, ListedColormap, to_rgba
 
 SUBSCRIPT_NUMBER_MAP = {
     0: "₀",

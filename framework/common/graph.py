@@ -2,12 +2,12 @@
 
 import abc
 import dataclasses
+import random
 from dataclasses import dataclass
 from functools import cached_property
 from typing import Optional
-import random
 
-from framework.stabilizers import Color, Stabilizer
+from framework.common.stabilizers import Color, Stabilizer
 
 
 @dataclass
