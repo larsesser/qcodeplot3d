@@ -8,7 +8,7 @@ import re
 from collections import defaultdict
 from functools import cached_property
 from tempfile import NamedTemporaryFile
-from typing import ClassVar, Optional
+from typing import ClassVar, Optional, Union
 
 import numpy as np
 import numpy.linalg
@@ -541,7 +541,7 @@ class Plotter3D(abc.ABC):
 
     def construct_primary_mesh(self, highlighted_volumes: list[DualGraphNode] = None,
                                qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None,
-                               face_color: Color | list[Color] = None, node_color: Color | list[Color] = None,
+                               face_color: Union[Color, list[Color]] = None, node_color: Union[Color, list[Color]] = None,
                                lowest_title: tuple[int, int, int] = None, highest_title: tuple[int, int, int] = None,
                                mandatory_face_qubits: set[int] = None, string_operator_qubits: set[int] = None,
                                color_edges: bool = False, mandatory_cell_qubits: set[int] = None,
@@ -790,8 +790,8 @@ class Plotter3D(abc.ABC):
         highlighted_volumes: list[DualGraphNode] = None,
         highlighted_qubits: list[int] = None,
         qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None,
-        only_faces_with_color: Color | list[Color] = None,
-        only_nodes_with_color: Color | list[Color] = None,
+        only_faces_with_color: Union[Color, list[Color]] = None,
+        only_nodes_with_color: Union[Color, list[Color]] = None,
         lowest_title: tuple[int, int, int] = None,
         highest_title: tuple[int, int, int] = None,
         mandatory_face_qubits: set[int] = None,
@@ -851,8 +851,8 @@ class Plotter3D(abc.ABC):
         highlighted_volumes: list[DualGraphNode] = None,
         highlighted_qubits: list[int] = None,
         qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None,
-        only_faces_with_color: Color | list[Color] = None,
-        only_nodes_with_color: Color | list[Color] = None,
+        only_faces_with_color: Union[Color, list[Color]] = None,
+        only_nodes_with_color: Union[Color, list[Color]] = None,
         lowest_title: tuple[int, int, int] = None,
         highest_title: tuple[int, int, int] = None,
         mandatory_face_qubits: set[int] = None,
@@ -950,8 +950,8 @@ class Plotter3D(abc.ABC):
         highlighted_volumes: list[DualGraphNode] = None,
         highlighted_qubits: list[int] = None,
         qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None,
-        only_faces_with_color: Color | list[Color] = None,
-        only_nodes_with_color: Color | list[Color] = None,
+        only_faces_with_color: Union[Color, list[Color]] = None,
+        only_nodes_with_color: Union[Color, list[Color]] = None,
         lowest_title: tuple[int, int, int] = None,
         highest_title: tuple[int, int, int] = None,
         mandatory_face_qubits: set[int] = None,
@@ -1382,7 +1382,7 @@ class Plotter2D(Plotter3D):
 
     def construct_primary_mesh(self, highlighted_volumes: list[DualGraphNode] = None,
                                qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None,
-                               face_color: Color | list[Color] = None, node_color: Color | list[Color] = None,
+                               face_color: Union[Color, list[Color]] = None, node_color: Union[Color, list[Color]] = None,
                                lowest_title: tuple[int, int, int] = None, highest_title: tuple[int, int, int] = None,
                                mandatory_face_qubits: set[int] = None, string_operator_qubits: set[int] = None,
                                color_edges: bool = False, transparent_faces: bool = False, mandatory_cell_qubits: set[int] = None):
