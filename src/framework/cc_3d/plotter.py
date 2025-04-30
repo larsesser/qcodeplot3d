@@ -707,7 +707,7 @@ class Plotter3D(abc.ABC):
         ret: dict[int, npt.NDArray[np.float64]] = self.preprocess_dual_node_layout(primary_mesh)
 
         qubit_points: dict[int, npt.NDArray[np.float64]] = {primary_mesh.point_data['qubits'][pos]: point for pos, point in enumerate(primary_mesh.points)}
-        corner_qubits = {qubit for qubit, nodes in self.qubit_to_boundaries.items() if len(nodes) == 3}
+        corner_qubits = {qubit for qubit, nodes in self.qubit_to_boundaries.items() if len(nodes) == self.dimension}
 
         # calculate the center of the code
         center = np.asarray([0.0, 0.0, 0.0])
@@ -1356,18 +1356,13 @@ class Plotter2D(Plotter3D):
     dimension: ClassVar[int] = 2
 
     @staticmethod
-    def _primary_distance_to_boundarynodeoffset(distance: int) -> Optional[float]:
-        return {
-            4: 0.3,
-            6: 0.37,
-        }.get(distance)
-
-    @staticmethod
-    def _primary_corne_node_offset(distance: int) -> float:
+    def _primary_corner_node_offset(distance: int) -> float:
         return {
             4: 0.2,
             6: 0.13,
-        }.get(distance, 0.3)
+            8: 0.07,
+            10: 0.05,
+        }.get(distance, 0.03)
 
     def _primary_boundary_edge_factor(self, coordinate, boundary_edge_center) -> float:
         if self.distance == 4:
@@ -1380,79 +1375,58 @@ class Plotter2D(Plotter3D):
             factor = 0.5
         return factor
 
+    def postprocess_primary_node_layout(
+            self, points: list[npt.NDArray[np.float64]], qubit_to_pointpos: dict[int, int]
+    ) -> list[npt.NDArray[np.float64]]:
+        """Move qubits at the outside more outward, to form an even plane at each boundary."""
+        qubit_to_point = {qubit: points[pointpos] for qubit, pointpos in qubit_to_pointpos.items()}
+        corner_qubits = {qubit for qubit, nodes in self.qubit_to_boundaries.items() if len(nodes) == 2}
+        border_qubits = {qubit: nodes for qubit, nodes in self.qubit_to_boundaries.items() if len(nodes) == 1}
+
+        center = np.asarray([0.0, 0.0, 0.0])
+        for point in points:
+            center += point
+        center = center / len(points)
+
+        # move corner qubits more outward
+        for qubit in corner_qubits:
+            coordinate = qubit_to_point[qubit]
+            factor = self._primary_corner_node_offset(self.distance)
+            qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = coordinate + factor * (coordinate - center)
+
+        # move all points at a border to the line of their corner qubits.
+        for qubit in border_qubits:
+            coordinate = qubit_to_point[qubit]
+            boundary_node = border_qubits[qubit][0]
+            relevant_corner_qubits = list(corner_qubits & set(boundary_node.qubits))
+            if len(relevant_corner_qubits) != 2:
+                raise RuntimeError(relevant_corner_qubits)
+            corner_qubit1 = qubit_to_point[relevant_corner_qubits[0]]
+            corner_qubit2 = qubit_to_point[relevant_corner_qubits[1]]
+            boundary_edge_center = (corner_qubit1 + corner_qubit2) / 2
+            coordinate = project_to_line([corner_qubit1, corner_qubit2], coordinate)
+            factor = self._primary_boundary_edge_factor(coordinate, boundary_edge_center)
+            coordinate = coordinate + factor * (coordinate - boundary_edge_center)
+            qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = coordinate
+
+        return points
+
     def construct_primary_mesh(self, highlighted_volumes: list[DualGraphNode] = None,
                                qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None,
                                face_color: Union[Color, list[Color]] = None, node_color: Union[Color, list[Color]] = None,
                                lowest_title: tuple[int, int, int] = None, highest_title: tuple[int, int, int] = None,
                                mandatory_face_qubits: set[int] = None, string_operator_qubits: set[int] = None,
-                               color_edges: bool = False, transparent_faces: bool = False, mandatory_cell_qubits: set[int] = None):
+                               color_edges: bool = False, mandatory_cell_qubits: set[int] = None,
+                               face_syndrome_qubits: set[int] = None) -> pyvista.PolyData:
         """Construct primary mesh from dual_mesh.
 
         :param qubit_coordinates: Use them instead of calculating the coordinates from the dual_mesh.
         """
         highlighted_faces = highlighted_volumes or []
-        # group dual lattice cells (of the triangle) by qubit
-        qubit_to_facepositions: dict[int, list[int]] = defaultdict(list)
-        for position, qubit in enumerate(self.dual_mesh.cell_data['qubits']):
-            qubit_to_facepositions[qubit].append(position)
 
-        # volumes -> vertices
-        points: list[npt.NDArray[np.float64]] = []
-        qubit_to_point: dict[int, npt.NDArray[np.float64]] = {}
-        qubit_to_pointposition: dict[int, int] = {}
-        qubits: list[int] = []
-        # map of qubits on boundary edge to the dg_node index of this boundary
-        boundary_edge_qubits: dict[int, int] = {}
-        corner_qubits: set[int] = set()
-        dual_mesh_faces = reconvert_faces(self.dual_mesh.faces)
-        # determine center of dual mesh, to translate corner qubits in relation to this
-        dual_mesh_center = np.asarray([0.0, 0.0, 0.0])
-        for point in self.dual_mesh.points:
-            dual_mesh_center += point
-        dual_mesh_center /= len(self.dual_mesh.points)
-        for pointposition, (qubit, facepositions) in enumerate(qubit_to_facepositions.items()):
-            dg_nodes = [self.get_dual_node(point_index) for point_index in sorted(set().union(
-                *[dual_mesh_faces[face_index] for face_index in facepositions]))]
-            triangle = self.dual_mesh.extract_cells(facepositions)
-            # find center of mass of the tetrahedron
-            center = np.asarray([0.0, 0.0, 0.0])
-            for point in triangle.points:
-                center += point
-            center = center / len(triangle.points)
-            if sum(node.is_boundary for node in dg_nodes) == 1:
-                node_indices = sorted(node.index for node in dg_nodes if node.is_boundary)
-                boundary_edge_qubits[qubit] = node_indices[0]
-            # exactly three nodes are boundary nodes
-            if sum(node.is_boundary for node in dg_nodes) == 2:
-                center += self._primary_corne_node_offset(self.distance) * (center - dual_mesh_center)
-                corner_qubits.add(qubit)
-            # use given coordinates if provided
-            if qubit_coordinates:
-                points.append(qubit_coordinates[qubit])
-                qubit_to_point[qubit] = qubit_coordinates[qubit]
-            else:
-                points.append(center)
-                qubit_to_point[qubit] = center
-            qubit_to_pointposition[qubit] = pointposition
-            qubits.append(qubit)
-
-        for node in self.dual_graph.nodes():
-            if not node.is_boundary:
-                continue
-            for qubit in set(boundary_edge_qubits) & set(node.qubits):
-                coordinate = qubit_to_point[qubit]
-                boundary_node = self.dual_graph[boundary_edge_qubits[qubit]]
-                relevant_corner_qubits = list(corner_qubits & set(boundary_node.qubits))
-                if len(relevant_corner_qubits) != 2:
-                    raise RuntimeError(relevant_corner_qubits)
-                corner_qubit1 = qubit_to_point[relevant_corner_qubits[0]]
-                corner_qubit2 = qubit_to_point[relevant_corner_qubits[1]]
-                boundary_edge_center = (corner_qubit1 + corner_qubit2) / 2
-                coordinate = project_to_line([corner_qubit1, corner_qubit2], coordinate)
-                factor = self._primary_boundary_edge_factor(coordinate, boundary_edge_center)
-                coordinate = coordinate + factor * (coordinate - boundary_edge_center)
-                qubit_to_point[qubit] = coordinate
-                points[qubit_to_pointposition[qubit]] = coordinate
+        points, qubit_to_pointpos = self.layout_primary_nodes(qubit_coordinates)
+        qubits = list(qubit_to_pointpos.keys())
+        qubit_to_point = {qubit: points[pointpos] for qubit, pointpos in qubit_to_pointpos.items()}
 
         # vertices -> faces
         faces: list[list[int]] = []
@@ -1466,16 +1440,16 @@ class Plotter2D(Plotter3D):
             # do not add a triangle for boundaries
             if node.is_boundary:
                 # add pseudo faces_by_pos and face_colors_by_pos to color edges
-                faces_by_pos[pos] = {qubit_to_pointposition[qubit] for qubit in node.qubits}
+                faces_by_pos[pos] = {qubit_to_pointpos[qubit] for qubit in node.qubits}
                 face_colors_by_pos[pos] = node.color
                 continue
-            # 2 dimensional coordinates are enough, z coordinate is always 0
+            # 2D coordinates are enough, z coordinate is always 0
             face_points = [(qubit_to_point[qubit][0], qubit_to_point[qubit][1]) for qubit in node.qubits]
             triangulation = Delaunay(face_points, qhull_options="QJ")
             # extract faces of the triangulation, take care to use the qubits
             tmp_point_map = {k: v for k, v in zip(range(triangulation.npoints), node.qubits)}
             simplexes = [[tmp_point_map[point] for point in face] for face in triangulation.simplices]
-            face = [qubit_to_pointposition[qubit] for qubit in triangles_to_face(simplexes)]
+            face = [qubit_to_pointpos[qubit] for qubit in triangles_to_face(simplexes)]
             for edge in zip(face + [face[-1]], face[1:] + [face[0]]):
                 all_edges.add(edge)
                 all_edges.add((edge[1], edge[0]))
@@ -1512,3 +1486,23 @@ class Plotter2D(Plotter3D):
             4: 1.2,
             6: 0.96,
         }.get(distance)
+
+    def preprocess_dual_node_layout(self, primary_mesh: pyvista.PolyData):
+        lines = reconvert_faces(primary_mesh.lines)
+        faces = reconvert_faces(primary_mesh.faces)
+        border_qubits = {qubit: nodes for qubit, nodes in self.qubit_to_boundaries.items() if len(nodes) == 1}
+
+        ret: dict[int, npt.NDArray[np.float64]] = {}
+        for dg_index, face in zip(primary_mesh.cell_data['pyvista_indices'][len(lines):], faces):
+            center = np.asarray([0.0, 0.0, 0.0])
+            divisor = len(face)
+            for pos in face:
+                center += primary_mesh.points[pos]
+                # align the center of hexagonal faces correctly
+                if primary_mesh.point_data['qubits'][pos] in border_qubits and len(face) == 6:
+                    center += 2 * primary_mesh.points[pos]
+                    divisor += 2
+            center = center / divisor
+            ret[dg_index] = center
+
+        return ret
