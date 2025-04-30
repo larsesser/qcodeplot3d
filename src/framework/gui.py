@@ -7,9 +7,9 @@ from typing import Callable, Optional, Type
 import pyvista
 import rustworkx
 
-from framework.cc_2d import rectangular_2d_dual_graph, square_2d_dual_graph
-from framework.cc_3d import cubic_3d_dual_graph, tetrahedron_3d_dual_graph
-from framework.cc_3d.plotter import CubicPlotter, Plotter2D, Plotter3D, TetrahedronPlotter
+from framework.cc_2d import SquarePlotter, rectangular_2d_dual_graph, square_2d_dual_graph
+from framework.cc_3d import CubicPlotter, TetrahedronPlotter, cubic_3d_dual_graph, tetrahedron_3d_dual_graph
+from framework.common.plotter import Plotter
 
 
 class CodeTypes(Enum):
@@ -22,10 +22,10 @@ class CodeTypes(Enum):
     tetrahedral = "Tetrahedral"
 
     @property
-    def plotter_class(self) -> Type[Plotter3D]:
+    def plotter_class(self) -> Type[Plotter]:
         return {
-            self.rectangular: Plotter2D,
-            self.square: Plotter2D,
+            self.rectangular: ...,
+            self.square: SquarePlotter,
             self.cubic: CubicPlotter,
             self.tetrahedral: TetrahedronPlotter,
         }[self]
@@ -221,7 +221,7 @@ class PlotterConfig:
     # plot dual mesh
     dm_show_labels: BooleanVar
 
-    plotter: Plotter3D = None
+    plotter: Plotter = None
     dual_graph_mesh: pyvista.PolyData = None
 
     def __init__(self, root: Tk, pool: Executor, code_config: CodeConfig) -> None:
@@ -238,7 +238,7 @@ class PlotterConfig:
         self.root.bind("<<DualGraphCreationFinished>>", self._update_plotter, add="+")
 
     @property
-    def plotter_class(self) -> Optional[Type[Plotter3D]]:
+    def plotter_class(self) -> Optional[Type[Plotter]]:
         if self.code_config.codetype:
             return self.code_config.codetype.plotter_class
         return None
