@@ -627,7 +627,12 @@ class Plotter(abc.ABC):
         light.intensity = 0.8
         plt.add_light(light)
 
-        plt.camera_position = camera_position
+        if camera_position:
+            plt.camera_position = camera_position
+        else:
+            plt.reset_camera()
+            plt.set_focus(mesh.center)
+        plt.camera_set = True
         if filename is None:
             if print_camera_position:
                 plt.iren.add_observer(vtk.vtkCommand.EndInteractionEvent, lambda *args: print(str(plt.camera_position)))
@@ -776,6 +781,9 @@ class Plotter(abc.ABC):
         plt.add_mesh(mesh, scalars="colors", show_scalar_bar=False, clim=Color.color_limits(), smooth_shading=True,
                      show_edges=False, opacity=0.2 if transparent_faces else None,
                      ambient=1 if transparent_faces else None, diffuse=0 if transparent_faces else None)
+        plt.reset_camera()
+        plt.set_focus(mesh.center)
+        plt.camera_set = True
 
         # useful code sniped to print all qubits of all faces which lay in the same plane, given by a face of qubits
         # plane_qubits = [78, 1388, 466]
