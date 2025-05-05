@@ -44,7 +44,7 @@ class CodeTypes(Enum):
 
     @property
     def has_odd_distance(self) -> bool:
-        return self in {self.tetrahedral}
+        return self in {self.rectangular, self.tetrahedral}
 
     @property
     def has_even_distance(self) -> bool:
@@ -56,7 +56,7 @@ class CodeTypes(Enum):
 
     @classmethod
     def get_2d_codes(cls) -> list[str]:
-        return [cls.rectangular.value]
+        return [cls.square.value, cls.rectangular.value]
 
     @classmethod
     def default_3d_code(cls) -> str:
@@ -100,6 +100,12 @@ class CodeConfig:
         self._codetype = StringVar(value=CodeTypes.default_3d_code())
         self._distance = IntVar(value=3)
         self._distance_error_msg = StringVar()
+
+    @property
+    def code_description(self) -> str:
+        if self.codetype is None or self.dimension is None or self.distance is None:
+            return ""
+        return f"{self.dimension}D {self.codetype.value} Color Code, distance {self.distance}"
 
     def _create_distance_validator(self, error_store: StringVar, submit: ttk.Button) -> Callable:
         def validator(new_value: str, operation: str) -> bool:
@@ -366,7 +372,10 @@ class PlotterConfig:
         return frame
 
     def _dualmesh_plot_command(self) -> None:
-        self.pool.submit(self.plotter.plot_debug_mesh, self.dual_graph_mesh)
+        self.pool.submit(
+            self.plotter.plot_debug_mesh, self.dual_graph_mesh,
+            window_title=self.code_config.code_description,
+        )
 
     def create_dual_plot_frame(self, parent: ttk.Frame) -> ttk.LabelFrame:
         frame = ttk.LabelFrame(parent, borderwidth=5, relief="ridge", padding=(3, 3, 12, 12), text="Plot Dual Graph")
@@ -403,6 +412,7 @@ class PlotterConfig:
                 show_qubit_labels=self.pm_show_labels.get(),
                 highlighted_qubits=violated_qubits,
                 transparent_faces=self.pm_transparent_faces.get(),
+                window_title=self.code_config.code_description,
             )
         return command
 

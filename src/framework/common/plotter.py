@@ -602,6 +602,7 @@ class Plotter(abc.ABC):
         camera_position: list[tuple[float, float, float]] = None,
         print_camera_position: bool = False,
         filename: pathlib.Path = None,
+        window_title: str = None,
     ) -> None:
         # use default values
         if point_size is None:
@@ -630,7 +631,7 @@ class Plotter(abc.ABC):
         if filename is None:
             if print_camera_position:
                 plt.iren.add_observer(vtk.vtkCommand.EndInteractionEvent, lambda *args: print(str(plt.camera_position)))
-            plt.show()
+            plt.show(title=window_title)
         else:
             plt.screenshot(filename=str(filename), scale=5)
         return None
@@ -659,6 +660,7 @@ class Plotter(abc.ABC):
         camera_position: list[tuple[float, float, float]] = None,
         print_camera_position: bool = False,
         filename: pathlib.Path = None,
+        window_title: str = None,
     ) -> None:
         # set default values
         if qubit_point_size is None:
@@ -691,7 +693,7 @@ class Plotter(abc.ABC):
         if filename is None:
             if print_camera_position:
                 plt.iren.add_observer(vtk.vtkCommand.EndInteractionEvent, lambda *args: print(str(plt.camera_position)))
-            plt.show()
+            plt.show(title=window_title)
         else:
             plt.screenshot(filename=str(filename), scale=5)
         return None
@@ -828,6 +830,7 @@ class Plotter(abc.ABC):
         camera_position: list[tuple[float, float, float]] = None,
         print_camera_position: bool = False,
         filename: pathlib.Path = None,
+        window_title: str = None,
     ) -> None:
         """Return the plotter preloaded with the debug and primary mesh."""
         # use default values
@@ -907,7 +910,7 @@ class Plotter(abc.ABC):
         if filename is None:
             if print_camera_position:
                 plt.iren.add_observer(vtk.vtkCommand.EndInteractionEvent, lambda *args: print(str(plt.camera_position)))
-            plt.show()
+            plt.show(title=window_title)
         else:
             plt.screenshot(filename=str(filename), scale=5)
         return None
