@@ -64,11 +64,15 @@ class CodeTypes(Enum):
         return [cls.cubic.value, cls.tetrahedral.value]
 
 
-def change_state(elem: ttk.Widget, state: str) -> None:
+def change_state(elem: ttk.Widget | list[ttk.Widget], state: str) -> None:
     # we use Combobox as dropdown and do not support custom entries
     if isinstance(elem, ttk.Combobox) and state == "normal":
         state = "readonly"
-    elem.configure(state=state)
+    if isinstance(elem, ttk.Widget):
+        elem.configure(state=state)
+    else:
+        for e in elem:
+            e.configure(state=state)
 
 
 class CodeConfig:
@@ -94,35 +98,33 @@ class CodeConfig:
         self._distance = IntVar(value=3)
         self._distance_error_msg = StringVar()
 
-    def _create_distance_validator(self, submit: ttk.Button) -> Callable:
+    def _create_distance_validator(self, error_store: StringVar, submit: ttk.Button) -> Callable:
         def validator(new_value: str, operation: str) -> bool:
-            self._distance_error_msg.set('')
+            error_store.set('')
             if new_value == "":
                 change_state(submit, state="disabled")
                 return True
-            valid = True
             if not new_value.isdigit():
-                self._distance_error_msg.set("Only digits are allowed.")
-                valid = False
-            elif operation in {'focusout', 'focusin', 'forced'}:
+                error_store.set("Only digits are allowed.")
+                return False
+            valid = True
+            if operation in {'focusout', 'focusin', 'forced'}:
                 is_even = int(new_value) % 2 == 0
                 ct = CodeTypes(self._codetype.get())
                 valid = False
                 if not is_even and ct.has_even_distance:
-                    self._distance_error_msg.set("Code requires even distance.")
+                    error_store.set("Code requires even distance.")
                 elif is_even and ct.has_odd_distance:
-                    self._distance_error_msg.set("Code requires odd distance.")
+                    error_store.set("Code requires odd distance.")
                 elif int(new_value) == 0 and ct.has_even_distance:
-                    self._distance_error_msg.set("Minimal distance: 2")
+                    error_store.set("Minimal distance: 2")
                 elif int(new_value) == 1 and ct.has_odd_distance:
-                    self._distance_error_msg.set("Minimal distance: 3")
+                    error_store.set("Minimal distance: 3")
                 else:
                     valid = True
-            if valid:
-                change_state(submit, state="normal")
-            else:
-                change_state(submit, state="disabled")
+            change_state(submit, state="normal" if valid else "disabled")
             return valid
+
         return validator
 
     def _create_dimension_callback(self, dimension: int, code_type: ttk.Combobox, distance: ttk.Entry) -> Callable:
@@ -146,14 +148,12 @@ class CodeConfig:
                 self.dimension = self._dimension.get()
                 self.codetype = CodeTypes(self._codetype.get())
                 self.distance = self._distance.get()
-                for elem in all_ttk:
-                    change_state(elem, state="normal")
+                change_state(all_ttk, state="normal")
                 self.root.event_generate("<<DualGraphCreationFinished>>")
 
             progressbar.start()
             self.root.event_generate("<<DualGraphCreationStarted>>")
-            for elem_ in all_ttk:
-                change_state(elem_, state="disabled")
+            change_state(all_ttk, state="disabled")
             f_: Future = self.pool.submit(CodeTypes(self._codetype.get()).graph_function, self._distance.get())
             f_.add_done_callback(callback)
         return command
@@ -191,7 +191,7 @@ class CodeConfig:
 
         # distance entry
         distance_label = ttk.Label(frame, text="Distance")
-        validate_distance_wrapper = (frame.register(self._create_distance_validator(submit_button)), '%P', '%V')
+        validate_distance_wrapper = (frame.register(self._create_distance_validator(self._distance_error_msg, submit_button)), '%P', '%V')
         distance.configure(textvariable=self._distance, validate='all', validatecommand=validate_distance_wrapper)
         distance_msg = ttk.Label(frame, font='TkSmallCaptionFont', foreground='red', textvariable=self._distance_error_msg)
         distance_label.grid(row=20, column=0)
@@ -250,8 +250,7 @@ class PlotterConfig:
     @staticmethod
     def _create_state_change_callback(*args, state: str) -> Callable:
         def callback(*_) -> None:
-            for element in args:
-                change_state(element, state=state)
+            change_state(args, state=state)
         return callback
 
     def _create_dualmesh_create_command(self, all_ttk: list[ttk.Widget], progressbar: ttk.Progressbar) -> Callable:
@@ -259,13 +258,11 @@ class PlotterConfig:
             def callback(f: Future) -> None:
                 self.dual_graph_mesh = f.result()
                 progressbar.stop()
-                for elem in all_ttk:
-                    change_state(elem, state="normal")
+                change_state(all_ttk, state="normal")
                 self.root.event_generate("<<DualMeshCreationFinished>>")
 
             progressbar.start()
-            for elem_ in all_ttk:
-                change_state(elem_, state="disabled")
+            change_state(all_ttk, state="disabled")
             self.root.event_generate("<<DualMeshCreationStarted>>")
             f_: Future = self.pool.submit(
                 self.plotter.construct_dual_mesh, self.code_config.dual_graph,
