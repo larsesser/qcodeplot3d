@@ -8,6 +8,7 @@ version = "0.0.1"
 dependencies = [
     "matplotlib",
     "numpy",
+    "psutil",
     "python-sat",
     "pyvista",
     "rustworkx",

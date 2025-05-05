@@ -1,9 +1,12 @@
 from concurrent.futures import Executor, Future, ProcessPoolExecutor
 from enum import Enum
+import os
+import signal
 from tkinter import *
 from tkinter import ttk
 from typing import Callable, Optional, Type
 
+import psutil
 import pyvista
 import rustworkx
 
@@ -476,6 +479,21 @@ class MyGui:
         content.columnconfigure(0, weight=1)
         content.rowconfigure(0, weight=1)
         content.rowconfigure(10, weight=1)
+
+        def on_closing():
+            self.pool.shutdown(wait=False, cancel_futures=True)
+            try:
+                parent = psutil.Process(os.getpid())
+            except psutil.NoSuchProcess:
+                pass
+            else:
+                children = parent.children(recursive=True)
+                for process in children:
+                    process.send_signal(signal.SIGTERM)
+            root.destroy()
+
+        # add graceful shutdown
+        root.protocol("WM_DELETE_WINDOW", on_closing)
 
 
 thread_pool = ProcessPoolExecutor()
