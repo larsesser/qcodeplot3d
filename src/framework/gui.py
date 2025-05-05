@@ -219,7 +219,14 @@ class PlotterConfig:
     exclude_boundaries: BooleanVar
 
     # plot dual mesh
-    dm_show_labels: BooleanVar
+    dm_violated_qubits: StringVar
+    dm_violated_qubits_error_msg: StringVar
+
+    # plot primary mesh
+    pm_show_labels: BooleanVar
+    pm_violated_qubits: StringVar
+    pm_violated_qubits_error_msg: StringVar
+    pm_transparent_faces: BooleanVar
 
     plotter: Plotter = None
     dual_graph_mesh: pyvista.PolyData = None
@@ -233,7 +240,13 @@ class PlotterConfig:
         self.edges_between_boundaries = BooleanVar(value=True)
         self.exclude_boundaries = BooleanVar(value=False)
 
-        self.dm_show_labels = BooleanVar(value=False)
+        self.dm_violated_qubits = StringVar()
+        self.dm_violated_qubits_error_msg = StringVar()
+
+        self.pm_show_labels = BooleanVar(value=False)
+        self.pm_violated_qubits = StringVar()
+        self.pm_violated_qubits_error_msg = StringVar()
+        self.pm_transparent_faces = BooleanVar(value=True)
 
         self.root.bind("<<DualGraphCreationFinished>>", self._update_plotter, add="+")
 
@@ -253,6 +266,32 @@ class PlotterConfig:
             change_state(args, state=state)
         return callback
 
+    def _create_violatedqubits_validator(self, value_store: StringVar, error_store: StringVar, submits: list[ttk.Button]) -> Callable:
+        def validator(new_value: str, operation: str) -> bool:
+            error_store.set('')
+            if new_value == "":
+                change_state(submits, state="normal")
+                return True
+            raw_qubits = new_value.split(",")
+            qubits = []
+            for qubit in raw_qubits:
+                qubit = qubit.strip()
+                if qubit == "":
+                    continue
+                if not qubit.isdigit():
+                    error_store.set("Qubits are numbers.")
+                    # change_state(submits, state="disabled")
+                    return False
+                qubits.append(qubit)
+
+            if operation in {'focusout', 'focusin', 'forced'}:
+                value_store.set(",".join(qubits))
+
+            change_state(submits, state="normal")
+            return True
+
+        return validator
+
     def _create_dualmesh_create_command(self, all_ttk: list[ttk.Widget], progressbar: ttk.Progressbar) -> Callable:
         def command() -> None:
             def callback(f: Future) -> None:
@@ -264,13 +303,18 @@ class PlotterConfig:
             progressbar.start()
             change_state(all_ttk, state="disabled")
             self.root.event_generate("<<DualMeshCreationStarted>>")
+            # highlight all nodes to make them more distinguishable
+            highlighted_nodes = self.code_config.dual_graph.nodes()
+            if (violated_qubits := self.dm_violated_qubits.get()):
+                qubits = sorted(set([int(qubit) for qubit in violated_qubits.split(",")]))
+                highlighted_nodes = [node for node in self.code_config.dual_graph.nodes()
+                                     if len(set(node.qubits) & set(qubits)) % 2 and not node.is_boundary]
             f_: Future = self.pool.submit(
                 self.plotter.construct_dual_mesh, self.code_config.dual_graph,
                 use_edges_colors=self.use_edge_color.get(),
+                highlighted_nodes=highlighted_nodes,
                 include_edges_between_boundaries=self.edges_between_boundaries.get(),
                 exclude_boundaries=self.exclude_boundaries.get(),
-                # highlight all nodes to make them more distinguishable
-                highlighted_nodes=self.code_config.dual_graph.nodes(),
             )
             f_.add_done_callback(callback)
         return command
@@ -283,9 +327,9 @@ class PlotterConfig:
         use_edge_color = ttk.Checkbutton(frame)
         edges_between_boundaries = ttk.Checkbutton(frame)
         exclude_boundaries = ttk.Checkbutton(frame)
-        # TODO: highlighted nodes, highlighted edges, mandatory qubits
+        violated_qubits = ttk.Entry(frame)
         submit = ttk.Button(frame)
-        all_ttk = [use_edge_color, edges_between_boundaries, exclude_boundaries, submit]
+        all_ttk = [use_edge_color, edges_between_boundaries, exclude_boundaries, violated_qubits, submit]
         progress_bar = ttk.Progressbar(frame)
 
         self.root.bind("<<DualGraphCreationStarted>>", self._create_state_change_callback(*all_ttk, state="disabled"), add="+")
@@ -302,6 +346,14 @@ class PlotterConfig:
         edges_between_boundaries.configure(variable=self.edges_between_boundaries, text="Show edges between boundaries")
         edges_between_boundaries.grid(row=20, column=1, sticky="w")
 
+        violated_qubits_label = ttk.Label(frame, text="Errors on qubits")
+        validate_qubits_wrapper = (frame.register(self._create_violatedqubits_validator(self.dm_violated_qubits, self.dm_violated_qubits_error_msg, submit)), '%P', '%V')
+        violated_qubits.configure(textvariable=self.dm_violated_qubits, validate='all', validatecommand=validate_qubits_wrapper)
+        violated_qubits_msg = ttk.Label(frame, font='TkSmallCaptionFont', foreground='red', textvariable=self.dm_violated_qubits_error_msg)
+        violated_qubits_label.grid(row=20, column=0)
+        violated_qubits.grid(row=20, column=1, columnspan=2, sticky="ew")
+        violated_qubits_msg.grid(row=21, column=1, columnspan=2, padx=5, pady=5, sticky='w')
+
         submit.configure(text="Build", command=self._create_dualmesh_create_command(all_ttk, progress_bar))
         submit.grid(row=100, column=1, sticky="se")
         progress_bar.configure(orient="horizontal", mode="indeterminate")
@@ -311,17 +363,15 @@ class PlotterConfig:
         return frame
 
     def _dualmesh_plot_command(self) -> None:
-        self.pool.submit(self.plotter.plot_debug_mesh, self.dual_graph_mesh,
-                         show_labels=self.dm_show_labels.get())
+        self.pool.submit(self.plotter.plot_debug_mesh, self.dual_graph_mesh)
 
     def create_dual_plot_frame(self, parent: ttk.Frame) -> ttk.LabelFrame:
         frame = ttk.LabelFrame(parent, borderwidth=5, relief="ridge", padding=(3, 3, 12, 12), text="Plot Dual Graph")
         frame.configure()
         frame.columnconfigure(1, weight=1)
 
-        show_labels = ttk.Checkbutton(frame)
         submit_button = ttk.Button(frame)
-        all_ttk = [show_labels, submit_button]
+        all_ttk = [submit_button]
 
         self.root.bind("<<DualGraphCreationStarted>>", self._create_state_change_callback(*all_ttk, state="disabled"), add="+")
         self.root.bind("<<DualMeshCreationStarted>>", self._create_state_change_callback(*all_ttk, state="disabled"), add="+")
@@ -329,12 +379,71 @@ class PlotterConfig:
         for element in all_ttk:
             element.configure(state="disabled")
 
-        show_labels.configure(variable=self.dm_show_labels, text="Show node labels")
-        show_labels.grid(row=0, column=1, sticky="w")
-
         submit_button.configure(text="Plot", command=self._dualmesh_plot_command)
         submit_button.grid(row=10, column=1, sticky="se")
         frame.rowconfigure(10, weight=1)
+
+        return frame
+
+    def _create_primarymesh_plot_command(self, include_dual_mesh: bool) -> Callable:
+        def command() -> None:
+            func = self.plotter.plot_primary_mesh
+            args = []
+            if include_dual_mesh:
+                func = self.plotter.plot_debug_primary_mesh
+                args = [self.dual_graph_mesh]
+            violated_qubits = None
+            if (qubits := self.pm_violated_qubits.get()):
+                violated_qubits = sorted(set([int(qubit) for qubit in qubits.split(",")]))
+            self.pool.submit(
+                func, *args,
+                show_qubit_labels=self.pm_show_labels.get(),
+                highlighted_qubits=violated_qubits,
+                transparent_faces=self.pm_transparent_faces.get(),
+            )
+        return command
+
+    def create_primary_plot_frame(self, parent: ttk.Frame) -> ttk.LabelFrame:
+        frame = ttk.LabelFrame(parent, borderwidth=5, relief="ridge", padding=(3, 3, 12, 12), text="Plot Primary Graph")
+        frame.configure()
+        frame.columnconfigure(1, weight=1)
+
+        show_labels = ttk.Checkbutton(frame)
+        transparent_faces = ttk.Checkbutton(frame)
+        violated_qubits = ttk.Entry(frame)
+        submit_button = ttk.Button(frame)
+        submit_with_dual_mesh = ttk.Button(frame)
+        submit_ttks = [show_labels, violated_qubits, transparent_faces, violated_qubits, submit_button]
+        all_ttks = [*submit_ttks, submit_with_dual_mesh]
+
+        self.root.bind("<<DualGraphCreationStarted>>", self._create_state_change_callback(*all_ttks, state="disabled"), add="+")
+        self.root.bind("<<DualGraphCreationFinished>>", self._create_state_change_callback(*submit_ttks, state="normal"), add="+")
+        # additionaly bind submit_with_dual_mesh to respective events
+        self.root.bind("<<DualMeshCreationStarted>>", self._create_state_change_callback(submit_with_dual_mesh, state="disabled"), add="+")
+        self.root.bind("<<DualMeshCreationFinished>>", self._create_state_change_callback(submit_with_dual_mesh, state="normal"), add="+")
+        for element in all_ttks:
+            element.configure(state="disabled")
+
+        show_labels.configure(variable=self.pm_show_labels, text="Show qubit labels")
+        show_labels.grid(row=0, column=1, sticky="w")
+
+        transparent_faces.configure(variable=self.pm_transparent_faces, text="Render faces transparent")
+        transparent_faces.grid(row=10, column=1, sticky="w")
+
+        violated_qubits_label = ttk.Label(frame, text="Errors on qubits")
+        validate_qubits_wrapper = (frame.register(self._create_violatedqubits_validator(
+            self.pm_violated_qubits, self.pm_violated_qubits_error_msg, [submit_button, submit_with_dual_mesh])), '%P', '%V')
+        violated_qubits.configure(textvariable=self.pm_violated_qubits, validate='all', validatecommand=validate_qubits_wrapper)
+        violated_qubits_msg = ttk.Label(frame, font='TkSmallCaptionFont', foreground='red', textvariable=self.pm_violated_qubits_error_msg)
+        violated_qubits_label.grid(row=20, column=0)
+        violated_qubits.grid(row=20, column=1, columnspan=2, sticky="ew")
+        violated_qubits_msg.grid(row=21, column=1, columnspan=2, padx=5, pady=5, sticky='w')
+
+        submit_with_dual_mesh.configure(text="Plot (with Dual)", command=self._create_primarymesh_plot_command(include_dual_mesh=True))
+        submit_with_dual_mesh.grid(row=100, column=0, sticky="se")
+        submit_button.configure(text="Plot", command=self._create_primarymesh_plot_command(include_dual_mesh=False))
+        submit_button.grid(row=100, column=1, sticky="se")
+        frame.rowconfigure(100, weight=1)
 
         return frame
 
@@ -359,6 +468,8 @@ class MyGui:
         plotter_config_frame.grid(row=0, column=10, sticky="nsew")
         plotter_dm_plot_frame = self.plotter_config.create_dual_plot_frame(content)
         plotter_dm_plot_frame.grid(row=10, column=0, sticky="nsew")
+        plotter_pm_plot_frame = self.plotter_config.create_primary_plot_frame(content)
+        plotter_pm_plot_frame.grid(row=10, column=10, sticky="nsew")
 
         root.columnconfigure(0, weight=1)
         root.rowconfigure(0, weight=1)
