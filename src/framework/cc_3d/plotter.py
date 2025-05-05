@@ -34,7 +34,7 @@ from framework.common.stabilizers import Color
 class Plotter3D(Plotter, abc.ABC):
     dimension: ClassVar[int] = 3
 
-    def layout_primary_nodes(self, given_qubit_coordinates: dict[int, npt.NDArray[np.float64]]) -> (list[npt.NDArray[np.float64]], dict[int, int]):
+    def layout_primary_nodes(self, given_qubit_coordinates: dict[int, npt.NDArray[np.float64]]) -> tuple[list[npt.NDArray[np.float64]], dict[int, int]]:
         # volumes -> vertices
 
         points: list[npt.NDArray[np.float64]] = []

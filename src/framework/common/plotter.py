@@ -914,27 +914,3 @@ class Plotter(abc.ABC):
         else:
             plt.screenshot(filename=str(filename), scale=5)
         return None
-
-
-
-def rotate_points(points: list[npt.NDArray[np.float64]], x_angle: float, y_angle: float, z_angle: float, center: npt.NDArray[np.float64]=None):
-    """Rotate all points by x, y and then z axis around the given center."""
-    if center is not None:
-        points = [point - center for point in points]
-
-    x_mat = np.array([[1, 0, 0],
-                      [0, np.cos(x_angle), -np.sin(x_angle)],
-                      [0, np.sin(x_angle), np.cos(x_angle)]])
-    points = [x_mat.dot(point.transpose()) for point in points]
-    y_mat = np.array([[np.cos(y_angle), 0, np.sin(y_angle)],
-                      [0, 1, 0],
-                      [-np.sin(y_angle), 0, np.cos(y_angle)]])
-    points = [y_mat.dot(point.transpose()) for point in points]
-    z_mat = np.array([[np.cos(z_angle), -np.sin(z_angle), 0],
-                      [np.sin(z_angle), np.cos(z_angle), 0],
-                      [0, 0, 1]])
-    points = [z_mat.dot(point.transpose()) for point in points]
-
-    if center is not None:
-        points = [point + center for point in points]
-    return points
