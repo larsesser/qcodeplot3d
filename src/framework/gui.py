@@ -268,7 +268,7 @@ class PlotterConfig:
                 change_state(elem_, state="disabled")
             self.root.event_generate("<<DualMeshCreationStarted>>")
             f_: Future = self.pool.submit(
-                self.plotter.construct_debug_mesh, self.code_config.dual_graph,
+                self.plotter.construct_dual_mesh, self.code_config.dual_graph,
                 use_edges_colors=self.use_edge_color.get(),
                 include_edges_between_boundaries=self.edges_between_boundaries.get(),
                 exclude_boundaries=self.exclude_boundaries.get(),

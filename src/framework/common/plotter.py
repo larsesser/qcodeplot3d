@@ -405,6 +405,32 @@ class Plotter(abc.ABC):
 
         return ret
 
+    def construct_dual_mesh(
+        self,
+        graph: rx.PyGraph,
+        *,
+        coordinates: dict[int, npt.NDArray[np.float64]] = None,
+        use_edges_colors: bool = False,
+        edge_color: Color = None,
+        highlighted_nodes: list[GraphNode] = None,
+        highlighted_edges: list[GraphEdge] = None,
+        include_edges_between_boundaries: bool = True,
+        exclude_boundaries: bool = False,
+        mandatory_qubits: set[int] = None
+    ) -> pyvista.PolyData:
+        coordinates = coordinates or self.layout_dual_nodes(self.construct_primary_mesh())
+        return self.construct_debug_mesh(
+            graph,
+            coordinates=coordinates,
+            use_edges_colors=use_edges_colors,
+            edge_color=edge_color,
+            highlighted_nodes=highlighted_nodes,
+            highlighted_edges=highlighted_edges,
+            include_edges_between_boundaries=include_edges_between_boundaries,
+            exclude_boundaries=exclude_boundaries,
+            mandatory_qubits=mandatory_qubits,
+        )
+
     def construct_debug_mesh(
         self,
         graph: rx.PyGraph,
