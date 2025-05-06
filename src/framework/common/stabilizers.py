@@ -305,7 +305,7 @@ class Stabilizer(Operator):
         ancillas: list[int] = None,
     ) -> None:
         super().__init__(
-            length, x_positions=x_positions, z_positions=z_positions, name=name
+            length, x_positions=x_positions, z_positions=z_positions, name=name,
         )
         # color code stabilizers have either only x or only z support
         if self.x and self.z:
@@ -384,7 +384,7 @@ def check_stabilizers(stabilizers: list[Operator], check_independence: bool = Tr
             not_commuting_pairs.append((stab1, stab2))
     if not_commuting_pairs:
         raise ValueError(
-            f"Following stabilizers do not commute:\n{not_commuting_pairs}"
+            f"Following stabilizers do not commute:\n{not_commuting_pairs}",
         )
     if check_independence and not are_independent(stabilizers):
         raise ValueError("The set of stabilizers are not independent.")
@@ -403,16 +403,16 @@ def check_logical_operator(logical: Operator, stabilizers: list[Operator]) -> No
             non_commuting_stabilizers.append(stabilizer)
     if non_commuting_stabilizers:
         raise ValueError(
-            f"{logical} does not commute with the following stabilizers:\n{non_commuting_stabilizers}"
+            f"{logical} does not commute with the following stabilizers:\n{non_commuting_stabilizers}",
         )
     if count_independent(stabilizers + [logical]) != count_independent(stabilizers) + 1:
         raise ValueError(
-            f"{logical} does not form an independent set with the stabilizers."
+            f"{logical} does not form an independent set with the stabilizers.",
         )
 
 
 def check_logical_operators(
-    logicals: list[Operator], stabilizers: list[Operator]
+    logicals: list[Operator], stabilizers: list[Operator],
 ) -> None:
     """Check if a given list of operators are logical operators for this stabilizer code.
 
@@ -437,12 +437,12 @@ def check_z(z: list[Operator], stabilizers: list[Operator]) -> None:
             not_commuting_pairs.append((z1, z2))
     if not_commuting_pairs:
         raise ValueError(
-            f"Following z operators do not commute:\n{not_commuting_pairs}"
+            f"Following z operators do not commute:\n{not_commuting_pairs}",
         )
 
 
 def check_xj(
-    x_j: Operator, z_j: Operator, other_z: list[Operator], stabilizers: list[Operator]
+    x_j: Operator, z_j: Operator, other_z: list[Operator], stabilizers: list[Operator],
 ) -> None:
     """Check if logical x_j fulfills the commutation relations.
 
@@ -455,7 +455,7 @@ def check_xj(
             non_commuting_z.append(z)
     if non_commuting_z:
         raise ValueError(
-            f"{x_j} does not commute with the following z operators:\n{non_commuting_z}"
+            f"{x_j} does not commute with the following z operators:\n{non_commuting_z}",
         )
     if not x_j.anticommutes(z_j):
         raise ValueError(f"{x_j} does not anticommute with {z_j}")

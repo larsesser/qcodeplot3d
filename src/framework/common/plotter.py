@@ -17,7 +17,6 @@ import pyvista.plotting.themes
 import rustworkx as rx
 import vtk
 from rustworkx.visualization import graphviz_draw
-from scipy.spatial import Delaunay
 
 from framework.common import compute_simplexes
 from framework.common.graph import DualGraphNode, GraphEdge, GraphNode
@@ -165,8 +164,8 @@ def cross_point_3_planes(plane1: list[np.ndarray], plane2: list[np.ndarray], pla
     n_planes: list[npt.NDArray[np.float64]] = []
     b_planes: list[float] = []
 
-    for points in [plane1, plane2, plane3]:
-        points = np.asarray(points)
+    for p in [plane1, plane2, plane3]:
+        points = np.asarray(p)
         p_transposed = points.transpose()
         # paragraph taken from https://math.stackexchange.com/a/99317
         # "center of mass" of the plane
@@ -366,7 +365,8 @@ class Plotter(abc.ABC):
             faces = [[rustworkx2pyvista[index] for index in simplex] for simplex in simplexes]
         elif self.dimension == 3:
             # each simplex (tetrahedron) has four faces (triangles)
-            faces = [[rustworkx2pyvista[index] for index in combination] for simplex in simplexes for combination in itertools.combinations(simplex, 3)]
+            faces = [[rustworkx2pyvista[index] for index in combination]
+                     for simplex in simplexes for combination in itertools.combinations(simplex, 3)]
         else:
             raise NotImplementedError
 
@@ -416,7 +416,7 @@ class Plotter(abc.ABC):
         highlighted_edges: list[GraphEdge] = None,
         include_edges_between_boundaries: bool = True,
         exclude_boundaries: bool = False,
-        mandatory_qubits: set[int] = None
+        mandatory_qubits: set[int] = None,
     ) -> pyvista.PolyData:
         coordinates = coordinates or self.layout_dual_nodes(self.construct_primary_mesh())
         return self.construct_debug_mesh(
@@ -442,7 +442,7 @@ class Plotter(abc.ABC):
         highlighted_edges: list[GraphEdge] = None,
         include_edges_between_boundaries: bool = True,
         exclude_boundaries: bool = False,
-        mandatory_qubits: set[int] = None
+        mandatory_qubits: set[int] = None,
     ) -> pyvista.PolyData:
         """Create a 3D mesh of the given rustworkx Graph.
 
@@ -480,8 +480,16 @@ class Plotter(abc.ABC):
         ret["is_boundary"] = boundaries
 
         # remember the edge index and weight
-        ret.cell_data["edge_index"] = [edge.index for edge in graph.edges() if include_edges_between_boundaries or not edge.is_edge_between_boundaries]
-        ret.cell_data["edge_weight"] = [np.round(getattr(edge, "weight", -1), decimals=3) for edge in graph.edges() if include_edges_between_boundaries or not edge.is_edge_between_boundaries]
+        ret.cell_data["edge_index"] = [
+            edge.index
+            for edge in graph.edges()
+            if include_edges_between_boundaries or not edge.is_edge_between_boundaries
+        ]
+        ret.cell_data["edge_weight"] = [
+            np.round(getattr(edge, "weight", -1), decimals=3)
+            for edge in graph.edges()
+            if include_edges_between_boundaries or not edge.is_edge_between_boundaries
+        ]
 
         # add point labels
         point_labels = []
@@ -560,7 +568,8 @@ class Plotter(abc.ABC):
         # compute the center of each volume
         ret: dict[int, npt.NDArray[np.float64]] = self.preprocess_dual_node_layout(primary_mesh)
 
-        qubit_points: dict[int, npt.NDArray[np.float64]] = {primary_mesh.point_data['qubits'][pos]: point for pos, point in enumerate(primary_mesh.points)}
+        qubit_points: dict[int, npt.NDArray[np.float64]] = {
+            primary_mesh.point_data['qubits'][pos]: point for pos, point in enumerate(primary_mesh.points)}
         corner_qubits = {qubit for qubit, nodes in self.qubit_to_boundaries.items() if len(nodes) == self.dimension}
 
         # calculate the center of the code
@@ -639,7 +648,6 @@ class Plotter(abc.ABC):
             plt.show(title=window_title)
         else:
             plt.screenshot(filename=str(filename), scale=5)
-        return None
 
     def plot_primary_mesh(
         self,
@@ -701,7 +709,6 @@ class Plotter(abc.ABC):
             plt.show(title=window_title)
         else:
             plt.screenshot(filename=str(filename), scale=5)
-        return None
 
     def _plot_primary_mesh_internal(
         self,
@@ -753,7 +760,8 @@ class Plotter(abc.ABC):
                     raise ValueError(line_width)
                 edge_mesh.cell_data["colors"] = list(mesh.cell_data["colors"])[:len(line_poses)]
                 plt.add_mesh(edge_mesh, show_scalar_bar=False, line_width=line_width, smooth_shading=True,
-                             clim=Color.color_limits(), scalars="colors", point_size=qubit_point_size, show_vertices=False, style="wireframe")
+                             clim=Color.color_limits(), scalars="colors", point_size=qubit_point_size,
+                             show_vertices=False, style="wireframe")
             # remove lines from mesh
             mesh.lines = None
             mesh.cell_data["colors"] = list(mesh.cell_data["colors"])[len(line_poses):]
@@ -766,8 +774,12 @@ class Plotter(abc.ABC):
             normal_qubits = set(mesh.point_data['qubits']) - set(highlighted_qubits)
         else:
             normal_qubits = set()
-        for qubits, color, point_size in [(normal_qubits, "indigo", qubit_point_size), (highlighted_qubits, "violet", highlighted_qubit_point_size)]:
-            positions = [pos for pos, qubit in enumerate(mesh.point_data['qubits']) if qubit in qubits and (pos in used_qubit_pos or face_syndrome_qubits)]
+        for qubits, color, point_size in [
+                (normal_qubits, "indigo", qubit_point_size),
+                (highlighted_qubits, "violet", highlighted_qubit_point_size),
+            ]:
+            positions = [pos for pos, qubit in enumerate(mesh.point_data['qubits'])
+                         if qubit in qubits and (pos in used_qubit_pos or face_syndrome_qubits)]
             coordinates = np.asarray([coordinate for pos, coordinate in enumerate(mesh.points) if pos in positions])
             if len(coordinates) == 0:
                 continue
@@ -882,11 +894,13 @@ class Plotter(abc.ABC):
             all_edges = reconvert_faces(mesh.lines)
             normal_edge_pos = [pos for pos, index in enumerate(mesh.cell_data['edge_index']) if index not in highlighted_edge_indices]
             if normal_edge_pos and show_normal_edges:
-                normal_edge = pyvista.PolyData(mesh.points, lines=convert_faces([edge for pos, edge in enumerate(all_edges) if pos in normal_edge_pos]))
+                normal_edge = pyvista.PolyData(
+                    mesh.points, lines=convert_faces([edge for pos, edge in enumerate(all_edges) if pos in normal_edge_pos]))
                 plt.add_mesh(normal_edge, show_scalar_bar=False, line_width=mesh_line_width, smooth_shading=True, color="silver",
                              point_size=node_point_size, show_vertices=True, style="wireframe")
             highlighted_edge_pos = [pos for pos, index in enumerate(mesh.cell_data['edge_index']) if index in highlighted_edge_indices]
-            highlighted_edge = pyvista.PolyData(mesh.points, lines=convert_faces([edge for pos, edge in enumerate(all_edges) if pos in highlighted_edge_pos]))
+            highlighted_edge = pyvista.PolyData(
+                mesh.points, lines=convert_faces([edge for pos, edge in enumerate(all_edges) if pos in highlighted_edge_pos]))
             plt.add_mesh(highlighted_edge, show_scalar_bar=False, line_width=highlighted_line_width, smooth_shading=True, color="orange",
                          point_size=node_point_size, show_vertices=True, style="wireframe")
         elif show_normal_edges:
@@ -921,4 +935,3 @@ class Plotter(abc.ABC):
             plt.show(title=window_title)
         else:
             plt.screenshot(filename=str(filename), scale=5)
-        return None

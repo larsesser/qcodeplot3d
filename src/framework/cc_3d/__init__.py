@@ -6,3 +6,8 @@ from framework.cc_3d.construction import (
     tetrahedron_3d_dual_graph,
 )
 from framework.cc_3d.plotter import CubicPlotter, TetrahedronPlotter
+
+__all__ = [
+    "construct_cubic_logicals", "cubic_3d_dual_graph", "CubicPlotter",
+    "construct_tetrahedron_logicals", "tetrahedron_3d_dual_graph", "TetrahedronPlotter",
+]

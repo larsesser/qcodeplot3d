@@ -38,3 +38,29 @@ keywords = ["color code", "3D", "visualization"]
 [project.urls]
 Homepage = "https://github.com/pypa/sampleproject"
 Issues = "https://github.com/pypa/sampleproject/issues"
+
+[project.optional-dependencies]
+dev = [
+    "ruff~=0.11.7"
+]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 140
+output-format = "concise"
+
+[tool.ruff.lint]
+select = [
+    "F",  # pyflakes
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "I",  # isort
+    "UP",  # pyupgrade
+    "YTT",  # flake8-2020
+    "A",  # flake8-builtins
+    "COM",  # flake8-commas
+    "PLE",  # pylint errrors.
+    "PLW",  # pylint warnings.
+    "PLC",  # pylint conventions.
+    "RUF100",
+]

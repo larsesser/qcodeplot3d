@@ -26,7 +26,9 @@ from framework.common.stabilizers import Color
 class Plotter2D(Plotter, abc.ABC):
     dimension: ClassVar[int] = 2
 
-    def layout_primary_nodes(self, given_qubit_coordinates: dict[int, npt.NDArray[np.float64]]) -> (list[npt.NDArray[np.float64]], dict[int, int]):
+    def layout_primary_nodes(
+            self, given_qubit_coordinates: dict[int, npt.NDArray[np.float64]],
+    ) -> tuple[list[npt.NDArray[np.float64]], dict[int, int]]:
         # volumes -> vertices
 
         points: list[npt.NDArray[np.float64]] = []
@@ -56,7 +58,7 @@ class Plotter2D(Plotter, abc.ABC):
 
     @abc.abstractmethod
     def postprocess_primary_node_layout(
-            self, points: list[npt.NDArray[np.float64]], qubit_to_pointpos: dict[int, int]
+            self, points: list[npt.NDArray[np.float64]], qubit_to_pointpos: dict[int, int],
     ) -> list[npt.NDArray[np.float64]]:
         ...
 
@@ -122,7 +124,7 @@ class Plotter2D(Plotter, abc.ABC):
                         lines.append(edge)
                         line_ids.append(self.next_id)
                         line_colors.append(face_colors_by_pos[pos1].highlight)
-        ret = pyvista.PolyData(points, faces=convert_faces(faces), lines=convert_faces(lines) if len(lines) else None)
+        ret = pyvista.PolyData(points, faces=convert_faces(faces), lines=convert_faces(lines) if lines else None)
         ret.point_data['qubits'] = qubits
         ret.cell_data['face_ids'] = [*line_ids, *face_ids]
         ret.cell_data['colors'] = [*line_colors, *face_colors]
@@ -144,7 +146,7 @@ class SquarePlotter(Plotter2D):
         return factor
 
     def postprocess_primary_node_layout(
-            self, points: list[npt.NDArray[np.float64]], qubit_to_pointpos: dict[int, int]
+            self, points: list[npt.NDArray[np.float64]], qubit_to_pointpos: dict[int, int],
     ) -> list[npt.NDArray[np.float64]]:
         """Move qubits at the outside more outward, to form an even plane at each boundary."""
         qubit_to_point = {qubit: points[pointpos] for qubit, pointpos in qubit_to_pointpos.items()}

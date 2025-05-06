@@ -1,10 +1,9 @@
-from concurrent.futures import Executor, Future, ProcessPoolExecutor
-from enum import Enum
 import os
 import signal
-from tkinter import *
-from tkinter import ttk
-from typing import Callable, Optional, Type
+from concurrent.futures import Executor, Future, ProcessPoolExecutor
+from enum import Enum
+from tkinter import BooleanVar, IntVar, StringVar, Tk, ttk
+from typing import Callable, Optional
 
 import psutil
 import pyvista
@@ -25,7 +24,7 @@ class CodeTypes(Enum):
     tetrahedral = "Tetrahedral"
 
     @property
-    def plotter_class(self) -> Type[Plotter]:
+    def plotter_class(self) -> type[Plotter]:
         return {
             self.rectangular: ...,
             self.square: SquarePlotter,
@@ -260,7 +259,7 @@ class PlotterConfig:
         self.root.bind("<<DualGraphCreationFinished>>", self._update_plotter, add="+")
 
     @property
-    def plotter_class(self) -> Optional[Type[Plotter]]:
+    def plotter_class(self) -> Optional[type[Plotter]]:
         if self.code_config.codetype:
             return self.code_config.codetype.plotter_class
         return None
@@ -283,8 +282,8 @@ class PlotterConfig:
                 return True
             raw_qubits = new_value.split(",")
             qubits = []
-            for qubit in raw_qubits:
-                qubit = qubit.strip()
+            for q in raw_qubits:
+                qubit = q.strip()
                 if qubit == "":
                     continue
                 if not qubit.isdigit():
@@ -356,7 +355,10 @@ class PlotterConfig:
         edges_between_boundaries.grid(row=20, column=1, sticky="w")
 
         violated_qubits_label = ttk.Label(frame, text="Errors on qubits")
-        validate_qubits_wrapper = (frame.register(self._create_violatedqubits_validator(self.dm_violated_qubits, self.dm_violated_qubits_error_msg, submit)), '%P', '%V')
+        validate_qubits_wrapper = (
+            frame.register(self._create_violatedqubits_validator(self.dm_violated_qubits, self.dm_violated_qubits_error_msg, submit)),
+            '%P', '%V',
+        )
         violated_qubits.configure(textvariable=self.dm_violated_qubits, validate='all', validatecommand=validate_qubits_wrapper)
         violated_qubits_msg = ttk.Label(frame, font='TkSmallCaptionFont', foreground='red', textvariable=self.dm_violated_qubits_error_msg)
         violated_qubits_label.grid(row=20, column=0)

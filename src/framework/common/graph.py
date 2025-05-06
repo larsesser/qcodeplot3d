@@ -155,7 +155,8 @@ class DualGraphEdge(GraphEdge):
                 stab_length = self.node2.stabilizer.length
             # use id to ensure the ancilla of each stabilizer (node-like and edge-like!) is unique
             ancilla = len(self.all_qubits) + self.id + 1
-            self.stabilizer = Stabilizer(length=stab_length, color=self.node1.color.combine(self.node2.color), z_positions=self.qubits, ancillas=[ancilla])
+            self.stabilizer = Stabilizer(length=stab_length, color=self.node1.color.combine(self.node2.color),
+                                          z_positions=self.qubits, ancillas=[ancilla])
 
     @cached_property
     def qubits(self) -> list[int]:

@@ -149,12 +149,12 @@ def tetrahedron_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
             continue
 
         # add edges between nodes of this and the lower layer
-        for (x, y), node in rgy_layer.items():
+        for (x, y_), node in rgy_layer.items():
             # move nodes of this layer at the correct position at the lower layer
             if node.color == Color.red:
-                y = y + 2
+                y = y_ + 2
             else:
-                y = y + 1
+                y = y_ + 1
 
             # connect node with respective node of one level lower
             all_edges.add((rgb_layers[layer+1][(x, y)], node))
