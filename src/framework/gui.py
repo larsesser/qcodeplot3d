@@ -464,21 +464,23 @@ class PlotterConfig:
 
 
 class MyGui:
+    root: Tk
     pool: Executor
     code_config: CodeConfig
 
-    def __init__(self, root: Tk, pool: Executor) -> None:
-        self.pool = pool
-        root.title("...")
+    def __init__(self) -> None:
+        self.root = Tk()
+        self.pool = ProcessPoolExecutor()
+        self.root.title("...")
 
-        content = ttk.Frame(root, padding=(3, 3, 12, 12))
+        content = ttk.Frame(self.root, padding=(3, 3, 12, 12))
         content.grid(row=0, column=0, sticky="nsew")
 
-        self.code_config = CodeConfig(root, pool)
+        self.code_config = CodeConfig(self.root, self.pool)
         code_config_frame = self.code_config.create_frame(content)
         code_config_frame.grid(row=0, column=0, sticky="nsew")
 
-        self.plotter_config = PlotterConfig(root, pool, self.code_config)
+        self.plotter_config = PlotterConfig(self.root, self.pool, self.code_config)
         plotter_config_frame = self.plotter_config.create_dual_config_frame(content)
         plotter_config_frame.grid(row=0, column=10, sticky="nsew")
         plotter_dm_plot_frame = self.plotter_config.create_dual_plot_frame(content)
@@ -486,8 +488,8 @@ class MyGui:
         plotter_pm_plot_frame = self.plotter_config.create_primary_plot_frame(content)
         plotter_pm_plot_frame.grid(row=10, column=10, sticky="nsew")
 
-        root.columnconfigure(0, weight=1)
-        root.rowconfigure(0, weight=1)
+        self.root.columnconfigure(0, weight=1)
+        self.root.rowconfigure(0, weight=1)
         content.columnconfigure(0, weight=1)
         content.rowconfigure(0, weight=1)
         content.rowconfigure(10, weight=1)
@@ -501,14 +503,17 @@ class MyGui:
             else:
                 children = parent.children(recursive=True)
                 for process in children:
-                    process.send_signal(signal.SIGTERM)
-            root.destroy()
+                    try:
+                        process.send_signal(signal.SIGTERM)
+                    except psutil.NoSuchProcess:
+                        pass
+            self.root.destroy()
 
         # add graceful shutdown
-        root.protocol("WM_DELETE_WINDOW", on_closing)
+        self.root.protocol("WM_DELETE_WINDOW", on_closing)
+
+        # enter event loop
+        self.root.mainloop()
 
 
-thread_pool = ProcessPoolExecutor()
-gui_root = Tk()
-MyGui(gui_root, thread_pool)
-gui_root.mainloop()
+MyGui()
