@@ -9,14 +9,14 @@ import psutil
 import pyvista
 import rustworkx
 
-from framework.cc_2d import SquarePlotter, rectangular_2d_dual_graph, square_2d_dual_graph
+from framework.cc_2d import SquarePlotter, TriangularPlotter, square_2d_dual_graph, triangular_2d_dual_graph
 from framework.cc_3d import CubicPlotter, TetrahedronPlotter, cubic_3d_dual_graph, tetrahedron_3d_dual_graph
 from framework.common.plotter import Plotter
 
 
 class CodeTypes(Enum):
     # 2D codes
-    rectangular = "Rectangular"
+    triangular = "Triangular"
     square = "Square"
 
     # 3D codes
@@ -26,7 +26,7 @@ class CodeTypes(Enum):
     @property
     def plotter_class(self) -> type[Plotter]:
         return {
-            self.rectangular: ...,
+            self.triangular: TriangularPlotter,
             self.square: SquarePlotter,
             self.cubic: CubicPlotter,
             self.tetrahedral: TetrahedronPlotter,
@@ -35,7 +35,7 @@ class CodeTypes(Enum):
     @property
     def graph_function(self) -> Callable:
         return {
-            self.rectangular: rectangular_2d_dual_graph,
+            self.triangular: triangular_2d_dual_graph,
             self.square: square_2d_dual_graph,
             self.cubic: cubic_3d_dual_graph,
             self.tetrahedral: tetrahedron_3d_dual_graph,
@@ -43,7 +43,7 @@ class CodeTypes(Enum):
 
     @property
     def has_odd_distance(self) -> bool:
-        return self in {self.rectangular, self.tetrahedral}
+        return self in {self.triangular, self.tetrahedral}
 
     @property
     def has_even_distance(self) -> bool:
@@ -51,11 +51,11 @@ class CodeTypes(Enum):
 
     @classmethod
     def default_2d_code(cls) -> str:
-        return cls.rectangular.value
+        return cls.triangular.value
 
     @classmethod
     def get_2d_codes(cls) -> list[str]:
-        return [cls.square.value, cls.rectangular.value]
+        return [cls.square.value, cls.triangular.value]
 
     @classmethod
     def default_3d_code(cls) -> str:

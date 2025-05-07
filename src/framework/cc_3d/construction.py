@@ -5,32 +5,25 @@ import itertools
 
 import rustworkx
 
+from framework.cc_2d.construction import TriangularNode2D, triangular_node_position
 from framework.common.construction import PreDualGraphNode, add_edge, coloring_qubits
 from framework.common.graph import DualGraphNode, XDualGraphEdge, XDualGraphNode
 from framework.common.stabilizers import Color, Operator
 
 
 @dataclasses.dataclass
-class Node:
-    color: Color
-    col: int  # x coordinate
-    row: int  # y coordinate
+class TetrahedralNode3D(TriangularNode2D):
     layer: int  # z coordinate
-    pre_dg_node: PreDualGraphNode = dataclasses.field(init=False)
 
     def __post_init__(self):
         self.pre_dg_node = PreDualGraphNode(f"({self.col}, {self.row}, {self.layer})", is_boundary=False)
 
-    @property
-    def index(self) -> int:
-        return self.pre_dg_node.index
-
-    @index.setter
-    def index(self, index: int) -> None:
-        self.pre_dg_node.index = index
-
     def __hash__(self):
         return hash((self.col, self.row, self.layer, self.color))
+
+    @property
+    def coordinate(self) -> tuple[int, int, int]:
+        return self.col, self.row, self.layer
 
     @property
     def coordinate_2d(self) -> tuple[int, int]:
@@ -44,34 +37,10 @@ def tetrahedron_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
     # construct all layers, which are 2D triangular codes of distance d, d-2, d-4 ... to d=3
     num_layers = (distance - 1) // 2
 
-    def node_position(num_rows: int, offset: tuple[int, int] = (0, 0), only: str = None) -> list[tuple[int, int]]:
-        """Position of nodes of one color. Top of triangle is (0, 0).
-
-        :param only: only node positions at right, left or center boundary.
-        """
-        ret: list[tuple[int, int]] = []
-        if only is None:
-            for row in range(0, 2*num_rows, 2):
-                for col in range(-row//2, row//2+1, 2):
-                    ret.append((col+offset[0], row+offset[1]))
-        elif only == "left":
-            for row in range(0, 2*num_rows, 2):
-                ret.append((-row//2 +offset[0], row+offset[1]))
-        elif only == "right":
-            for row in range(0, 2*num_rows, 2):
-                ret.append((+row//2 +offset[0], row+offset[1]))
-        elif only == "center":
-            row = 2*num_rows-2
-            for col in range(-row // 2, row // 2 + 1, 2):
-                ret.append((col + offset[0], row + offset[1]))
-        else:
-            raise NotImplementedError
-        return ret
-
-    all_nodes: list[Node] = []
-    all_edges: set[tuple[Node, Node]] = set()
-    rgy_layers: dict[int, dict[tuple[int, int], Node]] = {}
-    rgb_layers: dict[int, dict[tuple[int, int], Node]] = {}
+    all_nodes: list[TetrahedralNode3D] = []
+    all_edges: set[tuple[TetrahedralNode3D, TetrahedralNode3D]] = set()
+    rgy_layers: dict[int, dict[tuple[int, int], TetrahedralNode3D]] = {}
+    rgb_layers: dict[int, dict[tuple[int, int], TetrahedralNode3D]] = {}
 
     # create boundaries
     left = PreDualGraphNode("left", is_boundary=True)
@@ -86,12 +55,12 @@ def tetrahedron_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
     for layer in range(num_layers, 0, -1):
         # create nodes of this layer
         red_offset = (0, 0)
-        red_nodes = [Node(Color.red, col, row, layer) for col, row in node_position(layer, red_offset)]
+        red_nodes = [TetrahedralNode3D(Color.red, col, row, layer) for col, row in triangular_node_position(layer, red_offset)]
         green_offset = (0, 2)
-        green_nodes = [Node(Color.green, col, row, layer) for col, row in node_position(layer, green_offset)]
+        green_nodes = [TetrahedralNode3D(Color.green, col, row, layer) for col, row in triangular_node_position(layer, green_offset)]
         yellow_offset = (1, 1)
-        yellow_nodes = [Node(Color.yellow, col, row, layer) for col, row in node_position(layer, yellow_offset)]
-        blue_nodes = [Node(Color.blue, col, row, layer) for col, row in node_position(layer, yellow_offset)]
+        yellow_nodes = [TetrahedralNode3D(Color.yellow, col, row, layer) for col, row in triangular_node_position(layer, yellow_offset)]
+        blue_nodes = [TetrahedralNode3D(Color.blue, col, row, layer) for col, row in triangular_node_position(layer, yellow_offset)]
         all_nodes.extend(red_nodes + green_nodes + yellow_nodes + blue_nodes)
         rgy_layer = {node.coordinate_2d: node for node in [*red_nodes, *green_nodes, *yellow_nodes]}
         rgy_layers[layer] = rgy_layer
@@ -101,15 +70,15 @@ def tetrahedron_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
         # add nodes between layer and boundary nodes
         # left
         for offset, layer_dict in [(red_offset, rgy_layer), (green_offset, rgy_layer), (yellow_offset, rgb_layer)]:
-            for position in node_position(layer, offset, only="left"):
+            for position in triangular_node_position(layer, offset, only="left"):
                 all_boundary_edges.append((left, layer_dict[position].pre_dg_node))
         # right
         for offset, layer_dict in [(red_offset, rgy_layer), (yellow_offset, rgy_layer), (yellow_offset, rgb_layer)]:
-            for position in node_position(layer, offset, only="right"):
+            for position in triangular_node_position(layer, offset, only="right"):
                 all_boundary_edges.append((right, layer_dict[position].pre_dg_node))
         # center
         for offset, layer_dict in [(green_offset, rgy_layer), (yellow_offset, rgy_layer), (yellow_offset, rgb_layer)]:
-            for position in node_position(layer, offset, only="center"):
+            for position in triangular_node_position(layer, offset, only="center"):
                 all_boundary_edges.append((center, layer_dict[position].pre_dg_node))
 
         # add edges between nodes of this layer
