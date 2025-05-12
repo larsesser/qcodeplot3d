@@ -11,6 +11,7 @@ import rustworkx
 
 from qcodeplot3d.cc_2d import SquarePlotter, TriangularPlotter, square_2d_dual_graph, triangular_2d_dual_graph
 from qcodeplot3d.cc_3d import CubicPlotter, TetrahedronPlotter, cubic_3d_dual_graph, tetrahedron_3d_dual_graph
+from qcodeplot3d.common.graph import DualGraphNode
 from qcodeplot3d.common.plotter import Plotter
 
 
@@ -278,7 +279,6 @@ class PlotterConfig:
         def validator(new_value: str, operation: str) -> bool:
             error_store.set('')
             if new_value == "":
-                change_state(submits, state="normal")
                 return True
             raw_qubits = new_value.split(",")
             qubits = []
@@ -288,17 +288,19 @@ class PlotterConfig:
                     continue
                 if not qubit.isdigit():
                     error_store.set("Qubits are numbers.")
-                    # change_state(submits, state="disabled")
                     return False
                 qubits.append(qubit)
 
             if operation in {'focusout', 'focusin', 'forced'}:
                 value_store.set(",".join(qubits))
 
-            change_state(submits, state="normal")
             return True
 
         return validator
+
+    def _highlighted_nodes(self, error_qubits: list[int]) -> list[DualGraphNode]:
+        return [node for node in self.code_config.dual_graph.nodes()
+                if len(set(node.qubits) & set(error_qubits)) % 2 and not node.is_boundary]
 
     def _create_dualmesh_create_command(self, all_ttk: list[ttk.Widget], progressbar: ttk.Progressbar) -> Callable:
         def command() -> None:
@@ -315,12 +317,16 @@ class PlotterConfig:
             highlighted_nodes = self.code_config.dual_graph.nodes()
             if (violated_qubits := self.dm_violated_qubits.get()):
                 qubits = sorted(set([int(qubit) for qubit in violated_qubits.split(",")]))
-                highlighted_nodes = [node for node in self.code_config.dual_graph.nodes()
-                                     if len(set(node.qubits) & set(qubits)) % 2 and not node.is_boundary]
+                highlighted_nodes = self._highlighted_nodes(qubits)
+            highlighted_edges = None
+            # to ensure better visibility
+            if self.use_edge_color.get():
+                highlighted_edges = self.code_config.dual_graph.edges()
             f_: Future = self.pool.submit(
                 self.plotter.construct_dual_mesh, self.code_config.dual_graph,
                 use_edges_colors=self.use_edge_color.get(),
                 highlighted_nodes=highlighted_nodes,
+                highlighted_edges=highlighted_edges,
                 include_edges_between_boundaries=self.edges_between_boundaries.get(),
                 exclude_boundaries=self.exclude_boundaries.get(),
             )
@@ -407,13 +413,17 @@ class PlotterConfig:
                 func = self.plotter.plot_debug_primary_mesh
                 args = [self.dual_graph_mesh]
             violated_qubits = None
+            highlighted_volumes = None
             if (qubits := self.pm_violated_qubits.get()):
                 violated_qubits = sorted(set([int(qubit) for qubit in qubits.split(",")]))
+                highlighted_volumes = self._highlighted_nodes(violated_qubits)
             self.pool.submit(
                 func, *args,
                 show_qubit_labels=self.pm_show_labels.get(),
                 highlighted_qubits=violated_qubits,
+                highlighted_volumes=highlighted_volumes,
                 transparent_faces=self.pm_transparent_faces.get(),
+                color_edges=True,
                 window_title=self.code_config.code_description,
             )
         return command
