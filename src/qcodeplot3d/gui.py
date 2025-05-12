@@ -514,6 +514,3 @@ class QCodePlot3dGUI:
 
         # enter event loop
         self.root.mainloop()
-
-
-MyGui()
