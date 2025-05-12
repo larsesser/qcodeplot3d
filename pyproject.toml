@@ -1,6 +1,6 @@
 [build-system]
-requires = ["hatchling >= 1.26"]
-build-backend = "hatchling.build"
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "qCodePlot3D"
@@ -33,7 +33,7 @@ classifiers = [
 ]
 license = "MIT"
 license-files = ["LICEN[CS]E*"]
-keywords = ["color code", "3D", "visualization"]
+keywords = ["color code", "3D", "visualization", "2D"]
 
 [project.urls]
 Homepage = "https://github.com/pypa/sampleproject"
@@ -43,6 +43,12 @@ Issues = "https://github.com/pypa/sampleproject/issues"
 dev = [
     "ruff~=0.11.7"
 ]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"*" = ["py.typed"]
 
 [tool.ruff]
 target-version = "py39"
