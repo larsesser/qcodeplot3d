@@ -617,7 +617,7 @@ class Plotter(abc.ABC):
         if point_size is None:
             point_size = 15 if filename is None else 120
         if line_width is None:
-            line_width = 1 if filename is None else 10
+            line_width = 3 if filename is None else 10
 
         plt = pyvista.plotting.Plotter(theme=self.get_plotting_theme(), off_screen=filename is not None)
         if show_labels:
@@ -664,9 +664,9 @@ class Plotter(abc.ABC):
         highest_title: tuple[int, int, int] = None,
         mandatory_face_qubits: set[int] = None,
         string_operator_qubits: set[int] = None,
-        color_edges: bool = False,
+        color_edges: bool = True,
         show_normal_qubits: bool = True,
-        line_width: float = 3,
+        line_width: int = None,
         transparent_faces: bool = False,
         mandatory_cell_qubits: set[int] = None,
         face_syndrome_qubits: set[int] = None,
@@ -680,6 +680,8 @@ class Plotter(abc.ABC):
             qubit_point_size = 15 if filename is None else 70
         if highlighted_qubit_point_size is None:
             highlighted_qubit_point_size = 17 if filename is None else 100
+        if line_width is None:
+            line_width = 3 if filename is None else 10
 
         plt = self._plot_primary_mesh_internal(
             show_qubit_labels=show_qubit_labels,
@@ -725,9 +727,9 @@ class Plotter(abc.ABC):
         highest_title: tuple[int, int, int] = None,
         mandatory_face_qubits: set[int] = None,
         string_operator_qubits: set[int] = None,
-        color_edges: bool = False,
+        color_edges: bool = True,
         show_normal_qubits: bool = True,
-        line_width: float = 3,
+        line_width: int = 1,
         transparent_faces: bool = False,
         mandatory_cell_qubits: set[int] = None,
         face_syndrome_qubits: set[int] = None,
@@ -832,7 +834,7 @@ class Plotter(abc.ABC):
         highest_title: tuple[int, int, int] = None,
         mandatory_face_qubits: set[int] = None,
         string_operator_qubits: set[int] = None,
-        color_edges: bool = False,
+        color_edges: bool = True,
         show_normal_qubits: bool = True,
         transparent_faces: bool = False,
         highlighted_edges: list[GraphEdge] = None,
@@ -861,11 +863,11 @@ class Plotter(abc.ABC):
         if node_point_size is None:
             node_point_size = 20 if filename is None else 120
         if mesh_line_width is None:
-            mesh_line_width = 1 if filename is None else 10
+            mesh_line_width = 3 if filename is None else 10
         if primary_line_width is None:
-            primary_line_width = 1 if filename is None else 10
+            primary_line_width = 3 if filename is None else 10
         if highlighted_line_width is None:
-            highlighted_line_width = 2 if filename is None else 25
+            highlighted_line_width = 5 if filename is None else 25
 
         plt = self._plot_primary_mesh_internal(
             show_qubit_labels=show_qubit_labels,
