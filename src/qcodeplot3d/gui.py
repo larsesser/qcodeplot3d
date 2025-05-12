@@ -9,9 +9,9 @@ import psutil
 import pyvista
 import rustworkx
 
-from framework.cc_2d import SquarePlotter, TriangularPlotter, square_2d_dual_graph, triangular_2d_dual_graph
-from framework.cc_3d import CubicPlotter, TetrahedronPlotter, cubic_3d_dual_graph, tetrahedron_3d_dual_graph
-from framework.common.plotter import Plotter
+from qcodeplot3d.cc_2d import SquarePlotter, TriangularPlotter, square_2d_dual_graph, triangular_2d_dual_graph
+from qcodeplot3d.cc_3d import CubicPlotter, TetrahedronPlotter, cubic_3d_dual_graph, tetrahedron_3d_dual_graph
+from qcodeplot3d.common.plotter import Plotter
 
 
 class CodeTypes(Enum):
@@ -463,7 +463,7 @@ class PlotterConfig:
         return frame
 
 
-class MyGui:
+class QCodePlot3dGUI:
     root: Tk
     pool: Executor
     code_config: CodeConfig
@@ -471,7 +471,7 @@ class MyGui:
     def __init__(self) -> None:
         self.root = Tk()
         self.pool = ProcessPoolExecutor()
-        self.root.title("...")
+        self.root.title("qCodePlot3D")
 
         content = ttk.Frame(self.root, padding=(3, 3, 12, 12))
         content.grid(row=0, column=0, sticky="nsew")

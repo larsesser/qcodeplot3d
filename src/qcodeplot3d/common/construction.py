@@ -8,15 +8,15 @@ import rustworkx
 from pysat.formula import CNF
 from pysat.solvers import Solver
 
-from framework.common import compute_simplexes
-from framework.common.graph import (
+from qcodeplot3d.common import compute_simplexes
+from qcodeplot3d.common.graph import (
     DualGraphEdge,
     DualGraphNode,
     GraphNode,
     RestrictedGraphEdge,
     RestrictedGraphNode,
 )
-from framework.common.stabilizers import Color
+from qcodeplot3d.common.stabilizers import Color
 
 
 class PreDualGraphNode(GraphNode):

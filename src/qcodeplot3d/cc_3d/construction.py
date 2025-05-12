@@ -5,10 +5,10 @@ import itertools
 
 import rustworkx
 
-from framework.cc_2d.construction import TriangularNode2D, triangular_node_position
-from framework.common.construction import PreDualGraphNode, add_edge, coloring_qubits
-from framework.common.graph import DualGraphNode, XDualGraphEdge, XDualGraphNode
-from framework.common.stabilizers import Color, Operator
+from qcodeplot3d.cc_2d.construction import TriangularNode2D, triangular_node_position
+from qcodeplot3d.common.construction import PreDualGraphNode, add_edge, coloring_qubits
+from qcodeplot3d.common.graph import DualGraphNode, XDualGraphEdge, XDualGraphNode
+from qcodeplot3d.common.stabilizers import Color, Operator
 
 
 @dataclasses.dataclass

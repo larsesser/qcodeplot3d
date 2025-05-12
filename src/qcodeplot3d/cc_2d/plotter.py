@@ -11,8 +11,8 @@ import numpy.typing as npt
 import pyvista
 from scipy.spatial import Delaunay
 
-from framework.common.graph import DualGraphNode
-from framework.common.plotter import (
+from qcodeplot3d.common.graph import DualGraphNode
+from qcodeplot3d.common.plotter import (
     Plotter,
     convert_faces,
     cross_point_2_lines,
@@ -22,7 +22,7 @@ from framework.common.plotter import (
     reconvert_faces,
     triangles_to_face,
 )
-from framework.common.stabilizers import Color
+from qcodeplot3d.common.stabilizers import Color
 
 
 @dataclasses.dataclass

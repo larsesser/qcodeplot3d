@@ -5,8 +5,8 @@ import itertools
 
 import rustworkx
 
-from framework.common.construction import PreDualGraphNode, add_edge, coloring_qubits
-from framework.common.stabilizers import Color
+from qcodeplot3d.common.construction import PreDualGraphNode, add_edge, coloring_qubits
+from qcodeplot3d.common.stabilizers import Color
 
 
 @dataclasses.dataclass

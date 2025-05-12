@@ -18,9 +18,9 @@ import rustworkx as rx
 import vtk
 from rustworkx.visualization import graphviz_draw
 
-from framework.common import compute_simplexes
-from framework.common.graph import DualGraphNode, GraphEdge, GraphNode
-from framework.common.stabilizers import Color
+from qcodeplot3d.common import compute_simplexes
+from qcodeplot3d.common.graph import DualGraphNode, GraphEdge, GraphNode
+from qcodeplot3d.common.stabilizers import Color
 
 # see https://docs.pyvista.org/version/stable/api/core/_autosummary/pyvista.polydata.n_faces#pyvista.PolyData.n_faces
 pyvista.PolyData.use_strict_n_faces(True)
