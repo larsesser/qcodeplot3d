@@ -21,6 +21,8 @@ Start the GUI by calling
 ```
 python3 -m qcodeplot3d
 ```
+After `Build`ing a available code with a given distance, you can hit `Plot Primary Graph` to show it.
+If you press `Build Dual Graph` in addition, you can also plot the dual graph or both graphs at once.
 
 Alternatively, the package can be used to script the creation of figures.
 A small example snipped might look as following:
