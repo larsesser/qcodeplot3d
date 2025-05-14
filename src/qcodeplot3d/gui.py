@@ -406,7 +406,7 @@ class PlotterConfig:
         violated_qubits_info.grid(row=21, column=1, columnspan=2, padx=5, sticky="w")
         violated_qubits_msg.grid(row=22, column=1, columnspan=2, padx=5, sticky="w")
 
-        submit.configure(text="Build", command=self._create_dualmesh_create_command(all_ttk, progress_bar))
+        submit.configure(text="Build Dual Graph", command=self._create_dualmesh_create_command(all_ttk, progress_bar))
         submit.grid(row=100, column=1, sticky="se")
         progress_bar.configure(orient="horizontal", mode="indeterminate")
         progress_bar.grid(row=100, column=0, sticky="sw")
@@ -441,7 +441,7 @@ class PlotterConfig:
         for element in all_ttk:
             element.configure(state="disabled")
 
-        submit_button.configure(text="Plot", command=self._dualmesh_plot_command)
+        submit_button.configure(text="Plot Dual Graph", command=self._dualmesh_plot_command)
         submit_button.grid(row=10, column=1, sticky="se")
         frame.rowconfigure(10, weight=1)
 
@@ -535,10 +535,12 @@ class PlotterConfig:
         violated_qubits_msg.grid(row=22, column=1, columnspan=2, padx=5, sticky="w")
 
         submit_with_dual_mesh.configure(
-            text="Plot (with Dual)", command=self._create_primarymesh_plot_command(include_dual_mesh=True)
+            text="Plot Both", command=self._create_primarymesh_plot_command(include_dual_mesh=True)
         )
         submit_with_dual_mesh.grid(row=100, column=0, sticky="se")
-        submit_button.configure(text="Plot", command=self._create_primarymesh_plot_command(include_dual_mesh=False))
+        submit_button.configure(
+            text="Plot Primary Graph", command=self._create_primarymesh_plot_command(include_dual_mesh=False)
+        )
         submit_button.grid(row=100, column=1, sticky="se")
         frame.rowconfigure(100, weight=1)
 
