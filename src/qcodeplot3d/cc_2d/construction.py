@@ -35,24 +35,26 @@ class TriangularNode2D:
         return self.col, self.row
 
 
-def triangular_node_position(num_rows: int, offset: tuple[int, int] = (0, 0), only: str = None) -> list[tuple[int, int]]:
+def triangular_node_position(
+    num_rows: int, offset: tuple[int, int] = (0, 0), only: str = None
+) -> list[tuple[int, int]]:
     """Position of nodes of one color. Top of triangle is (0, 0).
 
     :param only: only node positions at right, left or center boundary.
     """
     ret: list[tuple[int, int]] = []
     if only is None:
-        for row in range(0, 2*num_rows, 2):
-            for col in range(-row//2, row//2+1, 2):
-                ret.append((col+offset[0], row+offset[1]))
+        for row in range(0, 2 * num_rows, 2):
+            for col in range(-row // 2, row // 2 + 1, 2):
+                ret.append((col + offset[0], row + offset[1]))
     elif only == "left":
-        for row in range(0, 2*num_rows, 2):
-            ret.append((-row//2 +offset[0], row+offset[1]))
+        for row in range(0, 2 * num_rows, 2):
+            ret.append((-row // 2 + offset[0], row + offset[1]))
     elif only == "right":
-        for row in range(0, 2*num_rows, 2):
-            ret.append((+row//2 +offset[0], row+offset[1]))
+        for row in range(0, 2 * num_rows, 2):
+            ret.append((+row // 2 + offset[0], row + offset[1]))
     elif only == "center":
-        row = 2*num_rows-2
+        row = 2 * num_rows - 2
         for col in range(-row // 2, row // 2 + 1, 2):
             ret.append((col + offset[0], row + offset[1]))
     else:
@@ -80,9 +82,13 @@ def triangular_2d_dual_graph(distance: int) -> rustworkx.PyGraph:
     red_offset = (0, 0)
     red_nodes = [TriangularNode2D(Color.red, col, row) for col, row in triangular_node_position(num_layer, red_offset)]
     green_offset = (0, 2)
-    green_nodes = [TriangularNode2D(Color.green, col, row) for col, row in triangular_node_position(num_layer, green_offset)]
+    green_nodes = [
+        TriangularNode2D(Color.green, col, row) for col, row in triangular_node_position(num_layer, green_offset)
+    ]
     yellow_offset = (1, 1)
-    yellow_nodes = [TriangularNode2D(Color.yellow, col, row) for col, row in triangular_node_position(num_layer, yellow_offset)]
+    yellow_nodes = [
+        TriangularNode2D(Color.yellow, col, row) for col, row in triangular_node_position(num_layer, yellow_offset)
+    ]
     all_nodes.extend(red_nodes + green_nodes + yellow_nodes)
     rgy_layer = {node.coordinate: node for node in [*red_nodes, *green_nodes, *yellow_nodes]}
 
@@ -105,16 +111,16 @@ def triangular_2d_dual_graph(distance: int) -> rustworkx.PyGraph:
         # add trivial neighbours
         for x_offset in [-1, +1]:
             for y_offset in [-1, 0, +1]:
-                if n := rgy_layer.get((x+x_offset, y+y_offset)):
+                if n := rgy_layer.get((x + x_offset, y + y_offset)):
                     all_edges.add((node, n))
         # add neighbour above / below. If there is no node, add next-next neighbour
-        if n := rgy_layer.get((x, y+1)):
+        if n := rgy_layer.get((x, y + 1)):
             all_edges.add((node, n))
-        elif n := rgy_layer.get((x, y+2)):
+        elif n := rgy_layer.get((x, y + 2)):
             all_edges.add((node, n))
-        if n := rgy_layer.get((x, y-1)):
+        if n := rgy_layer.get((x, y - 1)):
             all_edges.add((node, n))
-        elif n := rgy_layer.get((x, y-2)):
+        elif n := rgy_layer.get((x, y - 2)):
             all_edges.add((node, n))
 
     graph = rustworkx.PyGraph(multigraph=False)
@@ -137,7 +143,7 @@ def rectangular_2d_dual_graph(distance: int) -> rustworkx.PyGraph:
     if not distance % 2 == 1:
         raise ValueError("d must be an odd integer")
 
-    num_cols = distance-1
+    num_cols = distance - 1
     num_rows = distance
 
     dual_graph = rustworkx.PyGraph(multigraph=False)
@@ -196,16 +202,16 @@ def rectangular_2d_dual_graph(distance: int) -> rustworkx.PyGraph:
 
     for col_pos, col in enumerate(nodes):
         # reached last col
-        if col_pos == num_cols-1:
+        if col_pos == num_cols - 1:
             continue
         for row_pos, node in enumerate(col):
             # diagonal pattern, including all odd rows from even cols and vice versa
             if row_pos % 2 != col_pos % 2:
                 continue
-            if row_pos != num_rows-1:
-                add_edge(dual_graph, node, nodes[col_pos+1][row_pos+1])
+            if row_pos != num_rows - 1:
+                add_edge(dual_graph, node, nodes[col_pos + 1][row_pos + 1])
             if row_pos != 0:
-                add_edge(dual_graph, node, nodes[col_pos+1][row_pos-1])
+                add_edge(dual_graph, node, nodes[col_pos + 1][row_pos - 1])
 
     coloring_qubits(dual_graph, dimension=2)
     return dual_graph
@@ -215,7 +221,7 @@ def square_2d_dual_graph(distance: int) -> rustworkx.PyGraph:
     if not distance % 2 == 0:
         raise ValueError("d must be an even integer")
 
-    num_cols = num_rows = distance-1
+    num_cols = num_rows = distance - 1
 
     dual_graph = rustworkx.PyGraph(multigraph=False)
     left = PreDualGraphNode("left", is_boundary=True)
@@ -268,16 +274,16 @@ def square_2d_dual_graph(distance: int) -> rustworkx.PyGraph:
 
     for col_pos, col in enumerate(nodes):
         # reached last col
-        if col_pos == num_cols-1:
+        if col_pos == num_cols - 1:
             continue
         for row_pos, node in enumerate(col):
             # diagonal pattern, including all odd rows from even cols and vice versa
             if row_pos % 2 == col_pos % 2:
                 continue
-            if row_pos != num_rows-1:
-                add_edge(dual_graph, node, nodes[col_pos+1][row_pos+1])
+            if row_pos != num_rows - 1:
+                add_edge(dual_graph, node, nodes[col_pos + 1][row_pos + 1])
             if row_pos != 0:
-                add_edge(dual_graph, node, nodes[col_pos+1][row_pos-1])
+                add_edge(dual_graph, node, nodes[col_pos + 1][row_pos - 1])
 
     coloring_qubits(dual_graph, dimension=2)
     return dual_graph

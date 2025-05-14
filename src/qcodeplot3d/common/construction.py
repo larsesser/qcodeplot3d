@@ -50,7 +50,7 @@ def _compute_coloring(graph: rustworkx.PyGraph, colors: list[Color]) -> dict[int
         # at least one color
         cnf.append([i * color_offset + node.index + offset for i in range(len(colors))])
         # at most one color
-        for a, b in itertools.combinations([i*color_offset+node.index for i in range(len(colors))], 2):
+        for a, b in itertools.combinations([i * color_offset + node.index for i in range(len(colors))], 2):
             cnf.append([-(a + offset), -(b + offset)])
     # add a constraint for each edge, so connected nodes do not share the same color
     for _, (node_index1, node_index2, _) in graph.edge_index_map().items():
@@ -59,11 +59,13 @@ def _compute_coloring(graph: rustworkx.PyGraph, colors: list[Color]) -> dict[int
     # determine the color of two boundaries, to make the solution stable
     boundary_nodes = [node for node in graph.nodes() if node.is_boundary]
     if len(boundary_nodes) <= 4:
-        cnf.append([boundary_nodes[0].index+offset])
+        cnf.append([boundary_nodes[0].index + offset])
     elif len(boundary_nodes) == 6:
-        cnf.append([boundary_nodes[0].index+offset])
-        neighboured_boundaries = [node for node in boundary_nodes if graph.has_edge(boundary_nodes[0].index, node.index)]
-        cnf.append([neighboured_boundaries[0].index+color_offset+offset])
+        cnf.append([boundary_nodes[0].index + offset])
+        neighboured_boundaries = [
+            node for node in boundary_nodes if graph.has_edge(boundary_nodes[0].index, node.index)
+        ]
+        cnf.append([neighboured_boundaries[0].index + color_offset + offset])
     else:
         raise NotImplementedError
 
@@ -118,7 +120,8 @@ def coloring_qubits(dual_graph: rustworkx.PyGraph, dimension: int = 3, do_colori
             color = Color.green
         qubits = node2simplex[node.index]
         dual_graph[node.index] = DualGraphNode(
-            max_id, color, qubits, is_stabilizer=(node.index not in boundary_nodes_indices), all_qubits=all_qubits)
+            max_id, color, qubits, is_stabilizer=(node.index not in boundary_nodes_indices), all_qubits=all_qubits
+        )
         max_id += 1
         dual_graph[node.index].index = node.index
         dual_graph[node.index].title = node.title

@@ -1,4 +1,5 @@
 """Plotting dual lattice & constructed primary lattice from graph definition."""
+
 import abc
 import collections
 import dataclasses
@@ -35,7 +36,8 @@ class Plotter3D(Plotter, abc.ABC):
     dimension: ClassVar[int] = 3
 
     def layout_primary_nodes(
-            self, given_qubit_coordinates: dict[int, npt.NDArray[np.float64]],
+        self,
+        given_qubit_coordinates: dict[int, npt.NDArray[np.float64]],
     ) -> tuple[list[npt.NDArray[np.float64]], dict[int, int]]:
         # volumes -> vertices
 
@@ -45,7 +47,7 @@ class Plotter3D(Plotter, abc.ABC):
 
         # group dual lattice cells (of the tetrahedron) by qubit
         qubit_to_facepositions: dict[int, list[int]] = defaultdict(list)
-        for position, qubit in enumerate(self.dual_mesh.cell_data['qubits']):
+        for position, qubit in enumerate(self.dual_mesh.cell_data["qubits"]):
             qubit_to_facepositions[qubit].append(position)
 
         for pointposition, (qubit, facepositions) in enumerate(qubit_to_facepositions.items()):
@@ -66,17 +68,25 @@ class Plotter3D(Plotter, abc.ABC):
 
     @abc.abstractmethod
     def postprocess_primary_node_layout(
-            self, points: list[npt.NDArray[np.float64]], qubit_to_pointpos: dict[int, int],
-    ) -> list[npt.NDArray[np.float64]]:
-        ...
+        self,
+        points: list[npt.NDArray[np.float64]],
+        qubit_to_pointpos: dict[int, int],
+    ) -> list[npt.NDArray[np.float64]]: ...
 
-    def construct_primary_mesh(self, highlighted_volumes: list[DualGraphNode] = None,
-                               qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None,
-                               face_color: Union[Color, list[Color]] = None, node_color: Union[Color, list[Color]] = None,
-                               lowest_title: tuple[int, int, int] = None, highest_title: tuple[int, int, int] = None,
-                               mandatory_face_qubits: set[int] = None, string_operator_qubits: set[int] = None,
-                               color_edges: bool = False, mandatory_cell_qubits: set[int] = None,
-                               face_syndrome_qubits: set[int] = None) -> pyvista.PolyData:
+    def construct_primary_mesh(
+        self,
+        highlighted_volumes: list[DualGraphNode] = None,
+        qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None,
+        face_color: Union[Color, list[Color]] = None,
+        node_color: Union[Color, list[Color]] = None,
+        lowest_title: tuple[int, int, int] = None,
+        highest_title: tuple[int, int, int] = None,
+        mandatory_face_qubits: set[int] = None,
+        string_operator_qubits: set[int] = None,
+        color_edges: bool = False,
+        mandatory_cell_qubits: set[int] = None,
+        face_syndrome_qubits: set[int] = None,
+    ) -> pyvista.PolyData:
         """Construct primary mesh from dual_mesh.
 
         :param qubit_coordinates: Use them instead of calculating the coordinates from the dual_mesh.
@@ -125,9 +135,13 @@ class Plotter3D(Plotter, abc.ABC):
             add_volume = True
             if node.title and (match := re.match(r"\((?P<col>-?\d+),(?P<row>-?\d+),(?P<layer>-?\d+)\)", node.title)):
                 layer, row, col = int(match.group("layer")), int(match.group("row")), int(match.group("col"))
-                if lowest_title and not (lowest_title[0] <= col and lowest_title[1] <= row and lowest_title[2] <= layer ):
+                if lowest_title and not (
+                    lowest_title[0] <= col and lowest_title[1] <= row and lowest_title[2] <= layer
+                ):
                     add_volume = False
-                if highest_title and not (col <= highest_title[0] and row <= highest_title[1] and layer <= highest_title[2]):
+                if highest_title and not (
+                    col <= highest_title[0] and row <= highest_title[1] and layer <= highest_title[2]
+                ):
                     add_volume = False
             if not mandatory_cell_qubits & set(node.qubits):
                 add_volume = False
@@ -135,9 +149,12 @@ class Plotter3D(Plotter, abc.ABC):
             if not add_volume and not color_edges:
                 continue
             # each dual graph edge corresponds to a primary graph face
-            all_face_qubits = [(edge.color, edge.qubits) for _, _, edge in self.dual_graph.out_edges(node.index)
-                               if set(edge.qubits) & mandatory_face_qubits
-                               and (face_syndrome_qubits is None or len(set(edge.qubits) & face_syndrome_qubits)) % 2 == 1]
+            all_face_qubits = [
+                (edge.color, edge.qubits)
+                for _, _, edge in self.dual_graph.out_edges(node.index)
+                if set(edge.qubits) & mandatory_face_qubits
+                and (face_syndrome_qubits is None or len(set(edge.qubits) & face_syndrome_qubits)) % 2 == 1
+            ]
             faces: list[list[int]] = []
             face_colors = []
             for f_color, face_qubits in all_face_qubits:
@@ -158,7 +175,7 @@ class Plotter3D(Plotter, abc.ABC):
                             face_colors.append(node.color.highlight)
                         else:
                             face_colors.append(node.color)
-                elif (face_color is not None and f_color in face_color):
+                elif face_color is not None and f_color in face_color:
                     # otherwise, most faces would be included twice, once per volume
                     if face in volumes:
                         continue
@@ -173,9 +190,11 @@ class Plotter3D(Plotter, abc.ABC):
                     for edge in zip(face, [face[-1]] + face[:-1]):
                         all_edges.add(edge)
                         all_edges.add(edge[::-1])
-                        if ((face_color is None and node_color is None)
-                                or (face_color is not None and f_color in face_color)
-                                or (node_color is not None and node.color in node_color)):
+                        if (
+                            (face_color is None and node_color is None)
+                            or (face_color is not None and f_color in face_color)
+                            or (node_color is not None and node.color in node_color)
+                        ):
                             present_edges.add(edge)
                             present_edges.add(edge[::-1])
             # add volume faces
@@ -207,7 +226,9 @@ class Plotter3D(Plotter, abc.ABC):
             for pos1, pos2 in itertools.combinations(volumes_by_pos.keys(), 2):
                 if volume_colors_by_pos[pos1] != volume_colors_by_pos[pos2] or volume_colors_by_pos[pos1] < 0:
                     continue
-                edges = [edge for edge in itertools.product(volumes_by_pos[pos1], volumes_by_pos[pos2]) if edge in all_edges]
+                edges = [
+                    edge for edge in itertools.product(volumes_by_pos[pos1], volumes_by_pos[pos2]) if edge in all_edges
+                ]
                 if not edges:
                     continue
                 # the distance check is a nasty ducktape fix: some of the faces (with 6 points and 2 connected squares)
@@ -217,27 +238,33 @@ class Plotter3D(Plotter, abc.ABC):
                 distances = [distance_between_points(points[edge[0]], points[edge[1]]) for edge in edges]
                 min_distance = min(distances)
                 for edge, distance in zip(edges, distances):
-                    if edge not in lines and (edge[1], edge[0]) not in lines and (0.9*distance <= min_distance or self.dimension == 3):
+                    if (
+                        edge not in lines
+                        and (edge[1], edge[0]) not in lines
+                        and (0.9 * distance <= min_distance or self.dimension == 3)
+                    ):
                         lines.append(edge)
                         line_ids.append(self.next_id)
                         line_colors.append(volume_colors_by_pos[pos1].highlight)
         ret = pyvista.PolyData(points, faces=convert_faces(volumes), lines=convert_faces(lines) if lines else None)
-        ret.point_data['qubits'] = qubits
-        ret.cell_data['face_ids'] = [*line_ids, *volume_ids]
-        ret.cell_data['colors'] = [*line_colors, *volume_colors]
-        ret.cell_data['pyvista_indices'] = [*([-1]*len(lines)), *volume_indices]
+        ret.point_data["qubits"] = qubits
+        ret.cell_data["face_ids"] = [*line_ids, *volume_ids]
+        ret.cell_data["colors"] = [*line_colors, *volume_colors]
+        ret.cell_data["pyvista_indices"] = [*([-1] * len(lines)), *volume_indices]
         return ret
 
 
 @dataclasses.dataclass
 class TetrahedronPlotter(Plotter3D):
     def postprocess_primary_node_layout(
-            self, points: list[npt.NDArray[np.float64]], qubit_to_pointpos: dict[int, int],
+        self,
+        points: list[npt.NDArray[np.float64]],
+        qubit_to_pointpos: dict[int, int],
     ) -> list[npt.NDArray[np.float64]]:
         qubit_to_point = {qubit: points[pointpos] for qubit, pointpos in qubit_to_pointpos.items()}
         corner_qubits = {qubit: nodes for qubit, nodes in self.qubit_to_boundaries.items() if len(nodes) == 3}
         border_qubits = {qubit: nodes for qubit, nodes in self.qubit_to_boundaries.items() if len(nodes) == 2}
-        border_to_qubit: dict[tuple[int, int]: list[int]] = collections.defaultdict(list)
+        border_to_qubit: dict[tuple[int, int] : list[int]] = collections.defaultdict(list)
         for qubit, nodes in border_qubits.items():
             border_to_qubit[tuple(sorted([nodes[0].index, nodes[1].index]))].append(qubit)
         boundary_qubits = {qubit: nodes for qubit, nodes in self.qubit_to_boundaries.items() if len(nodes) == 1}
@@ -245,7 +272,6 @@ class TetrahedronPlotter(Plotter3D):
         for qubit, nodes in boundary_qubits.items():
             boundary_to_qubit[nodes[0].index].append(qubit)
         bulk_qubits = {qubit for qubit, nodes in self.qubit_to_boundaries.items() if len(nodes) == 0}
-
 
         if self.distance == 3:
             # move corner qubits more outward
@@ -265,10 +291,16 @@ class TetrahedronPlotter(Plotter3D):
                 for qubit, coordinate in zip(qubits, boundary_to_qubit_point[boundary]):
                     qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = coordinate
             for boundary1, boundary2, boundary3 in itertools.combinations(boundary_to_qubit.keys(), 3):
-                coordinate = cross_point_3_planes(boundary_to_qubit_point[boundary1], boundary_to_qubit_point[boundary2],
-                                                  boundary_to_qubit_point[boundary3])
-                qubit = (set(self.dual_graph[boundary1].qubits) & set(self.dual_graph[boundary2].qubits) & set(
-                    self.dual_graph[boundary3].qubits)).pop()
+                coordinate = cross_point_3_planes(
+                    boundary_to_qubit_point[boundary1],
+                    boundary_to_qubit_point[boundary2],
+                    boundary_to_qubit_point[boundary3],
+                )
+                qubit = (
+                    set(self.dual_graph[boundary1].qubits)
+                    & set(self.dual_graph[boundary2].qubits)
+                    & set(self.dual_graph[boundary3].qubits)
+                ).pop()
                 qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = coordinate
 
             # move corner qubits more inward
@@ -296,18 +328,29 @@ class TetrahedronPlotter(Plotter3D):
                 continue
             to_plane = {
                 qubit: coordinate
-                for qubit, coordinate in zip(qubits, project_to_given_plane(
-                    [line[0], line[1], dual_mesh_center], [qubit_to_point[qubit] for qubit in qubits]))
+                for qubit, coordinate in zip(
+                    qubits,
+                    project_to_given_plane(
+                        [line[0], line[1], dual_mesh_center], [qubit_to_point[qubit] for qubit in qubits]
+                    ),
+                )
             }
             for qubit, coordinate in to_plane.items():
                 new_coordinate = cross_point_2_lines(line, [dual_mesh_center, coordinate])
                 qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = new_coordinate
 
             # move first and last qubit of each border more towards the corner
-            tmp = {qubit: distance_between_points(line[0], project_to_line(line, qubit_to_point[qubit])) for qubit in qubits}
+            tmp = {
+                qubit: distance_between_points(line[0], project_to_line(line, qubit_to_point[qubit]))
+                for qubit in qubits
+            }
             qubit_order = sorted(tmp, key=lambda x: tmp[x])
-            qubit_to_point[qubit_order[0]] = points[qubit_to_pointpos[qubit_order[0]]] = (2*qubit_to_point[qubit_order[0]] + line[0]) / 3
-            qubit_to_point[qubit_order[-1]] = points[qubit_to_pointpos[qubit_order[-1]]] = (2*qubit_to_point[qubit_order[-1]] + line[1]) / 3
+            qubit_to_point[qubit_order[0]] = points[qubit_to_pointpos[qubit_order[0]]] = (
+                2 * qubit_to_point[qubit_order[0]] + line[0]
+            ) / 3
+            qubit_to_point[qubit_order[-1]] = points[qubit_to_pointpos[qubit_order[-1]]] = (
+                2 * qubit_to_point[qubit_order[-1]] + line[1]
+            ) / 3
             # TODO scale remaining qubits better
             # assign equal-spaced coordinates to each qubit
             # qubit_distance = (line[1] - line[0]) / (len(qubits) + 3)
@@ -319,8 +362,10 @@ class TetrahedronPlotter(Plotter3D):
             plane_qubits = list(set(boundaries[0].qubits) & set(corner_qubits))
             if len(plane_qubits) != 3:
                 raise ValueError
-            [new_coordinate] = project_to_given_plane([qubit_to_point[plane_qubits[0]], qubit_to_point[plane_qubits[1]],
-                                                       qubit_to_point[plane_qubits[2]]], [qubit_to_point[qubit]])
+            [new_coordinate] = project_to_given_plane(
+                [qubit_to_point[plane_qubits[0]], qubit_to_point[plane_qubits[1]], qubit_to_point[plane_qubits[2]]],
+                [qubit_to_point[qubit]],
+            )
             qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = new_coordinate
 
         # move bulk qubits more to center
@@ -353,12 +398,14 @@ class TetrahedronPlotter(Plotter3D):
         lines = reconvert_faces(primary_mesh.lines)
         faces = reconvert_faces(primary_mesh.faces)
         dg_index_to_points: dict[int, dict[int, npt.NDArray[np.float64]]] = defaultdict(dict)
-        for dg_index, face in zip(primary_mesh.cell_data['pyvista_indices'][len(lines):], faces):
+        for dg_index, face in zip(primary_mesh.cell_data["pyvista_indices"][len(lines) :], faces):
             for pos in face:
-                dg_index_to_points[dg_index][primary_mesh.point_data['qubits'][pos]] = primary_mesh.points[pos]
+                dg_index_to_points[dg_index][primary_mesh.point_data["qubits"][pos]] = primary_mesh.points[pos]
 
-        corner_qubits = {(set(node1.qubits) & set(node2.qubits) & set(node3.qubits)).pop()
-                         for node1, node2, node3 in itertools.combinations(self.boundary_nodes, 3)}
+        corner_qubits = {
+            (set(node1.qubits) & set(node2.qubits) & set(node3.qubits)).pop()
+            for node1, node2, node3 in itertools.combinations(self.boundary_nodes, 3)
+        }
 
         # compute the center of each volume
         ret: dict[int, npt.NDArray[np.float64]] = {}
@@ -390,7 +437,9 @@ class CubicPlotter(Plotter3D):
         return factor
 
     def postprocess_primary_node_layout(
-            self, points: list[npt.NDArray[np.float64]], qubit_to_pointpos: dict[int, int],
+        self,
+        points: list[npt.NDArray[np.float64]],
+        qubit_to_pointpos: dict[int, int],
     ) -> list[npt.NDArray[np.float64]]:
         """Move qubits at the outside more outward, to form an even plane at each boundary."""
         qubit_to_point = {qubit: points[pointpos] for qubit, pointpos in qubit_to_pointpos.items()}
@@ -408,8 +457,9 @@ class CubicPlotter(Plotter3D):
                 if neighbour.is_boundary:
                     continue
                 references = [qubit_to_point[qubit] for qubit in set(node.qubits) & set(neighbour.qubits)]
-                if all(distance > max_distance for distance in
-                       distance_to_plane(face_corner_qubit_coordinates, references)):
+                if all(
+                    distance > max_distance for distance in distance_to_plane(face_corner_qubit_coordinates, references)
+                ):
                     reference_plane = references
                     max_distance = min(distance_to_plane(face_corner_qubit_coordinates, references))
             boundary_to_reference_plane[node.index] = reference_plane
@@ -430,8 +480,11 @@ class CubicPlotter(Plotter3D):
             for qubit, coordinate in zip(node.qubits, plane_face_qubit_coordinates):
                 new_coordinate = coordinate
                 # move all qubits which are not on a boundary edge away from the center
-                if (qubit not in corner_qubits and qubit not in border_qubits
-                        and distance_between_points(coordinate, plane_center) > 30):
+                if (
+                    qubit not in corner_qubits
+                    and qubit not in border_qubits
+                    and distance_between_points(coordinate, plane_center) > 30
+                ):
                     new_coordinate = coordinate + 0.4 * (coordinate - plane_center)
                 qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = new_coordinate
 
@@ -462,9 +515,9 @@ class CubicPlotter(Plotter3D):
         lines = reconvert_faces(primary_mesh.lines)
         faces = reconvert_faces(primary_mesh.faces)
         dg_index_to_points: dict[int, dict[int, npt.NDArray[np.float64]]] = defaultdict(dict)
-        for dg_index, face in zip(primary_mesh.cell_data['pyvista_indices'][len(lines):], faces):
+        for dg_index, face in zip(primary_mesh.cell_data["pyvista_indices"][len(lines) :], faces):
             for pos in face:
-                dg_index_to_points[dg_index][primary_mesh.point_data['qubits'][pos]] = primary_mesh.points[pos]
+                dg_index_to_points[dg_index][primary_mesh.point_data["qubits"][pos]] = primary_mesh.points[pos]
 
         corner_qubits = set()
         for node1, node2, node3 in itertools.combinations(self.boundary_nodes, 3):

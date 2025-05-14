@@ -1,4 +1,4 @@
-"""Implementation of basic graph objects, which are used to construct graph-based quantum codes and graph-based decoders."""
+"""Implementation of basic graph objects, which are used to construct graph-based quantum codes and decoders."""
 
 import abc
 import dataclasses
@@ -37,8 +37,7 @@ class GraphNode(GraphObject, abc.ABC):
 
     @property
     @abc.abstractmethod
-    def is_boundary(self) -> bool:
-        ...
+    def is_boundary(self) -> bool: ...
 
     def get(self, attr, default):
         """Boilerplate code for pymatching."""
@@ -103,6 +102,7 @@ class DualGraphNode(GraphNode):
 
     A node corresponds to a stabilizer or a boundary of the primary lattice.
     """
+
     id: int
     qubits: list[int]
     is_stabilizer: bool
@@ -131,6 +131,7 @@ class XDualGraphNode(DualGraphNode):
     A node corresponds to an edge of the regular dual lattice (so a face of the primary lattice), which hosts either a
     stabilizer or is a boundary.
     """
+
     def __post_init__(self):
         self.qubits = sorted(self.qubits)
         if not self.color.is_mixed:
@@ -155,8 +156,12 @@ class DualGraphEdge(GraphEdge):
                 stab_length = self.node2.stabilizer.length
             # use id to ensure the ancilla of each stabilizer (node-like and edge-like!) is unique
             ancilla = len(self.all_qubits) + self.id + 1
-            self.stabilizer = Stabilizer(length=stab_length, color=self.node1.color.combine(self.node2.color),
-                                          z_positions=self.qubits, ancillas=[ancilla])
+            self.stabilizer = Stabilizer(
+                length=stab_length,
+                color=self.node1.color.combine(self.node2.color),
+                z_positions=self.qubits,
+                ancillas=[ancilla],
+            )
 
     @cached_property
     def qubits(self) -> list[int]:
@@ -187,6 +192,7 @@ class RestrictedGraphNode(GraphNode):
 
     A small wrapper around a DualGraphNode to get the indices right.
     """
+
     dg_node: DualGraphNode
 
     def __init__(self, dg_node: DualGraphNode) -> None:

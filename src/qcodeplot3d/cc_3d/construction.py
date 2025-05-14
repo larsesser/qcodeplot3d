@@ -55,12 +55,23 @@ def tetrahedron_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
     for layer in range(num_layers, 0, -1):
         # create nodes of this layer
         red_offset = (0, 0)
-        red_nodes = [TetrahedralNode3D(Color.red, col, row, layer) for col, row in triangular_node_position(layer, red_offset)]
+        red_nodes = [
+            TetrahedralNode3D(Color.red, col, row, layer) for col, row in triangular_node_position(layer, red_offset)
+        ]
         green_offset = (0, 2)
-        green_nodes = [TetrahedralNode3D(Color.green, col, row, layer) for col, row in triangular_node_position(layer, green_offset)]
+        green_nodes = [
+            TetrahedralNode3D(Color.green, col, row, layer)
+            for col, row in triangular_node_position(layer, green_offset)
+        ]
         yellow_offset = (1, 1)
-        yellow_nodes = [TetrahedralNode3D(Color.yellow, col, row, layer) for col, row in triangular_node_position(layer, yellow_offset)]
-        blue_nodes = [TetrahedralNode3D(Color.blue, col, row, layer) for col, row in triangular_node_position(layer, yellow_offset)]
+        yellow_nodes = [
+            TetrahedralNode3D(Color.yellow, col, row, layer)
+            for col, row in triangular_node_position(layer, yellow_offset)
+        ]
+        blue_nodes = [
+            TetrahedralNode3D(Color.blue, col, row, layer)
+            for col, row in triangular_node_position(layer, yellow_offset)
+        ]
         all_nodes.extend(red_nodes + green_nodes + yellow_nodes + blue_nodes)
         rgy_layer = {node.coordinate_2d: node for node in [*red_nodes, *green_nodes, *yellow_nodes]}
         rgy_layers[layer] = rgy_layer
@@ -89,24 +100,24 @@ def tetrahedron_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
             # add trivial neighbours
             for x_offset in [-1, +1]:
                 for y_offset in [-1, 0, +1]:
-                    if n := rgy_layer.get((x+x_offset, y+y_offset)):
+                    if n := rgy_layer.get((x + x_offset, y + y_offset)):
                         all_edges.add((node, n))
                         if node.color == Color.yellow:
                             all_edges.add((rgb_layer[(x, y)], n))
             # add neighbour above / below. If there is no node, add next-next neighbour
-            if n := rgy_layer.get((x, y+1)):
+            if n := rgy_layer.get((x, y + 1)):
                 all_edges.add((node, n))
                 if node.color == Color.yellow:
                     all_edges.add((rgb_layer[(x, y)], n))
-            elif n := rgy_layer.get((x, y+2)):
+            elif n := rgy_layer.get((x, y + 2)):
                 all_edges.add((node, n))
                 if node.color == Color.yellow:
                     all_edges.add((rgb_layer[(x, y)], n))
-            if n := rgy_layer.get((x, y-1)):
+            if n := rgy_layer.get((x, y - 1)):
                 all_edges.add((node, n))
                 if node.color == Color.yellow:
                     all_edges.add((rgb_layer[(x, y)], n))
-            elif n := rgy_layer.get((x, y-2)):
+            elif n := rgy_layer.get((x, y - 2)):
                 all_edges.add((node, n))
                 if node.color == Color.yellow:
                     all_edges.add((rgb_layer[(x, y)], n))
@@ -126,7 +137,7 @@ def tetrahedron_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
                 y = y_ + 1
 
             # connect node with respective node of one level lower
-            all_edges.add((rgb_layers[layer+1][(x, y)], node))
+            all_edges.add((rgb_layers[layer + 1][(x, y)], node))
 
             if node.color == Color.green:
                 continue
@@ -134,16 +145,16 @@ def tetrahedron_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
             # add trivial neighbours
             for x_offset in [-1, +1]:
                 for y_offset in [-1, 0, +1]:
-                    if (n := rgb_layers[layer+1].get((x+x_offset, y+y_offset))) and n.color != node.color:
+                    if (n := rgb_layers[layer + 1].get((x + x_offset, y + y_offset))) and n.color != node.color:
                         all_edges.add((node, n))
             # add neighbour above / below. If there is no node, add next-next neighbour
-            if (n := rgb_layers[layer+1].get((x, y+1))) and n.color != node.color:
+            if (n := rgb_layers[layer + 1].get((x, y + 1))) and n.color != node.color:
                 all_edges.add((node, n))
-            elif (n := rgb_layers[layer+1].get((x, y+2))) and n.color != node.color:
+            elif (n := rgb_layers[layer + 1].get((x, y + 2))) and n.color != node.color:
                 all_edges.add((node, n))
-            if (n := rgb_layers[layer+1].get((x, y-1))) and n.color != node.color:
+            if (n := rgb_layers[layer + 1].get((x, y - 1))) and n.color != node.color:
                 all_edges.add((node, n))
-            elif (n := rgb_layers[layer+1].get((x, y-2))) and n.color != node.color:
+            elif (n := rgb_layers[layer + 1].get((x, y - 2))) and n.color != node.color:
                 all_edges.add((node, n))
 
     graph = rustworkx.PyGraph(multigraph=False)
@@ -161,12 +172,13 @@ def tetrahedron_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
     coloring_qubits(graph, 3, do_coloring=True)
     return graph
 
+
 def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
     """See https://www.nature.com/articles/ncomms12302#Sec12"""
     if not distance % 2 == 0:
         raise ValueError("d must be an even integer")
 
-    num_cols = num_rows = num_layers = distance-1
+    num_cols = num_rows = num_layers = distance - 1
 
     dual_graph = rustworkx.PyGraph(multigraph=False)
     left = PreDualGraphNode("left", is_boundary=True)
@@ -175,7 +187,7 @@ def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
     front = PreDualGraphNode("front", is_boundary=True)
     top = PreDualGraphNode("top", is_boundary=True)
     bottom = PreDualGraphNode("bottom", is_boundary=True)
-    boundaries = [left, right, back, front, top,  bottom]
+    boundaries = [left, right, back, front, top, bottom]
     #              -111
     #
     # distance 4, top layer:
@@ -214,8 +226,10 @@ def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
     #          [[200, 210, 220], [202, 211, 221], [202, 212, 222]]]
     #
     # face_nodes = [-111, 1-11, 11-1, 131, 113, 311]
-    nodes = [[[PreDualGraphNode(f"({col},{row},{layer})")
-               for row in range(num_rows)] for col in range(num_cols)] for layer in range(num_layers)]
+    nodes = [
+        [[PreDualGraphNode(f"({col},{row},{layer})") for row in range(num_rows)] for col in range(num_cols)]
+        for layer in range(num_layers)
+    ]
 
     face_nodes: dict[tuple[int, int, int], PreDualGraphNode] = {}
     nodepos_to_facenodepos = {}
@@ -224,31 +238,40 @@ def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
         for row in range(num_rows):
             for col in range(num_cols):
                 # one of the three indices is 0 or maximal (at the boundary)
-                if (layer in {0, num_layers - 1}
-                        # the other two indices are both odd
-                        and row % 2 == col % 2 == 1
-                        # and neither 0 nor maximal (at the boundary)
-                        and row not in {0, num_rows - 1} and col not in {0, num_cols - 1}):
+                if (
+                    layer in {0, num_layers - 1}
+                    # the other two indices are both odd
+                    and row % 2 == col % 2 == 1
+                    # and neither 0 nor maximal (at the boundary)
+                    and row not in {0, num_rows - 1}
+                    and col not in {0, num_cols - 1}
+                ):
                     new_layer = -1 if layer == 0 else layer + 1
                     face_nodes[(col, row, new_layer)] = PreDualGraphNode(f"({col},{row},{new_layer})")
                     nodepos_to_facenodepos[(col, row, layer)] = (col, row, new_layer)
                     facenodepos_to_nodepos[(col, row, new_layer)] = (col, row, layer)
                 # one of the three indices is 0 or maximal (at the boundary)
-                elif (row in {0, num_rows - 1}
-                        # the other two indices are both odd
-                        and layer % 2 == col % 2 == 1
-                        # and neither 0 nor maximal (at the boundary)
-                        and layer not in {0, num_layers - 1} and col not in {0, num_cols - 1}):
+                elif (
+                    row in {0, num_rows - 1}
+                    # the other two indices are both odd
+                    and layer % 2 == col % 2 == 1
+                    # and neither 0 nor maximal (at the boundary)
+                    and layer not in {0, num_layers - 1}
+                    and col not in {0, num_cols - 1}
+                ):
                     new_row = -1 if row == 0 else row + 1
                     face_nodes[(col, new_row, layer)] = PreDualGraphNode(f"({col},{new_row},{layer})")
                     nodepos_to_facenodepos[(col, row, layer)] = (col, new_row, layer)
                     facenodepos_to_nodepos[(col, new_row, layer)] = (col, row, layer)
                 # one of the three indices is 0 or maximal (at the boundary)
-                elif (col in {0, num_cols - 1}
-                        # the other two indices are both odd
-                        and row % 2 == layer % 2 == 1
-                        # and neither 0 nor maximal (at the boundary)
-                        and row not in {0, num_rows - 1} and layer not in {0, num_layers - 1}):
+                elif (
+                    col in {0, num_cols - 1}
+                    # the other two indices are both odd
+                    and row % 2 == layer % 2 == 1
+                    # and neither 0 nor maximal (at the boundary)
+                    and row not in {0, num_rows - 1}
+                    and layer not in {0, num_layers - 1}
+                ):
                     new_col = -1 if col == 0 else col + 1
                     face_nodes[(new_col, row, layer)] = PreDualGraphNode(f"({new_col},{row},{layer})")
                     nodepos_to_facenodepos[(col, row, layer)] = (new_col, row, layer)
@@ -321,7 +344,7 @@ def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
         # diagonals
         for col_pos, col in enumerate(layer):
             # reached last col
-            if col_pos == num_cols-1:
+            if col_pos == num_cols - 1:
                 continue
             for row_pos, node in enumerate(col):
                 # diagonal pattern, changing "direction" in each layer
@@ -329,10 +352,10 @@ def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
                     continue
                 if (layer_pos % 2 == 1) and (row_pos % 2 != col_pos % 2):
                     continue
-                if row_pos != num_rows-1:
-                    add_edge(dual_graph, node, layer[col_pos+1][row_pos+1])
+                if row_pos != num_rows - 1:
+                    add_edge(dual_graph, node, layer[col_pos + 1][row_pos + 1])
                 if row_pos != 0:
-                    add_edge(dual_graph, node, layer[col_pos+1][row_pos-1])
+                    add_edge(dual_graph, node, layer[col_pos + 1][row_pos - 1])
     # between two layers
     for layer1, layer2 in zip(nodes, nodes[1:]):
         for col1, col2 in zip(layer1, layer2):
@@ -340,7 +363,7 @@ def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
                 add_edge(dual_graph, node1, node2)
     for layer_pos, layer in enumerate(nodes):
         # reached last layer
-        if layer_pos == num_layers-1:
+        if layer_pos == num_layers - 1:
             continue
         for col_pos, col in enumerate(layer):
             for row_pos, node in enumerate(col):
@@ -349,14 +372,14 @@ def cubic_3d_dual_graph(distance: int) -> rustworkx.PyGraph:
                     continue
                 if (layer_pos % 2 == 1) and (row_pos % 2 != col_pos % 2):
                     continue
-                if row_pos != num_rows-1:
-                    add_edge(dual_graph, node, nodes[layer_pos+1][col_pos][row_pos+1])
+                if row_pos != num_rows - 1:
+                    add_edge(dual_graph, node, nodes[layer_pos + 1][col_pos][row_pos + 1])
                 if row_pos != 0:
-                    add_edge(dual_graph, node, nodes[layer_pos+1][col_pos][row_pos-1])
-                if col_pos != num_cols-1:
-                    add_edge(dual_graph, node, nodes[layer_pos+1][col_pos+1][row_pos])
+                    add_edge(dual_graph, node, nodes[layer_pos + 1][col_pos][row_pos - 1])
+                if col_pos != num_cols - 1:
+                    add_edge(dual_graph, node, nodes[layer_pos + 1][col_pos + 1][row_pos])
                 if col_pos != 0:
-                    add_edge(dual_graph, node, nodes[layer_pos+1][col_pos-1][row_pos])
+                    add_edge(dual_graph, node, nodes[layer_pos + 1][col_pos - 1][row_pos])
 
     # between nodes and face_nodes
     for node_pos, face_node_pos in nodepos_to_facenodepos.items():
@@ -422,8 +445,9 @@ def construct_cubic_logicals(dual_graph: rustworkx.PyGraph) -> tuple[list[Operat
     """Construct the x and z logical operators from the dual graph of a 3D cubic color code."""
     boundary_nodes: list[DualGraphNode] = [node for node in dual_graph.nodes() if node.is_boundary]
     boundary_nodes_by_color: dict[Color, tuple[DualGraphNode, DualGraphNode]] = {
-        node1.color: (node1, node2) for node1, node2 in itertools.combinations(boundary_nodes, 2) if
-        node1.color == node2.color
+        node1.color: (node1, node2)
+        for node1, node2 in itertools.combinations(boundary_nodes, 2)
+        if node1.color == node2.color
     }
     if len(boundary_nodes_by_color) != 3:
         raise ValueError

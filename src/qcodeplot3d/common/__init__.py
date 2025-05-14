@@ -8,6 +8,7 @@ import rustworkx
 
 class Kind(enum.Enum):
     """Which kind of stabilizer?"""
+
     x = "x"
     z = "z"
 
@@ -23,7 +24,9 @@ class Kind(enum.Enum):
         return self.value
 
 
-def compute_simplexes(graph: rustworkx.PyGraph, dimension: int, exclude_boundary_simplexes: bool = False) -> set[tuple[int, ...]]:
+def compute_simplexes(
+    graph: rustworkx.PyGraph, dimension: int, exclude_boundary_simplexes: bool = False
+) -> set[tuple[int, ...]]:
     """Find all simplexes of the given dimension in the graph.
 
     param exclude_boundary_simplexes: If True, exclude simplexes which vertices are all boundary vertices.
@@ -48,7 +51,9 @@ def compute_simplexes(graph: rustworkx.PyGraph, dimension: int, exclude_boundary
         return filtered_triangles
     tetrahedrons = set()
     for triangle in triangles:
-        common_neighbours = set(graph.neighbors(triangle[0])) & set(graph.neighbors(triangle[1])) & set(graph.neighbors(triangle[2]))
+        common_neighbours = (
+            set(graph.neighbors(triangle[0])) & set(graph.neighbors(triangle[1])) & set(graph.neighbors(triangle[2]))
+        )
         for neighbour in common_neighbours:
             tetrahedron = tuple(sorted([*triangle, neighbour]))
             # exclude tetrahedrons between only boundary nodes
@@ -61,4 +66,4 @@ def compute_simplexes(graph: rustworkx.PyGraph, dimension: int, exclude_boundary
 def powerset(iterable):
     """powerset([1,2,3]) → () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"""
     s = list(iterable)
-    return itertools.chain.from_iterable(itertools.combinations(s, r) for r in range(len(s)+1))
+    return itertools.chain.from_iterable(itertools.combinations(s, r) for r in range(len(s) + 1))

@@ -174,7 +174,7 @@ class Color(enum.IntEnum):
             to_rgba("#c55602"),  # red green
             to_rgba("#e6ab02"),  # red yellow
             to_rgba("#1b9e77"),  # blue green
-            to_rgba("grey"),     # blue yellow
+            to_rgba("grey"),  # blue yellow
             to_rgba("#7570b3"),  # green yellow
         ]
 
@@ -287,7 +287,6 @@ class Color(enum.IntEnum):
         }[self]
 
 
-
 class Stabilizer(Operator):
     """Special kind of operator which is viewed as a color code stabilizer."""
 
@@ -305,7 +304,10 @@ class Stabilizer(Operator):
         ancillas: list[int] = None,
     ) -> None:
         super().__init__(
-            length, x_positions=x_positions, z_positions=z_positions, name=name,
+            length,
+            x_positions=x_positions,
+            z_positions=z_positions,
+            name=name,
         )
         # color code stabilizers have either only x or only z support
         if self.x and self.z:
@@ -330,12 +332,14 @@ def get_check_matrix(generators: list[Operator], only_x: bool = False, only_z: b
     if only_x:
         rows = [
             [1 if pos in generator.x else 0 for pos in range(1, generator.length + 1)]
-            for generator in generators if generator.x
+            for generator in generators
+            if generator.x
         ]
     elif only_z:
         rows = [
             [1 if pos in generator.z else 0 for pos in range(1, generator.length + 1)]
-            for generator in generators if generator.z
+            for generator in generators
+            if generator.z
         ]
     else:
         rows = [
@@ -412,7 +416,8 @@ def check_logical_operator(logical: Operator, stabilizers: list[Operator]) -> No
 
 
 def check_logical_operators(
-    logicals: list[Operator], stabilizers: list[Operator],
+    logicals: list[Operator],
+    stabilizers: list[Operator],
 ) -> None:
     """Check if a given list of operators are logical operators for this stabilizer code.
 
@@ -442,7 +447,10 @@ def check_z(z: list[Operator], stabilizers: list[Operator]) -> None:
 
 
 def check_xj(
-    x_j: Operator, z_j: Operator, other_z: list[Operator], stabilizers: list[Operator],
+    x_j: Operator,
+    z_j: Operator,
+    other_z: list[Operator],
+    stabilizers: list[Operator],
 ) -> None:
     """Check if logical x_j fulfills the commutation relations.
 

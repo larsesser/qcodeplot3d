@@ -109,7 +109,7 @@ class CodeConfig:
 
     def _create_distance_validator(self, error_store: StringVar, submit: ttk.Button) -> Callable:
         def validator(new_value: str, operation: str) -> bool:
-            error_store.set('')
+            error_store.set("")
             if new_value == "":
                 change_state(submit, state="disabled")
                 return True
@@ -117,7 +117,7 @@ class CodeConfig:
                 error_store.set("Only digits are allowed.")
                 return False
             valid = True
-            if operation in {'focusout', 'focusin', 'forced'}:
+            if operation in {"focusout", "focusin", "forced"}:
                 is_even = int(new_value) % 2 == 0
                 ct = CodeTypes(self._codetype.get())
                 valid = False
@@ -147,6 +147,7 @@ class CodeConfig:
             else:
                 raise NotImplementedError
             distance.validate()
+
         return callback
 
     def _create_submit_command(self, all_ttk: list[ttk.Widget], progressbar: ttk.Progressbar) -> Callable:
@@ -165,6 +166,7 @@ class CodeConfig:
             change_state(all_ttk, state="disabled")
             f_: Future = self.pool.submit(CodeTypes(self._codetype.get()).graph_function, self._distance.get())
             f_.add_done_callback(callback)
+
         return command
 
     def create_frame(self, parent: ttk.Frame) -> ttk.LabelFrame:
@@ -182,15 +184,25 @@ class CodeConfig:
         progressbar = ttk.Progressbar(frame)
 
         # dimension radio buttons
-        dimension_label = ttk.Label(frame, text='Dimension')
-        two_d.configure(variable=self._dimension, value=2, text="2D", command=self._create_dimension_callback(2, code_type, distance))
-        three_d.configure(variable=self._dimension, value=3, text="3D", command=self._create_dimension_callback(3, code_type, distance))
+        dimension_label = ttk.Label(frame, text="Dimension")
+        two_d.configure(
+            variable=self._dimension,
+            value=2,
+            text="2D",
+            command=self._create_dimension_callback(2, code_type, distance),
+        )
+        three_d.configure(
+            variable=self._dimension,
+            value=3,
+            text="3D",
+            command=self._create_dimension_callback(3, code_type, distance),
+        )
         dimension_label.grid(row=0, column=0)
         two_d.grid(row=0, column=1)
         three_d.grid(row=0, column=2)
 
         # code type dropdown
-        code_type_label = ttk.Label(frame, text='Type')
+        code_type_label = ttk.Label(frame, text="Type")
         code_type.configure(textvariable=self._codetype, values=CodeTypes.get_3d_codes())
         code_type.bind("<<ComboboxSelected>>", lambda _: distance.validate())
         # only allow selection of predefined values
@@ -200,12 +212,18 @@ class CodeConfig:
 
         # distance entry
         distance_label = ttk.Label(frame, text="Distance")
-        validate_distance_wrapper = (frame.register(self._create_distance_validator(self._distance_error_msg, submit_button)), '%P', '%V')
-        distance.configure(textvariable=self._distance, validate='all', validatecommand=validate_distance_wrapper)
-        distance_msg = ttk.Label(frame, font='TkSmallCaptionFont', foreground='red', textvariable=self._distance_error_msg)
+        validate_distance_wrapper = (
+            frame.register(self._create_distance_validator(self._distance_error_msg, submit_button)),
+            "%P",
+            "%V",
+        )
+        distance.configure(textvariable=self._distance, validate="all", validatecommand=validate_distance_wrapper)
+        distance_msg = ttk.Label(
+            frame, font="TkSmallCaptionFont", foreground="red", textvariable=self._distance_error_msg
+        )
         distance_label.grid(row=20, column=0)
         distance.grid(row=20, column=1, columnspan=2, sticky="ew")
-        distance_msg.grid(row=21, column=1, columnspan=2, padx=5, pady=5, sticky='w')
+        distance_msg.grid(row=21, column=1, columnspan=2, padx=5, pady=5, sticky="w")
 
         # submit button, progress bar
         submit_button.configure(text="Build", command=self._create_submit_command(all_ttk, progressbar))
@@ -273,11 +291,14 @@ class PlotterConfig:
     def _create_state_change_callback(*args, state: str) -> Callable:
         def callback(*_) -> None:
             change_state(args, state=state)
+
         return callback
 
-    def _create_violatedqubits_validator(self, value_store: StringVar, error_store: StringVar, submits: list[ttk.Button]) -> Callable:
+    def _create_violatedqubits_validator(
+        self, value_store: StringVar, error_store: StringVar, submits: list[ttk.Button]
+    ) -> Callable:
         def validator(new_value: str, operation: str) -> bool:
-            error_store.set('')
+            error_store.set("")
             if new_value == "":
                 return True
             raw_qubits = new_value.split(",")
@@ -291,7 +312,7 @@ class PlotterConfig:
                     return False
                 qubits.append(qubit)
 
-            if operation in {'focusout', 'focusin', 'forced'}:
+            if operation in {"focusout", "focusin", "forced"}:
                 value_store.set(",".join(qubits))
 
             return True
@@ -299,8 +320,11 @@ class PlotterConfig:
         return validator
 
     def _highlighted_nodes(self, error_qubits: list[int]) -> list[DualGraphNode]:
-        return [node for node in self.code_config.dual_graph.nodes()
-                if len(set(node.qubits) & set(error_qubits)) % 2 and not node.is_boundary]
+        return [
+            node
+            for node in self.code_config.dual_graph.nodes()
+            if len(set(node.qubits) & set(error_qubits)) % 2 and not node.is_boundary
+        ]
 
     def _create_dualmesh_create_command(self, all_ttk: list[ttk.Widget], progressbar: ttk.Progressbar) -> Callable:
         def command() -> None:
@@ -315,7 +339,7 @@ class PlotterConfig:
             self.root.event_generate("<<DualMeshCreationStarted>>")
             # highlight all nodes to make them more distinguishable
             highlighted_nodes = self.code_config.dual_graph.nodes()
-            if (violated_qubits := self.dm_violated_qubits.get()):
+            if violated_qubits := self.dm_violated_qubits.get():
                 qubits = sorted(set([int(qubit) for qubit in violated_qubits.split(",")]))
                 highlighted_nodes = self._highlighted_nodes(qubits)
             highlighted_edges = None
@@ -323,7 +347,8 @@ class PlotterConfig:
             if self.use_edge_color.get():
                 highlighted_edges = self.code_config.dual_graph.edges()
             f_: Future = self.pool.submit(
-                self.plotter.construct_dual_mesh, self.code_config.dual_graph,
+                self.plotter.construct_dual_mesh,
+                self.code_config.dual_graph,
                 use_edges_colors=self.use_edge_color.get(),
                 highlighted_nodes=highlighted_nodes,
                 highlighted_edges=highlighted_edges,
@@ -331,6 +356,7 @@ class PlotterConfig:
                 exclude_boundaries=self.exclude_boundaries.get(),
             )
             f_.add_done_callback(callback)
+
         return command
 
     def create_dual_config_frame(self, parent: ttk.Frame) -> ttk.LabelFrame:
@@ -346,8 +372,12 @@ class PlotterConfig:
         all_ttk = [use_edge_color, edges_between_boundaries, exclude_boundaries, violated_qubits, submit]
         progress_bar = ttk.Progressbar(frame)
 
-        self.root.bind("<<DualGraphCreationStarted>>", self._create_state_change_callback(*all_ttk, state="disabled"), add="+")
-        self.root.bind("<<DualGraphCreationFinished>>", self._create_state_change_callback(*all_ttk, state="normal"), add="+")
+        self.root.bind(
+            "<<DualGraphCreationStarted>>", self._create_state_change_callback(*all_ttk, state="disabled"), add="+"
+        )
+        self.root.bind(
+            "<<DualGraphCreationFinished>>", self._create_state_change_callback(*all_ttk, state="normal"), add="+"
+        )
         for element in all_ttk:
             element.configure(state="disabled")
 
@@ -362,14 +392,23 @@ class PlotterConfig:
 
         violated_qubits_label = ttk.Label(frame, text="Errors on qubits")
         validate_qubits_wrapper = (
-            frame.register(self._create_violatedqubits_validator(self.dm_violated_qubits, self.dm_violated_qubits_error_msg, submit)),
-            '%P', '%V',
+            frame.register(
+                self._create_violatedqubits_validator(
+                    self.dm_violated_qubits, self.dm_violated_qubits_error_msg, submit
+                )
+            ),
+            "%P",
+            "%V",
         )
-        violated_qubits.configure(textvariable=self.dm_violated_qubits, validate='all', validatecommand=validate_qubits_wrapper)
-        violated_qubits_msg = ttk.Label(frame, font='TkSmallCaptionFont', foreground='red', textvariable=self.dm_violated_qubits_error_msg)
+        violated_qubits.configure(
+            textvariable=self.dm_violated_qubits, validate="all", validatecommand=validate_qubits_wrapper
+        )
+        violated_qubits_msg = ttk.Label(
+            frame, font="TkSmallCaptionFont", foreground="red", textvariable=self.dm_violated_qubits_error_msg
+        )
         violated_qubits_label.grid(row=20, column=0)
         violated_qubits.grid(row=20, column=1, columnspan=2, sticky="ew")
-        violated_qubits_msg.grid(row=21, column=1, columnspan=2, padx=5, pady=5, sticky='w')
+        violated_qubits_msg.grid(row=21, column=1, columnspan=2, padx=5, pady=5, sticky="w")
 
         submit.configure(text="Build", command=self._create_dualmesh_create_command(all_ttk, progress_bar))
         submit.grid(row=100, column=1, sticky="se")
@@ -381,7 +420,8 @@ class PlotterConfig:
 
     def _dualmesh_plot_command(self) -> None:
         self.pool.submit(
-            self.plotter.plot_debug_mesh, self.dual_graph_mesh,
+            self.plotter.plot_debug_mesh,
+            self.dual_graph_mesh,
             window_title=self.code_config.code_description,
         )
 
@@ -393,9 +433,15 @@ class PlotterConfig:
         submit_button = ttk.Button(frame)
         all_ttk = [submit_button]
 
-        self.root.bind("<<DualGraphCreationStarted>>", self._create_state_change_callback(*all_ttk, state="disabled"), add="+")
-        self.root.bind("<<DualMeshCreationStarted>>", self._create_state_change_callback(*all_ttk, state="disabled"), add="+")
-        self.root.bind("<<DualMeshCreationFinished>>", self._create_state_change_callback(*all_ttk, state="normal"), add="+")
+        self.root.bind(
+            "<<DualGraphCreationStarted>>", self._create_state_change_callback(*all_ttk, state="disabled"), add="+"
+        )
+        self.root.bind(
+            "<<DualMeshCreationStarted>>", self._create_state_change_callback(*all_ttk, state="disabled"), add="+"
+        )
+        self.root.bind(
+            "<<DualMeshCreationFinished>>", self._create_state_change_callback(*all_ttk, state="normal"), add="+"
+        )
         for element in all_ttk:
             element.configure(state="disabled")
 
@@ -414,11 +460,12 @@ class PlotterConfig:
                 args = [self.dual_graph_mesh]
             violated_qubits = None
             highlighted_volumes = None
-            if (qubits := self.pm_violated_qubits.get()):
+            if qubits := self.pm_violated_qubits.get():
                 violated_qubits = sorted(set([int(qubit) for qubit in qubits.split(",")]))
                 highlighted_volumes = self._highlighted_nodes(violated_qubits)
             self.pool.submit(
-                func, *args,
+                func,
+                *args,
                 show_qubit_labels=self.pm_show_labels.get(),
                 highlighted_qubits=violated_qubits,
                 highlighted_volumes=highlighted_volumes,
@@ -426,6 +473,7 @@ class PlotterConfig:
                 color_edges=True,
                 window_title=self.code_config.code_description,
             )
+
         return command
 
     def create_primary_plot_frame(self, parent: ttk.Frame) -> ttk.LabelFrame:
@@ -441,11 +489,23 @@ class PlotterConfig:
         submit_ttks = [show_labels, violated_qubits, transparent_faces, violated_qubits, submit_button]
         all_ttks = [*submit_ttks, submit_with_dual_mesh]
 
-        self.root.bind("<<DualGraphCreationStarted>>", self._create_state_change_callback(*all_ttks, state="disabled"), add="+")
-        self.root.bind("<<DualGraphCreationFinished>>", self._create_state_change_callback(*submit_ttks, state="normal"), add="+")
+        self.root.bind(
+            "<<DualGraphCreationStarted>>", self._create_state_change_callback(*all_ttks, state="disabled"), add="+"
+        )
+        self.root.bind(
+            "<<DualGraphCreationFinished>>", self._create_state_change_callback(*submit_ttks, state="normal"), add="+"
+        )
         # additionaly bind submit_with_dual_mesh to respective events
-        self.root.bind("<<DualMeshCreationStarted>>", self._create_state_change_callback(submit_with_dual_mesh, state="disabled"), add="+")
-        self.root.bind("<<DualMeshCreationFinished>>", self._create_state_change_callback(submit_with_dual_mesh, state="normal"), add="+")
+        self.root.bind(
+            "<<DualMeshCreationStarted>>",
+            self._create_state_change_callback(submit_with_dual_mesh, state="disabled"),
+            add="+",
+        )
+        self.root.bind(
+            "<<DualMeshCreationFinished>>",
+            self._create_state_change_callback(submit_with_dual_mesh, state="normal"),
+            add="+",
+        )
         for element in all_ttks:
             element.configure(state="disabled")
 
@@ -456,15 +516,28 @@ class PlotterConfig:
         transparent_faces.grid(row=10, column=1, sticky="w")
 
         violated_qubits_label = ttk.Label(frame, text="Errors on qubits")
-        validate_qubits_wrapper = (frame.register(self._create_violatedqubits_validator(
-            self.pm_violated_qubits, self.pm_violated_qubits_error_msg, [submit_button, submit_with_dual_mesh])), '%P', '%V')
-        violated_qubits.configure(textvariable=self.pm_violated_qubits, validate='all', validatecommand=validate_qubits_wrapper)
-        violated_qubits_msg = ttk.Label(frame, font='TkSmallCaptionFont', foreground='red', textvariable=self.pm_violated_qubits_error_msg)
+        validate_qubits_wrapper = (
+            frame.register(
+                self._create_violatedqubits_validator(
+                    self.pm_violated_qubits, self.pm_violated_qubits_error_msg, [submit_button, submit_with_dual_mesh]
+                )
+            ),
+            "%P",
+            "%V",
+        )
+        violated_qubits.configure(
+            textvariable=self.pm_violated_qubits, validate="all", validatecommand=validate_qubits_wrapper
+        )
+        violated_qubits_msg = ttk.Label(
+            frame, font="TkSmallCaptionFont", foreground="red", textvariable=self.pm_violated_qubits_error_msg
+        )
         violated_qubits_label.grid(row=20, column=0)
         violated_qubits.grid(row=20, column=1, columnspan=2, sticky="ew")
-        violated_qubits_msg.grid(row=21, column=1, columnspan=2, padx=5, pady=5, sticky='w')
+        violated_qubits_msg.grid(row=21, column=1, columnspan=2, padx=5, pady=5, sticky="w")
 
-        submit_with_dual_mesh.configure(text="Plot (with Dual)", command=self._create_primarymesh_plot_command(include_dual_mesh=True))
+        submit_with_dual_mesh.configure(
+            text="Plot (with Dual)", command=self._create_primarymesh_plot_command(include_dual_mesh=True)
+        )
         submit_with_dual_mesh.grid(row=100, column=0, sticky="se")
         submit_button.configure(text="Plot", command=self._create_primarymesh_plot_command(include_dual_mesh=False))
         submit_button.grid(row=100, column=1, sticky="se")

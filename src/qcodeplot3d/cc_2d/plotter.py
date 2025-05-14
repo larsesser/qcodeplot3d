@@ -1,4 +1,5 @@
 """Plotting dual lattice & constructed primary lattice from graph definition."""
+
 import abc
 import collections
 import dataclasses
@@ -30,7 +31,8 @@ class Plotter2D(Plotter, abc.ABC):
     dimension: ClassVar[int] = 2
 
     def layout_primary_nodes(
-            self, given_qubit_coordinates: dict[int, npt.NDArray[np.float64]],
+        self,
+        given_qubit_coordinates: dict[int, npt.NDArray[np.float64]],
     ) -> tuple[list[npt.NDArray[np.float64]], dict[int, int]]:
         # volumes -> vertices
 
@@ -40,7 +42,7 @@ class Plotter2D(Plotter, abc.ABC):
 
         # group dual lattice cells (of the tetrahedron) by qubit
         qubit_to_facepositions: dict[int, list[int]] = defaultdict(list)
-        for position, qubit in enumerate(self.dual_mesh.cell_data['qubits']):
+        for position, qubit in enumerate(self.dual_mesh.cell_data["qubits"]):
             qubit_to_facepositions[qubit].append(position)
 
         for pointposition, (qubit, facepositions) in enumerate(qubit_to_facepositions.items()):
@@ -61,17 +63,25 @@ class Plotter2D(Plotter, abc.ABC):
 
     @abc.abstractmethod
     def postprocess_primary_node_layout(
-            self, points: list[npt.NDArray[np.float64]], qubit_to_pointpos: dict[int, int],
-    ) -> list[npt.NDArray[np.float64]]:
-        ...
+        self,
+        points: list[npt.NDArray[np.float64]],
+        qubit_to_pointpos: dict[int, int],
+    ) -> list[npt.NDArray[np.float64]]: ...
 
-    def construct_primary_mesh(self, highlighted_volumes: list[DualGraphNode] = None,
-                               qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None,
-                               face_color: Union[Color, list[Color]] = None, node_color: Union[Color, list[Color]] = None,
-                               lowest_title: tuple[int, int, int] = None, highest_title: tuple[int, int, int] = None,
-                               mandatory_face_qubits: set[int] = None, string_operator_qubits: set[int] = None,
-                               color_edges: bool = False, mandatory_cell_qubits: set[int] = None,
-                               face_syndrome_qubits: set[int] = None) -> pyvista.PolyData:
+    def construct_primary_mesh(
+        self,
+        highlighted_volumes: list[DualGraphNode] = None,
+        qubit_coordinates: dict[int, npt.NDArray[np.float64]] = None,
+        face_color: Union[Color, list[Color]] = None,
+        node_color: Union[Color, list[Color]] = None,
+        lowest_title: tuple[int, int, int] = None,
+        highest_title: tuple[int, int, int] = None,
+        mandatory_face_qubits: set[int] = None,
+        string_operator_qubits: set[int] = None,
+        color_edges: bool = False,
+        mandatory_cell_qubits: set[int] = None,
+        face_syndrome_qubits: set[int] = None,
+    ) -> pyvista.PolyData:
         """Construct primary mesh from dual_mesh.
 
         :param qubit_coordinates: Use them instead of calculating the coordinates from the dual_mesh.
@@ -128,22 +138,24 @@ class Plotter2D(Plotter, abc.ABC):
                         line_ids.append(self.next_id)
                         line_colors.append(face_colors_by_pos[pos1].highlight)
         ret = pyvista.PolyData(points, faces=convert_faces(faces), lines=convert_faces(lines) if lines else None)
-        ret.point_data['qubits'] = qubits
-        ret.cell_data['face_ids'] = [*line_ids, *face_ids]
-        ret.cell_data['colors'] = [*line_colors, *face_colors]
-        ret.cell_data['pyvista_indices'] = [*([-1]*len(lines)), *face_indices]
+        ret.point_data["qubits"] = qubits
+        ret.cell_data["face_ids"] = [*line_ids, *face_ids]
+        ret.cell_data["colors"] = [*line_colors, *face_colors]
+        ret.cell_data["pyvista_indices"] = [*([-1] * len(lines)), *face_indices]
         return ret
 
 
 @dataclasses.dataclass
 class TriangularPlotter(Plotter2D):
     def postprocess_primary_node_layout(
-            self, points: list[npt.NDArray[np.float64]], qubit_to_pointpos: dict[int, int],
+        self,
+        points: list[npt.NDArray[np.float64]],
+        qubit_to_pointpos: dict[int, int],
     ) -> list[npt.NDArray[np.float64]]:
         qubit_to_point = {qubit: points[pointpos] for qubit, pointpos in qubit_to_pointpos.items()}
         corner_qubits = {qubit: nodes for qubit, nodes in self.qubit_to_boundaries.items() if len(nodes) == 2}
         border_qubits = {qubit: nodes for qubit, nodes in self.qubit_to_boundaries.items() if len(nodes) == 1}
-        border_to_qubit: dict[int: list[int]] = collections.defaultdict(list)
+        border_to_qubit: dict[int : list[int]] = collections.defaultdict(list)
         for qubit, nodes in border_qubits.items():
             border_to_qubit[nodes[0].index].append(qubit)
         bulk_qubits = {qubit for qubit, nodes in self.qubit_to_boundaries.items() if len(nodes) == 0}
@@ -172,18 +184,29 @@ class TriangularPlotter(Plotter2D):
                 continue
             to_plane = {
                 qubit: coordinate
-                for qubit, coordinate in zip(qubits, project_to_given_plane(
-                    [line[0], line[1], dual_mesh_center], [qubit_to_point[qubit] for qubit in qubits]))
+                for qubit, coordinate in zip(
+                    qubits,
+                    project_to_given_plane(
+                        [line[0], line[1], dual_mesh_center], [qubit_to_point[qubit] for qubit in qubits]
+                    ),
+                )
             }
             for qubit, coordinate in to_plane.items():
                 new_coordinate = cross_point_2_lines(line, [dual_mesh_center, coordinate])
                 qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = new_coordinate
 
             # move first and last qubit of each border more towards the corner
-            tmp = {qubit: distance_between_points(line[0], project_to_line(line, qubit_to_point[qubit])) for qubit in qubits}
+            tmp = {
+                qubit: distance_between_points(line[0], project_to_line(line, qubit_to_point[qubit]))
+                for qubit in qubits
+            }
             qubit_order = sorted(tmp, key=lambda x: tmp[x])
-            qubit_to_point[qubit_order[0]] = points[qubit_to_pointpos[qubit_order[0]]] = (2*qubit_to_point[qubit_order[0]] + line[0]) / 3
-            qubit_to_point[qubit_order[-1]] = points[qubit_to_pointpos[qubit_order[-1]]] = (2*qubit_to_point[qubit_order[-1]] + line[1]) / 3
+            qubit_to_point[qubit_order[0]] = points[qubit_to_pointpos[qubit_order[0]]] = (
+                2 * qubit_to_point[qubit_order[0]] + line[0]
+            ) / 3
+            qubit_to_point[qubit_order[-1]] = points[qubit_to_pointpos[qubit_order[-1]]] = (
+                2 * qubit_to_point[qubit_order[-1]] + line[1]
+            ) / 3
             # TODO scale remaining qubits better
             # assign equal-spaced coordinates to each qubit
             # qubit_distance = (line[1] - line[0]) / (len(qubits) + 3)
@@ -220,12 +243,14 @@ class TriangularPlotter(Plotter2D):
         lines = reconvert_faces(primary_mesh.lines)
         faces = reconvert_faces(primary_mesh.faces)
         dg_index_to_points: dict[int, dict[int, npt.NDArray[np.float64]]] = defaultdict(dict)
-        for dg_index, face in zip(primary_mesh.cell_data['pyvista_indices'][len(lines):], faces):
+        for dg_index, face in zip(primary_mesh.cell_data["pyvista_indices"][len(lines) :], faces):
             for pos in face:
-                dg_index_to_points[dg_index][primary_mesh.point_data['qubits'][pos]] = primary_mesh.points[pos]
+                dg_index_to_points[dg_index][primary_mesh.point_data["qubits"][pos]] = primary_mesh.points[pos]
 
-        corner_qubits = {(set(node1.qubits) & set(node2.qubits)).pop()
-                         for node1, node2 in itertools.combinations(self.boundary_nodes, 2)}
+        corner_qubits = {
+            (set(node1.qubits) & set(node2.qubits)).pop()
+            for node1, node2 in itertools.combinations(self.boundary_nodes, 2)
+        }
 
         # compute the center of each volume
         ret: dict[int, npt.NDArray[np.float64]] = {}
@@ -257,7 +282,9 @@ class SquarePlotter(Plotter2D):
         return factor
 
     def postprocess_primary_node_layout(
-            self, points: list[npt.NDArray[np.float64]], qubit_to_pointpos: dict[int, int],
+        self,
+        points: list[npt.NDArray[np.float64]],
+        qubit_to_pointpos: dict[int, int],
     ) -> list[npt.NDArray[np.float64]]:
         """Move qubits at the outside more outward, to form an even plane at each boundary."""
         qubit_to_point = {qubit: points[pointpos] for qubit, pointpos in qubit_to_pointpos.items()}
@@ -278,7 +305,9 @@ class SquarePlotter(Plotter2D):
         }.get(self.distance, 0.03)
         for qubit in corner_qubits:
             coordinate = qubit_to_point[qubit]
-            qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = coordinate + corner_factor * (coordinate - center)
+            qubit_to_point[qubit] = points[qubit_to_pointpos[qubit]] = coordinate + corner_factor * (
+                coordinate - center
+            )
 
         # move all points at a border to the line of their corner qubits.
         for qubit in border_qubits:
@@ -310,13 +339,13 @@ class SquarePlotter(Plotter2D):
         border_qubits = {qubit: nodes for qubit, nodes in self.qubit_to_boundaries.items() if len(nodes) == 1}
 
         ret: dict[int, npt.NDArray[np.float64]] = {}
-        for dg_index, face in zip(primary_mesh.cell_data['pyvista_indices'][len(lines):], faces):
+        for dg_index, face in zip(primary_mesh.cell_data["pyvista_indices"][len(lines) :], faces):
             center = np.asarray([0.0, 0.0, 0.0])
             divisor = len(face)
             for pos in face:
                 center += primary_mesh.points[pos]
                 # align the center of hexagonal faces correctly
-                if primary_mesh.point_data['qubits'][pos] in border_qubits and len(face) == 6:
+                if primary_mesh.point_data["qubits"][pos] in border_qubits and len(face) == 6:
                     center += 2 * primary_mesh.points[pos]
                     divisor += 2
             center = center / divisor
