@@ -35,8 +35,8 @@ license-files = ["LICEN[CS]E*"]
 keywords = ["color code", "3D", "visualization", "2D"]
 
 [project.urls]
-Homepage = "https://github.com/pypa/sampleproject"
-Issues = "https://github.com/pypa/sampleproject/issues"
+Homepage = "https://github.com/larsesser/qcodeplot3d"
+Issues = "https://github.com/larsesser/qcodeplot3d/issues"
 
 [project.optional-dependencies]
 dev = [
