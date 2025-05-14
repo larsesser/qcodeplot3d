@@ -1,8 +1,0 @@
-matplotlib
-numpy
-psutil
-python-sat
-pyvista
-rustworkx
-scipy
-vtk

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools >= 77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -10,8 +10,8 @@ dependencies = [
     "numpy",
     "psutil",
     "python-sat",
-    "pyvista",
-    "rustworkx",
+    "pyvista >= 0.44.2",
+    "rustworkx >= 0.16.0",
     "scipy",
     "vtk",
 ]
