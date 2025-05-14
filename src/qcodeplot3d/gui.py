@@ -567,10 +567,10 @@ class QCodePlot3dGUI:
         self.plotter_config = PlotterConfig(self.root, self.pool, self.code_config)
         plotter_config_frame = self.plotter_config.create_dual_config_frame(content)
         plotter_config_frame.grid(row=0, column=10, sticky="nsew")
-        plotter_dm_plot_frame = self.plotter_config.create_dual_plot_frame(content)
-        plotter_dm_plot_frame.grid(row=10, column=0, sticky="nsew")
         plotter_pm_plot_frame = self.plotter_config.create_primary_plot_frame(content)
-        plotter_pm_plot_frame.grid(row=10, column=10, sticky="nsew")
+        plotter_pm_plot_frame.grid(row=10, column=0, sticky="nsew")
+        plotter_dm_plot_frame = self.plotter_config.create_dual_plot_frame(content)
+        plotter_dm_plot_frame.grid(row=10, column=10, sticky="nsew")
 
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
