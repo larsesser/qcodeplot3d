@@ -1,5 +1,6 @@
 import os
 import signal
+import webbrowser
 from concurrent.futures import Executor, Future, ProcessPoolExecutor
 from enum import Enum
 from tkinter import BooleanVar, IntVar, StringVar, Tk, ttk
@@ -74,6 +75,15 @@ def change_state(*elem: list[ttk.Widget], state: str) -> None:
             e.configure(state="readonly")
         else:
             e.configure(state=state)
+
+
+def create_hyperlink(root: Tk, text: str, url: str) -> ttk.Label:
+    def callback(event):
+        webbrowser.open_new(url)
+
+    link = ttk.Label(root, text=text, foreground="blue", cursor="hand2")
+    link.bind("<Button-1>", callback)
+    return link
 
 
 class CodeConfig:
@@ -571,6 +581,13 @@ class QCodePlot3dGUI:
         plotter_pm_plot_frame.grid(row=10, column=0, sticky="nsew")
         plotter_dm_plot_frame = self.plotter_config.create_dual_plot_frame(content)
         plotter_dm_plot_frame.grid(row=10, column=10, sticky="nsew")
+
+        link = create_hyperlink(
+            content,
+            text="Consult the PyVista Documentation at how to manipulating the plotting windows.",
+            url=r"https://docs.pyvista.org/api/plotting/plotting.html#plotting",
+        )
+        link.grid(row=11, column=0, columnspan=20, sticky="nsew")
 
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
