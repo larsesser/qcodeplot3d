@@ -657,7 +657,7 @@ class Plotter(abc.ABC):
 
         plt = pyvista.plotting.Plotter(theme=self.get_plotting_theme(), off_screen=filename is not None)
         if show_labels:
-            plt.add_point_labels(mesh, "point_labels", point_size=point_size, font_size=20)
+            plt.add_point_labels(mesh, "point_labels", point_size=point_size, font_size=30, always_visible=True)
         if edge_color:
             plt.add_mesh(
                 mesh,
@@ -873,7 +873,7 @@ class Plotter(abc.ABC):
             plt.add_points(coordinates, point_size=point_size, color=color)
             if show_qubit_labels:
                 qubit_labels = [f"{qubit}" for pos, qubit in enumerate(mesh.point_data["qubits"]) if pos in positions]
-                plt.add_point_labels(coordinates, qubit_labels, show_points=False, font_size=20)
+                plt.add_point_labels(coordinates, qubit_labels, show_points=False, font_size=30, always_visible=True)
 
         if not color_edges:
             plt.add_mesh(
