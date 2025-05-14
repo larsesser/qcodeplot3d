@@ -3,7 +3,7 @@ import signal
 from concurrent.futures import Executor, Future, ProcessPoolExecutor
 from enum import Enum
 from tkinter import BooleanVar, IntVar, StringVar, Tk, ttk
-from typing import Callable, Optional, Union
+from typing import Callable, Optional
 
 import psutil
 import pyvista
@@ -67,14 +67,12 @@ class CodeTypes(Enum):
         return [cls.cubic.value, cls.tetrahedral.value]
 
 
-def change_state(elem: Union[ttk.Widget, list[ttk.Widget]], state: str) -> None:
-    # we use Combobox as dropdown and do not support custom entries
-    if isinstance(elem, ttk.Combobox) and state == "normal":
-        state = "readonly"
-    if isinstance(elem, ttk.Widget):
-        elem.configure(state=state)
-    else:
-        for e in elem:
+def change_state(*elem: list[ttk.Widget], state: str) -> None:
+    for e in elem:
+        # we use Combobox as dropdown and do not support custom entries
+        if isinstance(e, ttk.Combobox) and state == "normal":
+            e.configure(state="readonly")
+        else:
             e.configure(state=state)
 
 
@@ -158,12 +156,12 @@ class CodeConfig:
                 self.dimension = self._dimension.get()
                 self.codetype = CodeTypes(self._codetype.get())
                 self.distance = self._distance.get()
-                change_state(all_ttk, state="normal")
+                change_state(*all_ttk, state="normal")
                 self.root.event_generate("<<DualGraphCreationFinished>>")
 
             progressbar.start()
             self.root.event_generate("<<DualGraphCreationStarted>>")
-            change_state(all_ttk, state="disabled")
+            change_state(*all_ttk, state="disabled")
             f_: Future = self.pool.submit(CodeTypes(self._codetype.get()).graph_function, self._distance.get())
             f_.add_done_callback(callback)
 
@@ -290,7 +288,7 @@ class PlotterConfig:
     @staticmethod
     def _create_state_change_callback(*args, state: str) -> Callable:
         def callback(*_) -> None:
-            change_state(args, state=state)
+            change_state(*args, state=state)
 
         return callback
 
@@ -331,11 +329,11 @@ class PlotterConfig:
             def callback(f: Future) -> None:
                 self.dual_graph_mesh = f.result()
                 progressbar.stop()
-                change_state(all_ttk, state="normal")
+                change_state(*all_ttk, state="normal")
                 self.root.event_generate("<<DualMeshCreationFinished>>")
 
             progressbar.start()
-            change_state(all_ttk, state="disabled")
+            change_state(*all_ttk, state="disabled")
             self.root.event_generate("<<DualMeshCreationStarted>>")
             # highlight all nodes to make them more distinguishable
             highlighted_nodes = self.code_config.dual_graph.nodes()
