@@ -292,9 +292,7 @@ class PlotterConfig:
 
         return callback
 
-    def _create_violatedqubits_validator(
-        self, value_store: StringVar, error_store: StringVar, submits: list[ttk.Button]
-    ) -> Callable:
+    def _create_violatedqubits_validator(self, value_store: StringVar, error_store: StringVar) -> Callable:
         def validator(new_value: str, operation: str) -> bool:
             error_store.set("")
             if new_value == "":
@@ -391,9 +389,7 @@ class PlotterConfig:
         violated_qubits_label = ttk.Label(frame, text="Errors on qubits")
         validate_qubits_wrapper = (
             frame.register(
-                self._create_violatedqubits_validator(
-                    self.dm_violated_qubits, self.dm_violated_qubits_error_msg, submit
-                )
+                self._create_violatedqubits_validator(self.dm_violated_qubits, self.dm_violated_qubits_error_msg)
             ),
             "%P",
             "%V",
@@ -401,12 +397,14 @@ class PlotterConfig:
         violated_qubits.configure(
             textvariable=self.dm_violated_qubits, validate="all", validatecommand=validate_qubits_wrapper
         )
+        violated_qubits_info = ttk.Label(frame, font="TkSmallCaptionFont", text="Comma separated list of qubits.")
         violated_qubits_msg = ttk.Label(
             frame, font="TkSmallCaptionFont", foreground="red", textvariable=self.dm_violated_qubits_error_msg
         )
         violated_qubits_label.grid(row=20, column=0)
         violated_qubits.grid(row=20, column=1, columnspan=2, sticky="ew")
-        violated_qubits_msg.grid(row=21, column=1, columnspan=2, padx=5, pady=5, sticky="w")
+        violated_qubits_info.grid(row=21, column=1, columnspan=2, padx=5, sticky="w")
+        violated_qubits_msg.grid(row=22, column=1, columnspan=2, padx=5, sticky="w")
 
         submit.configure(text="Build", command=self._create_dualmesh_create_command(all_ttk, progress_bar))
         submit.grid(row=100, column=1, sticky="se")
@@ -517,7 +515,8 @@ class PlotterConfig:
         validate_qubits_wrapper = (
             frame.register(
                 self._create_violatedqubits_validator(
-                    self.pm_violated_qubits, self.pm_violated_qubits_error_msg, [submit_button, submit_with_dual_mesh]
+                    self.pm_violated_qubits,
+                    self.pm_violated_qubits_error_msg,
                 )
             ),
             "%P",
@@ -526,12 +525,14 @@ class PlotterConfig:
         violated_qubits.configure(
             textvariable=self.pm_violated_qubits, validate="all", validatecommand=validate_qubits_wrapper
         )
+        violated_qubits_info = ttk.Label(frame, font="TkSmallCaptionFont", text="Comma separated list of qubits.")
         violated_qubits_msg = ttk.Label(
             frame, font="TkSmallCaptionFont", foreground="red", textvariable=self.pm_violated_qubits_error_msg
         )
         violated_qubits_label.grid(row=20, column=0)
         violated_qubits.grid(row=20, column=1, columnspan=2, sticky="ew")
-        violated_qubits_msg.grid(row=21, column=1, columnspan=2, padx=5, pady=5, sticky="w")
+        violated_qubits_info.grid(row=21, column=1, columnspan=2, padx=5, sticky="w")
+        violated_qubits_msg.grid(row=22, column=1, columnspan=2, padx=5, sticky="w")
 
         submit_with_dual_mesh.configure(
             text="Plot (with Dual)", command=self._create_primarymesh_plot_command(include_dual_mesh=True)
