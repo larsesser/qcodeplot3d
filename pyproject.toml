@@ -13,7 +13,6 @@ dependencies = [
     "pyvista >= 0.44.2",
     "rustworkx >= 0.16.0",
     "scipy",
-    "vtk",
 ]
 authors = [
   { name="Lars Esser", email="mail@lars-esser.de" },

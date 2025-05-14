@@ -8,6 +8,7 @@ import re
 from collections import defaultdict
 from functools import cached_property
 from tempfile import NamedTemporaryFile
+from types import SimpleNamespace
 from typing import ClassVar, Optional, Union
 
 import numpy as np
@@ -16,7 +17,6 @@ import pyvista
 import pyvista.plotting
 import pyvista.plotting.themes
 import rustworkx as rx
-import vtk
 from rustworkx.visualization import graphviz_draw
 
 from qcodeplot3d.common import compute_simplexes
@@ -25,6 +25,11 @@ from qcodeplot3d.common.stabilizers import Color
 
 # see https://docs.pyvista.org/version/stable/api/core/_autosummary/pyvista.polydata.n_faces#pyvista.PolyData.n_faces
 pyvista.PolyData.use_strict_n_faces(True)
+
+
+# This is the only usage of the vtk package in this module. Instead of importing the package,
+# we simply save the constant in a Namespace mockup here.
+vtk = SimpleNamespace(vtkCommand=SimpleNamespace(EndInteractionEvent=45))
 
 
 def convert_faces(faces: list[list[int]]) -> list[int]:
