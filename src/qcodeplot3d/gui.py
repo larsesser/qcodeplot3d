@@ -3,7 +3,7 @@ import signal
 from concurrent.futures import Executor, Future, ProcessPoolExecutor
 from enum import Enum
 from tkinter import BooleanVar, IntVar, StringVar, Tk, ttk
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 
 import psutil
 import pyvista
@@ -67,7 +67,7 @@ class CodeTypes(Enum):
         return [cls.cubic.value, cls.tetrahedral.value]
 
 
-def change_state(elem: ttk.Widget | list[ttk.Widget], state: str) -> None:
+def change_state(elem: Union[ttk.Widget, list[ttk.Widget]], state: str) -> None:
     # we use Combobox as dropdown and do not support custom entries
     if isinstance(elem, ttk.Combobox) and state == "normal":
         state = "readonly"
